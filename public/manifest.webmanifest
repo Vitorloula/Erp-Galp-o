@@ -1,0 +1,14 @@
+{
+  "name": "Galpão · Controle de Estoque",
+  "short_name": "Galpão",
+  "description": "Controle de entradas, saídas e validade de defensivos e fertilizantes.",
+  "lang": "pt-BR",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8fafc",
+  "theme_color": "#047857",
+  "icons": [
+    { "src": "/icone.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

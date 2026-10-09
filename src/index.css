@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-tap-highlight-color: transparent;
+    /* No celular, ao rolar até um campo (foco, teclado, links), não deixá-lo
+       atrás do cabeçalho fixo nem da barra de navegação inferior. */
+    scroll-padding-top: 4.5rem;
+    scroll-padding-bottom: 7rem;
+    @apply bg-slate-100;
+  }
+  @media (min-width: 1024px) {
+    html {
+      scroll-padding-top: 1rem;
+      scroll-padding-bottom: 1rem;
+    }
+  }
+  body {
+    @apply bg-slate-100 text-slate-900 antialiased;
+  }
+  input[type='date'] {
+    min-height: 2.75rem;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2
+      active:scale-[.98] disabled:pointer-events-none disabled:opacity-50;
+  }
+  .btn-primario {
+    @apply bg-emerald-700 text-white shadow-sm hover:bg-emerald-800;
+  }
+  .btn-secundario {
+    @apply border border-slate-300 bg-white text-slate-700 shadow-sm hover:bg-slate-50;
+  }
+  .btn-perigo {
+    @apply bg-red-600 text-white shadow-sm hover:bg-red-700;
+  }
+  .btn-fantasma {
+    @apply text-slate-600 hover:bg-slate-100;
+  }
+  .btn-grande {
+    @apply rounded-2xl px-5 py-3.5 text-base;
+  }
+  .campo {
+    @apply block w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-base text-slate-900 shadow-sm outline-none transition
+      placeholder:text-slate-400 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/15 disabled:bg-slate-100 sm:text-sm;
+  }
+  .rotulo {
+    @apply mb-1.5 block text-sm font-medium text-slate-700;
+  }
+  .cartao {
+    @apply rounded-2xl border border-slate-200 bg-white shadow-sm;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-medium transition;
+  }
+  .chip-ativo {
+    @apply border-emerald-700 bg-emerald-700 text-white;
+  }
+  .chip-inativo {
+    @apply border-slate-300 bg-white text-slate-600 hover:bg-slate-50;
+  }
+
+  /* Padrão visual de alertas: linha vermelha e linha amarela */
+  .linha-vencido,
+  .linha-zerado {
+    @apply bg-red-50 text-red-950 shadow-[inset_4px_0_0_var(--color-red-500)];
+  }
+  .linha-vencendo {
+    @apply bg-amber-50 text-amber-950 shadow-[inset_4px_0_0_var(--color-amber-400)];
+  }
+  .linha-ok {
+    @apply bg-white;
+  }
+}
+
+/* Faixas de filtros roláveis no celular, sem barra de rolagem visível */
+.rolagem-x {
+  scrollbar-width: none;
+}
+.rolagem-x::-webkit-scrollbar {
+  display: none;
+}
+
+.pb-seguro {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Área de vídeo do leitor de código de barras */
+.leitor-video video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+}
