@@ -60,6 +60,7 @@ O computador vira o "servidor": abra o endereço `Network` mostrado no terminal 
 
 1. Crie uma conta em [supabase.com](https://supabase.com) e um projeto novo (plano **Free**). Região sugerida: **South America (São Paulo)**.
 2. No projeto, abra **SQL Editor → New query**, cole todo o conteúdo de [`supabase/schema.sql`](supabase/schema.sql) e clique em **Run**.
+   - **Banco criado antes de 08/10/2026?** Rode também [`supabase/correcoes/2026-10-08_exclusao-de-usuario.sql`](supabase/correcoes/2026-10-08_exclusao-de-usuario.sql), que corrige a exclusão de usuários que já fizeram lançamentos.
 3. Em **Authentication → URL Configuration**, preencha **Site URL** com o endereço final do sistema (passo 3), para os links de confirmação de e-mail funcionarem.
 4. Em **Project Settings → API**, copie a **Project URL** e a chave **anon public** (ou "publishable").
 

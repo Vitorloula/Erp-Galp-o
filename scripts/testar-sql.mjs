@@ -175,5 +175,20 @@ await comoUsuario(null, async () => {
 console.log('\nDono do banco (postgres):')
 await esperaErro('mesmo o dono do banco não apaga o histórico', () => db.query(`delete from public.movimentacoes`), 'não pode ser alterado')
 
+console.log('\nExclusão de usuário (ex.: funcionário que saiu da empresa):')
+try {
+  const antes = (await db.query(`select count(*)::int as n from public.movimentacoes where usuario_id = $1`, [op])).rows[0].n
+  await db.query(`delete from auth.users where id = $1`, [op])
+  passou('excluir usuário que já lançou movimentações e cadastrou produtos funciona')
+  const depois = await db.query(`select count(*)::int as n, min(usuario_nome) as nome from public.movimentacoes where usuario_id = $1`, [op])
+  depois.rows[0].n === antes && depois.rows[0].nome === 'Operador João'
+    ? passou(`histórico preservado com o nome de quem lançou (${antes} lançamentos de "${depois.rows[0].nome}")`)
+    : falhou('histórico após exclusão', JSON.stringify(depois.rows[0]))
+  const perfil = await db.query(`select count(*)::int as n from public.perfis where id = $1`, [op])
+  perfil.rows[0].n === 0 ? passou('perfil do usuário excluído é removido') : falhou('perfil não removido')
+} catch (e) {
+  falhou('excluir usuário que já lançou movimentações', e.message.split('\n')[0])
+}
+
 console.log(`\n${ok} verificações OK, ${falhas} falha(s).`)
 process.exit(falhas ? 1 : 0)

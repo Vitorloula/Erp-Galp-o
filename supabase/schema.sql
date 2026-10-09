@@ -112,7 +112,8 @@ create table public.produtos (
   observacao          text,
   ativo               boolean not null default true,
   criado_em           timestamptz not null default now(),
-  criado_por          uuid default auth.uid() references auth.users (id) on delete set null,
+  -- Sem chave estrangeira para auth.users: excluir um usuário não pode alterar registros antigos.
+  criado_por          uuid default auth.uid(),
   constraint produtos_codigo_interno_unico unique (codigo_interno)
 );
 
@@ -212,7 +213,9 @@ create table public.movimentacoes (
   documento      text,
   observacao     text,
   referencia_id  bigint references public.movimentacoes (id),
-  usuario_id     uuid references auth.users (id) on delete set null,
+  -- Sem chave estrangeira para auth.users: o histórico é imutável e precisa sobreviver
+  -- à exclusão do usuário (fica o id e o nome de quem lançou).
+  usuario_id     uuid,
   usuario_nome   text,
   constraint movimentacoes_quantidade_valida check (
     (tipo in ('ENTRADA', 'SAIDA') and quantidade > 0)
