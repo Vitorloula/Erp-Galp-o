@@ -3,7 +3,9 @@
 > **Branch `saas` — em desenvolvimento (fase 1 do PDV por assinatura).**
 > O banco multiempresa está em [`supabase/migrations/`](supabase/migrations) e é testado por `npm run test:sql`
 > (isolamento entre empresas, papéis, convites, plano/assinatura, histórico imutável, desempenho).
-> As telas ainda usam o modelo da versão do galpão e serão adaptadas nas próximas etapas.
+> O novo servidor local ([`servidor-local/supabase-local.ts`](servidor-local/supabase-local.ts)) já roda essas migrações num PostgreSQL embutido,
+> imitando Auth, API REST e tempo real do Supabase (testado com o supabase-js oficial em `npm test`).
+> As telas ainda usam o modelo da versão do galpão e passam para o banco novo na próxima etapa.
 > A versão entregue ao cliente galpão fica no branch `galpao-1.x` (tags `v1.0.0-galpao`, `v1.0.1-galpao`).
 
 Controle de entradas, saídas e baixas de **defensivos agrícolas e fertilizantes**, com leitura de código de barras pela câmera do celular, alertas de validade e relatórios em Excel/PDF. Funciona no computador e no celular, 100% online, com custo mensal zero (Supabase + hospedagem estática gratuita).
@@ -134,7 +136,7 @@ Além disso:
 
 ```bash
 npm run dev        # servidor local (modo demonstração se não houver .env)
-npm test           # testes das regras (alertas, validade, GS1, demonstração, Excel/PDF)
+npm test           # testes das regras (alertas, validade, GS1, Excel/PDF) e do servidor local (Auth, REST, tempo real)
 npm run test:sql   # testa supabase/schema.sql num PostgreSQL embutido (RLS, imutabilidade, saldo)
 npm run test:e2e   # testes de ponta a ponta das telas no navegador (Playwright + Microsoft Edge)
 npm run test:tudo  # build + todos os testes acima
@@ -156,8 +158,9 @@ Depois de rodar, `npm run test:e2e:relatorio` abre o relatório com capturas de 
 Para apontar o ambiente local para o Supabase, copie `.env.example` para `.env` e preencha.
 
 ```
-supabase/schema.sql        banco: tabelas, regras, RLS, tempo real
+supabase/migrations/       banco multiempresa (PDV por assinatura)
 scripts/testar-sql.mjs     testes de segurança do banco
+servidor-local/            Supabase local: banco real (PGlite) + Auth, REST (PostgREST) e Realtime simulados
 src/lib/dados/             acesso a dados (Supabase e demonstração)
 src/lib/estoque.ts         regras de alerta (vermelho/amarelo) e FEFO
 src/lib/gs1.ts             leitura de DataMatrix/GS1 (lote e validade)

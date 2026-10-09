@@ -7,28 +7,8 @@ import { readdirSync, readFileSync } from 'node:fs'
 const PASTA = new URL('../supabase/migrations/', import.meta.url)
 const migracoes = readdirSync(PASTA).filter(f => /^\d{14}_.+\.sql$/.test(f)).sort()
 
-const STUB_SUPABASE = `
-  create role anon nologin;
-  create role authenticated nologin;
-  create schema auth;
-  grant usage on schema public, auth to anon, authenticated;
-  create table auth.users (
-    id uuid primary key default gen_random_uuid(),
-    email text,
-    raw_user_meta_data jsonb default '{}'::jsonb
-  );
-  create function auth.uid() returns uuid language sql stable as $$
-    select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
-  $$;
-  create function auth.jwt() returns jsonb language sql stable as $$
-    select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb
-  $$;
-  grant execute on function auth.uid(), auth.jwt() to anon, authenticated;
-  create publication supabase_realtime;
-  alter default privileges in schema public grant all on tables to anon, authenticated;
-  alter default privileges in schema public grant all on sequences to anon, authenticated;
-  alter default privileges in schema public grant all on functions to anon, authenticated;
-`
+// Mesmo ambiente simulado usado pelo servidor local (roles, auth.users, auth.uid(), auth.jwt()).
+const AMBIENTE_SUPABASE = readFileSync(new URL('../servidor-local/ambiente-supabase.sql', import.meta.url), 'utf8')
 
 const db = new PGlite()
 let ok = 0
@@ -78,7 +58,7 @@ async function criarUsuario(email, nome) {
 
 // ======================================================================
 console.log('Criando ambiente Supabase simulado...')
-await db.exec(STUB_SUPABASE)
+await db.exec(AMBIENTE_SUPABASE)
 for (const m of migracoes) {
   await db.exec(readFileSync(new URL(m, PASTA), 'utf8'))
   passou(`migração ${m}`)

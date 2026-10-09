@@ -10,3 +10,4 @@ playwright-report
 .e2e
 servidor-local/dados.json
 servidor-local/*.tmp
+servidor-local/banco/

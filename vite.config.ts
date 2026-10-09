@@ -19,5 +19,5 @@ export default defineConfig(({ mode }) => ({
   },
   // Excel/PDF/câmera são carregados sob demanda; o aviso de tamanho não se aplica a eles.
   build: { chunkSizeWarningLimit: 1000 },
-  test: { include: ['src/**/*.test.ts'] },
+  test: { include: ['src/**/*.test.ts', 'servidor-local/**/*.test.ts'] },
 }))
