@@ -4,6 +4,7 @@ import { LeitorCodigo } from '../../components/LeitorCodigo'
 import { useToast } from '../../components/Toast'
 import { Aviso, Modal, cx } from '../../components/ui'
 import { useAuth } from '../../contexto/Auth'
+import { useAtualizacao } from '../../lib/atualizacao'
 import { useAtiva } from '../../contexto/Empresa'
 import { formatarNumero, lerNumero } from '../../lib/formato'
 import { usePdv, type Leitura } from '../../pdv/contexto'
@@ -53,6 +54,7 @@ export function TelaVenda({ abrirMenu }: { abrirMenu: () => void }) {
   const [cupom, setCupom] = useState<DadosCupom | null>(null)
   const campo = useRef<HTMLInputElement>(null)
   const totais = useMemo(() => calcularTotais(itens, descontoVenda), [itens, descontoVenda])
+  const atualizacao = useAtualizacao()
 
   useEffect(() => {
     if (!modal && !editando && !concluida) campo.current?.focus()
@@ -227,6 +229,12 @@ export function TelaVenda({ abrirMenu }: { abrirMenu: () => void }) {
             <ShoppingCart className="size-10" />
             <p className="text-sm">Passe o código de barras ou digite o código/nome do produto.</p>
             <p className="text-xs">F2 buscar · F3 desconto · F4 pagar · F10 menu</p>
+            {/* Versão nova só é aplicada com a venda vazia */}
+            {atualizacao.disponivel && (
+              <button className="btn btn-secundario mt-3 text-sm text-slate-700" onClick={atualizacao.atualizar}>
+                Atualizar o aplicativo
+              </button>
+            )}
           </div>
         ) : (
           <ul className="flex-1 divide-y divide-slate-100 overflow-y-auto">

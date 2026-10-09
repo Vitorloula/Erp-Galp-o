@@ -1,14 +1,18 @@
 {
   "name": "Controle de Estoque",
   "short_name": "Estoque",
-  "description": "Controle de entradas, saídas e validade de defensivos e fertilizantes.",
+  "description": "Estoque com lote e validade, caixa (PDV) que vende sem internet e relatórios.",
   "lang": "pt-BR",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
   "background_color": "#f8fafc",
   "theme_color": "#047857",
   "icons": [
     { "src": "/icone.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Abrir o caixa", "short_name": "Caixa", "url": "/pdv" }
   ]
 }

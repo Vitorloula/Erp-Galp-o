@@ -22,6 +22,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useAtualizacao } from '../lib/atualizacao'
 import { vendas as dadosVendas } from '../lib/dados'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import { useAuth } from '../contexto/Auth'
@@ -99,6 +100,7 @@ export function Layout() {
   const { empresa, loja, lojas, vinculos, pode, trocarLoja } = useAtiva()
   const { erro, recarregar, versao } = useDados()
   const [divergencias, setDivergencias] = useState(0)
+  const atualizacao = useAtualizacao()
   const [tentando, setTentando] = useState(false)
   const [escolhendo, setEscolhendo] = useState(false)
   const online = useOnline()
@@ -212,6 +214,16 @@ export function Layout() {
                 }}
               >
                 <RefreshCw className={cx('size-3.5', tentando && 'animate-spin')} /> {tentando ? 'Tentando...' : 'Tentar de novo'}
+              </button>
+            </span>
+          </Aviso>
+        )}
+        {atualizacao.disponivel && (
+          <Aviso tom="info">
+            <span className="flex flex-wrap items-center justify-between gap-2">
+              <span>Há uma versão nova do sistema.</span>
+              <button className="btn btn-secundario px-3 py-1.5 text-xs" onClick={atualizacao.atualizar}>
+                <RefreshCw className="size-3.5" /> Atualizar agora
               </button>
             </span>
           </Aviso>

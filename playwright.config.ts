@@ -42,13 +42,18 @@ export default defineConfig({
   timeout: 45_000,
   expect: { timeout: 8_000 },
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
-  use: { locale: 'pt-BR', timezoneId: FUSO, trace: 'retain-on-failure', screenshot: 'only-on-failure', acceptDownloads: true },
+  // O aplicativo instalável (service worker) fica desligado, exceto no projeto "pwa".
+  use: { locale: 'pt-BR', timezoneId: FUSO, trace: 'retain-on-failure', screenshot: 'only-on-failure', acceptDownloads: true, serviceWorkers: 'block' },
   projects: [
     // Telas do sistema, cada teste com a própria empresa de exemplo no banco real (PGlite).
     { name: 'app-computador', testMatch: 'app/**/*.spec.ts', use: { ...navegador, ...computador, baseURL: APP } },
     { name: 'app-celular', testMatch: 'app/**/*.spec.ts', use: { ...navegador, ...celular, baseURL: APP } },
     { name: 'camera', testMatch: 'camera/leitor.spec.ts', use: { ...navegador, ...celular, baseURL: APP, ...cameraFalsa(VIDEO_CAMERA) } },
     { name: 'camera-sem-codigo', testMatch: 'camera/sem-codigo.spec.ts', use: { ...navegador, ...celular, baseURL: APP, ...cameraFalsa(VIDEO_SEM_CODIGO) } },
+    // Caixa (PDV): venda sem internet, dois caixas, relógio errado, balança.
+    { name: 'pdv', testMatch: 'pdv/**/*.spec.ts', use: { ...navegador, ...computador, baseURL: APP } },
+    // Aplicativo instalado: o caixa recarrega e vende sem internet.
+    { name: 'pwa', testMatch: 'pwa/**/*.spec.ts', use: { ...navegador, ...computador, baseURL: APP, serviceWorkers: 'allow' } },
     // Login, cadastro, convites, papéis, assinatura e o que o app envia ao Supabase.
     { name: 'acesso', testMatch: 'acesso/**/*.spec.ts', use: { ...navegador, ...computador, baseURL: APP } },
     // Servidor de desenvolvimento de verdade (npm run dev), com WebSocket real.
