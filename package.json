@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
+    "dexie": "^4.4.6",
     "exceljs": "^4.4.0",
     "html5-qrcode": "^2.3.8",
     "jspdf": "^4.2.1",
@@ -40,6 +41,7 @@
     "@types/ws": "^8.18.2",
     "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@vitejs/plugin-react": "^6.1.1",
+    "fake-indexeddb": "^6.2.5",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "vite": "^8.3.2",

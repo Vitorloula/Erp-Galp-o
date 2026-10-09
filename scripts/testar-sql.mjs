@@ -409,6 +409,179 @@ await comoUsuario(intruso, async () => {
 }
 
 // ----------------------------------------------------------------------
+secao('PDV — caixa que vende sem internet:')
+{
+  const dono = await criarUsuario('paulo@mercado.test', 'Paulo Dono')
+  const operadora = await criarUsuario('olga@mercado.test', 'Olga Caixa')
+  const operador2 = await criarUsuario('otto@mercado.test', 'Otto Caixa')
+  const repositor = await criarUsuario('rita@mercado.test', 'Rita Estoque')
+  const empP = await comoUsuario(dono, async () => (await um(`select public.criar_empresa('Mercado do Paulo', 'mercadinho') as id`)).id)
+  for (const [quem, papel] of [[operadora, 'caixa'], [operador2, 'caixa'], [repositor, 'estoquista']]) {
+    const t = await comoUsuario(dono, async () => (await um('select public.criar_convite($1, $2) as t', [empP, papel])).t)
+    await comoUsuario(quem, () => db.query('select public.aceitar_convite($1)', [t]))
+  }
+  const { loja, caixa1, diversos } = await comoUsuario(dono, async () => um(`select (select id from public.lojas) as loja,
+    (select id from public.caixas where numero = 1) as caixa1, (select id from public.produtos where codigo_interno = 'DIVERSOS') as diversos`))
+  confere(!!caixa1 && !!diversos, 'empresa nova já vem com o Caixa 01 (e o mercadinho com o produto "Diversos")')
+  const caixa2 = await comoUsuario(dono, async () => (await um(`insert into public.caixas (empresa_id, loja_id, nome) values ($1, $2, 'Caixa 02') returning id, numero`, [empP, loja])))
+  confere(caixa2.numero === 2, 'número do caixa novo é o próximo da loja')
+
+  // Produtos com estoque
+  const produto = async (nome, preco, lotes) => comoUsuario(dono, async () => {
+    const id = (await um(`insert into public.produtos (empresa_id, nome, unidade, preco_venda, rastreio) values ($1, $2, 'un', $3, 'lote') returning id`, [empP, nome, preco])).id
+    for (const [lote, dias, qtd] of lotes) await db.query(`select public.registrar_entrada($1, $2, $3, current_date + $4::int, $5)`, [loja, id, lote, dias, qtd])
+    return id
+  })
+  const arroz = await produto('Arroz 5kg', 27.5, [['A1', 200, 10]])
+  const leite = await produto('Leite 1L', 5.49, [['L1', 10, 2], ['L2', 100, 5]])
+  const ultimo = await produto('Café 500g', 18.9, [['C1', 300, 1]])
+  const saldo = async (prod, lote) => Number((await um(`select coalesce(sum(s.saldo), 0) as s from public.estoque_saldos s join public.lotes l on l.id = s.lote_id
+    where s.produto_id = $1 and ($2::text is null or l.lote = $2)`, [prod, lote ?? null])).s)
+
+  const ev = (tipo, dados, id = crypto.randomUUID()) => ({ id, tipo, dados })
+  const sinc = (quem, eventos, aparelho = 'aparelho-1') =>
+    comoUsuario(quem, async () => (await um('select public.pdv_sincronizar(1, $1, $2) as r', [aparelho, JSON.stringify(eventos)])).r)
+  const venda = (caixa, sessao, numero, itens, pagamentos, extra = {}) => {
+    const total = Math.round(itens.reduce((s, i) => s + i.total, 0) * 100) / 100
+    const troco = Math.round((pagamentos.reduce((s, p) => s + p.valor, 0) - total) * 100) / 100
+    return ev('venda', {
+      caixa_id: caixa, sessao_id: sessao, venda_id: crypto.randomUUID(), numero, ocorrido_em: new Date().toISOString(),
+      subtotal: total, desconto: 0, total, troco,
+      itens: itens.map((i, ordem) => ({ id: crypto.randomUUID(), ordem, unidade: 'un', preco_tabela: i.preco_unitario, desconto: 0, ...i })),
+      pagamentos: pagamentos.map(p => ({ id: crypto.randomUUID(), ...p })), ...extra,
+    })
+  }
+
+  // Ligar o aparelho ao caixa
+  await comoUsuario(repositor, () => esperaErro('estoquista não usa o caixa', () => db.query(`select public.pdv_assumir_caixa($1, 'x')`, [caixa1]), 'Sem permissão'))
+  const assumido = await comoUsuario(operadora, async () => (await um(`select public.pdv_assumir_caixa($1, 'aparelho-1') as r`, [caixa1])).r)
+  confere(assumido.ultimo_numero === 0 && assumido.numero === 1, 'caixa ligado ao aparelho, começando do número 1')
+
+  // Abre a sessão e vende (offline: tudo chega junto depois)
+  const sessao = crypto.randomUUID()
+  const abrir = ev('abrir_sessao', { caixa_id: caixa1, sessao_id: sessao, aberta_em: new Date().toISOString(), valor_abertura: 100 })
+  const v1 = venda(caixa1, sessao, 1,
+    [{ produto_id: arroz, descricao: 'Arroz 5kg', quantidade: 3, preco_unitario: 27.5, total: 82.5 },
+     { produto_id: diversos, descricao: 'Diversos', quantidade: 1, preco_unitario: 4, total: 4 }],
+    [{ forma: '01', valor: 100 }])
+  const lote1 = [abrir, v1]
+  let r = await sinc(operadora, lote1)
+  confere(r.resultados.every(x => x.status === 'aplicado'), 'abrir caixa e vender: eventos aplicados', JSON.stringify(r.resultados))
+  confere(await saldo(arroz) === 7, 'venda baixa o estoque (10 − 3 = 7)')
+  const vg = await um('select status, total::float, troco::float, operador_nome from public.vendas where id = $1', [v1.dados.venda_id])
+  confere(vg.total === 86.5 && vg.troco === 13.5 && vg.operador_nome === 'Olga Caixa', 'venda gravada com total, troco e operador', JSON.stringify(vg))
+  const movs = (await db.query(`select tipo, origem, usuario_nome from public.movimentacoes m join public.vendas_itens i on i.id = m.venda_item_id where i.venda_id = $1`, [v1.dados.venda_id])).rows
+  confere(movs.length === 1 && movs[0].tipo === 'VENDA' && movs[0].origem === 'pdv', '"Diversos" não movimenta estoque; o arroz sim (VENDA, origem pdv)')
+
+  r = await sinc(operadora, lote1)
+  confere(r.resultados.every(x => x.status === 'duplicado') && await saldo(arroz) === 7, 'reenviar os mesmos eventos não duplica nada')
+  r = await sinc(operadora, [{ ...v1, dados: { ...v1.dados, numero: 99 } }])
+  confere(r.resultados[0].status === 'quarentena', 'mesmo id com conteúdo diferente vai para quarentena')
+  confere((await um(`select count(*)::int as n from public.divergencias where evento_id = $1 and tipo = 'evento_conflitante'`, [v1.id])).n === 1, '…e gera divergência para conferência')
+
+  const errada = venda(caixa1, sessao, 2, [{ produto_id: arroz, descricao: 'Arroz', quantidade: 1, preco_unitario: 27.5, total: 27.5 }], [{ forma: '01', valor: 27.5 }])
+  errada.dados.total = 10
+  const boa = venda(caixa1, sessao, 3, [{ produto_id: arroz, descricao: 'Arroz', quantidade: 1, preco_unitario: 27.5, total: 27.5 }], [{ forma: '03', valor: 27.5 }])
+  r = await sinc(operadora, [errada, boa])
+  confere(r.resultados[0].status === 'invalido' && r.resultados[0].mensagem.includes('Total da venda não confere'), 'evento malformado é recusado com o motivo', JSON.stringify(r.resultados[0]))
+  confere(r.resultados[1].status === 'aplicado' && await saldo(arroz) === 6, '…sem atrapalhar os eventos seguintes')
+
+  // FEFO: sai primeiro o lote que vence antes, dividindo entre lotes
+  r = await sinc(operadora, [venda(caixa1, sessao, 4, [{ produto_id: leite, descricao: 'Leite', quantidade: 4, preco_unitario: 5.49, total: 21.96 }], [{ forma: '17', valor: 21.96 }])])
+  confere(await saldo(leite, 'L1') === 0 && await saldo(leite, 'L2') === 3, 'venda divide entre lotes pelo que vence primeiro (L1 zerado, L2 com 3)')
+
+  // Dois caixas offline vendem a última unidade
+  const sessao2 = crypto.randomUUID()
+  await comoUsuario(operador2, () => db.query(`select public.pdv_assumir_caixa($1, 'aparelho-2')`, [caixa2.id]))
+  const daUm = venda(caixa1, sessao, 5, [{ produto_id: ultimo, descricao: 'Café', quantidade: 1, preco_unitario: 18.9, total: 18.9 }], [{ forma: '01', valor: 20 }])
+  const doOutro = venda(caixa2.id, sessao2, 1, [{ produto_id: ultimo, descricao: 'Café', quantidade: 1, preco_unitario: 18.9, total: 18.9 }], [{ forma: '04', valor: 18.9 }])
+  await sinc(operadora, [daUm])
+  r = await sinc(operador2, [ev('abrir_sessao', { caixa_id: caixa2.id, sessao_id: sessao2, aberta_em: new Date().toISOString(), valor_abertura: 0 }), doOutro], 'aparelho-2')
+  confere(r.resultados.every(x => x.status === 'aplicado'), 'venda offline sem saldo não é recusada (já aconteceu)')
+  confere(await saldo(ultimo) === -1, 'saldo fica −1 …')
+  confere((await um(`select count(*)::int as n from public.divergencias where produto_id = $1 and tipo = 'saldo_negativo'`, [ultimo])).n === 1, '…e vira uma divergência para conferência')
+
+  // Número repetido e relógio adiantado
+  r = await sinc(operadora, [venda(caixa1, sessao, 5, [{ produto_id: diversos, descricao: 'Diversos', quantidade: 1, preco_unitario: 2, total: 2 }], [{ forma: '01', valor: 2 }])])
+  confere(r.resultados[0].status === 'aplicado' && (await um(`select count(*)::int as n from public.divergencias where tipo = 'numero_repetido' and empresa_id = $1`, [empP])).n === 1,
+    'número de venda repetido é aceito e vira divergência')
+  const futuro = venda(caixa1, sessao, 6, [{ produto_id: diversos, descricao: 'Diversos', quantidade: 1, preco_unitario: 3, total: 3 }], [{ forma: '01', valor: 3 }])
+  futuro.dados.ocorrido_em = new Date(Date.now() + 2 * 86_400_000).toISOString()
+  await sinc(operadora, [futuro])
+  const vf = await um('select relogio_suspeito, ocorrido_em < now() + interval \'1 minute\' as ok from public.vendas where id = $1', [futuro.dados.venda_id])
+  confere(vf.relogio_suspeito && vf.ok, 'relógio do aparelho adiantado: usa a hora do servidor e marca a venda')
+
+  // Cancelamento
+  r = await sinc(operadora, [ev('cancelar_venda', { caixa_id: caixa1, venda_id: boa.dados.venda_id, motivo: 'Cliente desistiu' })])
+  confere(r.resultados[0].status === 'invalido' && r.resultados[0].codigo === '42501', 'caixa não cancela venda sozinho (precisa de gerente ou dono)')
+  r = await sinc(dono, [ev('cancelar_venda', { caixa_id: caixa1, venda_id: boa.dados.venda_id, motivo: 'Cliente desistiu' })])
+  const cancelada = await um('select status, cancelada_por_nome from public.vendas where id = $1', [boa.dados.venda_id])
+  confere(r.resultados[0].status === 'aplicado' && cancelada.status === 'cancelada' && cancelada.cancelada_por_nome === 'Paulo Dono', 'dono cancela pelo caixa, com motivo e autor')
+  confere(await saldo(arroz) === 7, 'cancelamento devolve o item ao estoque (estorno no razão)')
+  await sinc(dono, [ev('cancelar_venda', { caixa_id: caixa1, venda_id: boa.dados.venda_id, motivo: 'De novo' })])
+  confere(await saldo(arroz) === 7, 'cancelar de novo não estorna duas vezes')
+  await comoUsuario(dono, () => db.query(`select public.cancelar_venda($1, 'Erro de digitação')`, [daUm.dados.venda_id]))
+  confere(await saldo(ultimo) === 0, 'cancelamento também pela retaguarda (com internet)')
+
+  // Sangria, suprimento e fechamento às cegas
+  const sessao3 = crypto.randomUUID()
+  await sinc(operadora, [ev('fechar_sessao', { caixa_id: caixa1, sessao_id: sessao, fechada_em: new Date().toISOString(), contado: { '01': 0 } })])
+  r = await sinc(operadora, [
+    ev('abrir_sessao', { caixa_id: caixa1, sessao_id: sessao3, aberta_em: new Date().toISOString(), valor_abertura: 100 }),
+    venda(caixa1, sessao3, 7, [{ produto_id: arroz, descricao: 'Arroz', quantidade: 1, preco_unitario: 20, total: 20 }], [{ forma: '01', valor: 50 }]),
+    venda(caixa1, sessao3, 8, [{ produto_id: arroz, descricao: 'Arroz', quantidade: 1, preco_unitario: 30, total: 30 }], [{ forma: '03', valor: 30 }]),
+    ev('movimento_caixa', { caixa_id: caixa1, sessao_id: sessao3, movimento_id: crypto.randomUUID(), tipo: 'suprimento', valor: 10, motivo: 'Troco' }),
+    ev('movimento_caixa', { caixa_id: caixa1, sessao_id: sessao3, movimento_id: crypto.randomUUID(), tipo: 'sangria', valor: 40, motivo: 'Cofre' }),
+    ev('fechar_sessao', { caixa_id: caixa1, sessao_id: sessao3, fechada_em: new Date().toISOString(), contado: { '01': 85, '03': 30 } }),
+  ])
+  confere(r.resultados.every(x => x.status === 'aplicado'), 'sessão completa: abrir, vender, suprimento, sangria e fechar', JSON.stringify(r.resultados.filter(x => x.status !== 'aplicado')))
+  const f = await um('select esperado, diferenca_dinheiro::float as dif from public.sessoes_caixa_fechamentos where sessao_id = $1', [sessao3])
+  confere(Number(f.esperado['01']) === 90 && Number(f.esperado['03']) === 30 && f.dif === -5,
+    'fechamento às cegas: esperado em dinheiro 100 + 50 − 30 (troco) + 10 − 40 = 90; contado 85 → falta 5', JSON.stringify(f))
+
+  // Imutabilidade e permissões
+  await esperaErro('venda não pode ser alterada', () => db.query('update public.vendas set total = 1 where id = $1', [v1.dados.venda_id]), 'não pode ser alterada')
+  await esperaErro('item de venda não pode ser apagado', () => db.query('delete from public.vendas_itens where venda_id = $1', [v1.dados.venda_id]), 'não pode ser alterado')
+  await esperaErro('sessão fechada não reabre', () => db.query('update public.sessoes_caixa set fechada_em = null where id = $1', [sessao3]), 'não pode ser alterada')
+  await comoUsuario(operadora, () => esperaErro('ninguém grava venda direto na tabela (só pela sincronização)', () =>
+    db.query(`insert into public.vendas (empresa_id, id, loja_id, caixa_id, sessao_id, numero, ocorrido_em, subtotal, total) values ($1, gen_random_uuid(), $2, $3, $4, 9, now(), 1, 1)`, [empP, loja, caixa1, sessao3]), 'permission denied'))
+  await comoUsuario(intruso, async () => {
+    confere((await um('select count(*)::int as n from public.vendas')).n === 0, 'outra empresa não vê as vendas')
+    const x = (await um('select public.pdv_sincronizar(1, $1, $2) as r', ['intruso', JSON.stringify([venda(caixa1, sessao3, 50, [{ produto_id: arroz, descricao: 'X', quantidade: 1, preco_unitario: 1, total: 1 }], [{ forma: '01', valor: 1 }])])])).r
+    confere(x.resultados[0].status === 'invalido', 'outra empresa não lança no caixa alheio')
+  })
+  await comoUsuario(operadora, async () => {
+    confere((await um('select count(*)::int as n from public.divergencias')).n === 0, 'caixa não vê a lista de divergências (dono/gerente)')
+  })
+
+  // Aparelhos e catálogo
+  await sinc(operadora, [ev('abrir_sessao', { caixa_id: caixa1, sessao_id: crypto.randomUUID(), aberta_em: new Date().toISOString(), valor_abertura: 0 })])
+  await comoUsuario(operador2, () => esperaErro('caixa aberto num aparelho não abre em outro', () => db.query(`select public.pdv_assumir_caixa($1, 'aparelho-2')`, [caixa1]), 'aberto em outro aparelho'))
+  const cat = await comoUsuario(operadora, async () => (await um('select public.pdv_catalogo($1) as c', [loja])).c)
+  const arrozCat = cat.produtos.find(p => p.id === arroz)
+  confere(cat.completo && cat.produtos.length === 4 && arrozCat.preco_venda === 27.5 && cat.saldos.find(s => s.produto_id === arroz)?.saldo === 5,
+    'catálogo do caixa: produtos, preços e saldos da loja', JSON.stringify({ n: cat.produtos.length, arroz: arrozCat }))
+  const nada = await comoUsuario(operadora, async () => (await um('select public.pdv_catalogo($1, $2) as c', [loja, cat.agora])).c)
+  confere(nada.produtos.length === 0 && nada.saldos.length === 0, 'sincronização incremental: nada mudou, nada vem')
+  await comoUsuario(dono, () => db.query(`select public.salvar_produto($1, $2, $3, $4)`, [empP, leite, { nome: 'Leite 1L', unidade: 'un', preco_venda: 5.99, rastreio: 'lote' }, JSON.stringify([{ codigo: '7891000100103' }])]))
+  const mudou = await comoUsuario(operadora, async () => (await um('select public.pdv_catalogo($1, $2) as c', [loja, cat.agora])).c)
+  confere(mudou.produtos.length === 1 && mudou.produtos[0].preco_venda === 5.99 && mudou.produtos[0].codigos[0].codigo === '07891000100103',
+    'mudou preço e código: só aquele produto vem, já com o código novo', JSON.stringify(mudou.produtos))
+  await comoUsuario(intruso, () => esperaErro('outra empresa não baixa o catálogo', () => db.query('select public.pdv_catalogo($1)', [loja]), 'sem acesso'))
+
+  // Divergências e plano
+  const div = (await um(`select id from public.divergencias where empresa_id = $1 and tipo = 'saldo_negativo'`, [empP])).id
+  await comoUsuario(operadora, () => esperaErro('caixa não resolve divergência', () => db.query(`select public.resolver_divergencia($1, 'Conferido no caixa')`, [div]), 'sem permissão'))
+  await comoUsuario(dono, () => db.query(`select public.resolver_divergencia($1, 'Contagem feita, ajuste lançado')`, [div]))
+  confere(!!(await um('select resolvida_em from public.divergencias where id = $1', [div])).resolvida_em, 'dono resolve a divergência com a explicação')
+  await comoUsuario(dono, () => esperaErro('divergência resolvida não é reaberta', () => db.query(`select public.resolver_divergencia($1, 'outra')`, [div]), 'já resolvida'))
+  await db.query(`update public.assinaturas set plano_id = 'essencial' where empresa_id = $1`, [empP])
+  await comoUsuario(dono, () => esperaErro('limite de caixas do plano', () =>
+    db.query(`insert into public.caixas (empresa_id, loja_id, nome) values ($1, $2, 'Caixa 03')`, [empP, loja]), 'no máximo 2 caixas'))
+  confere((await db.query('select * from app.verificar_saldos($1)', [empP])).rows.length === 0, 'saldos do PDV batem com o histórico')
+}
+
+// ----------------------------------------------------------------------
 secao('Plano e assinatura:')
 await db.query(`update public.assinaturas set plano_id = 'essencial' where empresa_id = $1`, [empB])
 await comoUsuario(donoB, () => esperaErro('limite de lojas do plano', () =>
