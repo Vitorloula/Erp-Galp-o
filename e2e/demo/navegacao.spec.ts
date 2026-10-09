@@ -1,7 +1,7 @@
 import { ehCelular, expect, semRolagemHorizontal, test } from '../base'
 
 const TELAS = [
-  { rota: '/painel', titulo: /Boa (dia|tarde|noite)/ },
+  { rota: '/painel', titulo: /(Bom dia|Boa tarde|Boa noite)/ },
   { rota: '/estoque', titulo: 'Estoque atual' },
   { rota: '/movimentar', titulo: 'Movimentar estoque' },
   { rota: '/historico', titulo: 'Histórico de movimentações' },
@@ -56,7 +56,7 @@ test.describe('Navegação', () => {
 
   test('avisa quando o aparelho fica sem internet', async ({ page, context }) => {
     await page.goto('/painel')
-    await expect(page.getByText(/Boa (dia|tarde|noite)/)).toBeVisible()
+    await expect(page.getByText(/(Bom dia|Boa tarde|Boa noite)/)).toBeVisible()
     await context.setOffline(true)
     await expect(page.getByText('Sem internet. Os lançamentos só serão salvos quando a conexão voltar.')).toBeVisible()
     await context.setOffline(false)
