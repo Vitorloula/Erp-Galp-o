@@ -1,8 +1,8 @@
-import { EAN_CAMERA } from '../preparar'
-import { expect, test, toast } from '../base'
+import { EAN_CAMERA } from '../preparar.ts'
+import { expect, test, toast } from '../base.ts'
 import { cameraLigada, monitorarCamera } from './monitor'
 
-// A câmera falsa do navegador exibe o EAN-13 da Atrazina 500 SC (gerado em e2e/preparar.ts).
+// A câmera falsa do navegador exibe o EAN-13 da Atrazina 500 SC da empresa de exemplo (gerado em e2e/preparar.ts).
 // Isto testa o caminho completo: permissão → vídeo → decodificação → seleção do produto.
 
 test.describe('Leitor de código de barras pela câmera', () => {
@@ -36,7 +36,7 @@ test.describe('Leitor de código de barras pela câmera', () => {
     await page.getByRole('button', { name: 'Novo produto' }).first().click()
     const d = page.getByRole('dialog', { name: 'Novo produto' })
     await d.getByRole('button', { name: 'Escanear com a câmera' }).click()
-    await expect(d.getByLabel('Código de barras')).toHaveValue(EAN_CAMERA, { timeout: 20_000 })
+    await expect(d.locator(`[data-codigo="${EAN_CAMERA}"]`)).toBeVisible({ timeout: 20_000 })
     await expect(page.getByRole('dialog', { name: 'Escanear código do produto' })).toBeHidden()
     await expect.poll(() => cameraLigada(page)).toBe(false)
   })

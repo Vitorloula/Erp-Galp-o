@@ -6,17 +6,17 @@ import { ListaMovimentacoes } from '../components/ListaMovimentacoes'
 import { ProdutoForm } from '../components/ProdutoForm'
 import { useToast } from '../components/Toast'
 import { Aviso, BadgeSituacao, Carregando, Modal, Vazio, cx } from '../components/ui'
-import { useAuth } from '../contexto/Auth'
 import { useDados } from '../contexto/Dados'
-import { repositorio } from '../lib/dados'
+import { useAtiva } from '../contexto/Empresa'
+import { catalogo, movimentos } from '../lib/dados'
 import { ordenarFefo, resumirProduto, situacaoLote } from '../lib/estoque'
-import { NOME_CATEGORIA, UNIDADES, formatarData, formatarDataHora, formatarEmbalagens, formatarNumero, formatarQtd, formatarValidade } from '../lib/formato'
+import { UNIDADES, exibirCodigo, formatarData, formatarDataHora, formatarEmbalagens, formatarMoeda, formatarNumero, formatarQtd, formatarValidade } from '../lib/formato'
 import type { Lote, Movimentacao } from '../lib/tipos'
 
 export function ProdutoDetalhe() {
   const { id } = useParams()
-  const { produtoPorId, lotesPorProduto, carregando, versao } = useDados()
-  const { admin } = useAuth()
+  const { produtoPorId, lotesPorProduto, nomeCategoria, carregando, versao } = useDados()
+  const { empresa, loja, pode } = useAtiva()
   const [editando, setEditando] = useState(false)
   const [loteEditando, setLoteEditando] = useState<Lote | null>(null)
   const [corrigindo, setCorrigindo] = useState<Movimentacao | null>(null)
@@ -29,8 +29,8 @@ export function ProdutoDetalhe() {
 
   useEffect(() => {
     if (!id) return
-    repositorio.listarMovimentacoes({ produtoId: id, limite: 100 }).then(setMovs).catch(() => setMovs([]))
-  }, [id, versao])
+    movimentos.listarMovimentacoes(empresa.empresa_id, loja.id, { produtoId: id, limite: 100 }).then(setMovs).catch(() => setMovs([]))
+  }, [id, versao, empresa.empresa_id, loja.id])
 
   if (carregando) return <Carregando />
   if (!produto)
@@ -55,17 +55,18 @@ export function ProdutoDetalhe() {
         <div className="min-w-0">
           <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">{produto.nome}</h1>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
-            <span>{produto.codigo_interno}</span>·<span>{NOME_CATEGORIA[produto.categoria]}</span>
+            <span>{produto.codigo_interno}</span>·<span>{nomeCategoria(produto.categoria_id)}</span>
             {!produto.ativo && <span className="rounded bg-slate-200 px-1.5 py-0.5 text-xs font-medium text-slate-600">inativo</span>}
           </div>
         </div>
-        {admin && (
+        {pode.cadastrarProduto && (
           <button className="btn btn-secundario" onClick={() => setEditando(true)}>
             <Pencil className="size-4" /> Editar
           </button>
         )}
       </div>
 
+      {pode.movimentar && (
       <div className="grid grid-cols-3 gap-2">
         <Link to={`/movimentar?tipo=entrada&produto=${produto.id}`} className="btn btn-secundario flex-col gap-1 py-3 sm:flex-row">
           <ArrowDownToLine className="size-5 text-emerald-700" /> Entrada
@@ -77,6 +78,7 @@ export function ProdutoDetalhe() {
           <SlidersHorizontal className="size-5 text-violet-700" /> Ajuste
         </Link>
       </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className={cx('cartao p-4', `linha-${resumo.situacao}`)}>
@@ -89,7 +91,12 @@ export function ProdutoDetalhe() {
           </div>
         </div>
         <dl className="cartao grid grid-cols-2 gap-x-4 gap-y-3 p-4 text-sm lg:col-span-2">
-          <Info rotulo="Código de barras" valor={produto.codigo_barras ?? 'Sem código (busca manual)'} mono={!!produto.codigo_barras} />
+          <Info
+            rotulo={produto.codigos.length > 1 ? 'Códigos de barras' : 'Código de barras'}
+            valor={produto.codigos.length ? produto.codigos.map(c => exibirCodigo(c.codigo) + (c.fator !== 1 ? ` (×${formatarNumero(c.fator)})` : '')).join(', ') : 'Sem código (busca manual)'}
+            mono={produto.codigos.length > 0}
+          />
+          <Info rotulo="Preço de venda" valor={formatarMoeda(produto.preco_venda)} />
           <Info rotulo="Unidade" valor={UNIDADES.find(u => u.valor === produto.unidade)?.nome ?? produto.unidade} />
           <Info rotulo="Conteúdo por embalagem" valor={produto.conteudo_embalagem ? formatarQtd(produto.conteudo_embalagem, produto.unidade) : '—'} />
           <Info rotulo="Fabricante" valor={produto.fabricante ?? '—'} />
@@ -125,7 +132,7 @@ export function ProdutoDetalhe() {
                     <p className="font-bold tabular-nums">{formatarNumero(l.saldo)} {produto.unidade}</p>
                     <BadgeSituacao situacao={sit} validade={l.validade} />
                   </div>
-                  {admin && (
+                  {pode.corrigirLote && (
                     <button className="btn btn-fantasma -mr-2 p-2" title="Corrigir número do lote / validade" onClick={() => setLoteEditando(l)}>
                       <Pencil className="size-4" />
                     </button>
@@ -142,7 +149,7 @@ export function ProdutoDetalhe() {
         {movs === null ? <Carregando /> : movs.length === 0 ? (
           <div className="cartao p-6 text-center text-sm text-slate-500">Nenhuma movimentação para este produto.</div>
         ) : (
-          <ListaMovimentacoes movimentacoes={movs} mostrarProduto={false} aoCorrigir={setCorrigindo} />
+          <ListaMovimentacoes movimentacoes={movs} mostrarProduto={false} aoCorrigir={pode.movimentar ? setCorrigindo : undefined} />
         )}
       </section>
 
@@ -180,7 +187,7 @@ function EditarLote({ lote, aoFechar }: { lote: Lote | null; aoFechar: () => voi
     if (!lote) return
     setSalvando(true)
     try {
-      await repositorio.atualizarLote(lote.lote_id, { lote: numero, validade: validade || null })
+      await catalogo.atualizarLote(lote.lote_id, { lote: numero, validade: validade || null })
       await recarregar()
       toast.sucesso('Lote atualizado.')
       aoFechar()

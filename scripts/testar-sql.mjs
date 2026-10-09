@@ -85,9 +85,10 @@ secao('Estrutura (metatestes — falham se alguém criar tabela sem proteção):
     where n.nspname = 'public' and c.relkind in ('r', 'v') and has_table_privilege('anon', c.oid, 'select')`)).rows.map(r => r.relname)
   confere(anonLe.length === 0, 'visitante sem login não tem acesso a nenhuma tabela ou visão', anonLe.join(', '))
 
+  // Única exceção: ver o convite antes de criar a conta (só com o token em mãos).
   const anonExec = (await db.query(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname in ('public', 'app') and has_function_privilege('anon', p.oid, 'execute')`)).rows.map(r => r.proname)
-  confere(anonExec.length === 0, 'visitante sem login não executa nenhuma função', anonExec.join(', '))
+  confere(anonExec.join() === 'ver_convite', 'visitante sem login só executa ver_convite', anonExec.join(', '))
 }
 
 // ----------------------------------------------------------------------
@@ -340,6 +341,72 @@ await esperaErro('empresa nunca fica sem dono', () => db.query(`delete from publ
   confere(depois.n === antes && depois.nome === 'Edu Estoque', `excluir funcionário preserva o histórico (${antes} lançamentos de "${depois.nome}")`)
 }
 await esperaErro('excluir a conta do único dono é bloqueado (transferir antes)', () => db.query('delete from auth.users where id = $1', [donoB]), 'pelo menos um dono')
+
+// ----------------------------------------------------------------------
+secao('Funções das telas:')
+await comoUsuario(donoA, async () => {
+  const e = (await db.query('select * from public.minhas_empresas()')).rows
+  confere(e.length === 1 && e[0].empresa_id === empA && e[0].papel === 'dono' && e[0].estado === 'ativa' && e[0].plano_id === 'teste',
+    'minhas_empresas: empresa, papel e estado da assinatura', JSON.stringify(e))
+})
+await comoUsuario(caixa, async () => {
+  const e = (await db.query('select papel, nome from public.minhas_empresas()')).rows
+  confere(e.length === 1 && e[0].papel === 'caixa' && e[0].nome === 'Galpão Agro', 'minhas_empresas: caixa vê a empresa em que trabalha')
+})
+await comoUsuario(intruso, async () => {
+  confere((await db.query('select * from public.minhas_empresas()')).rows.length === 0, 'minhas_empresas: quem não é membro não vê nada')
+})
+{
+  const t = await convidar(donoA, 'caixa', null)
+  const ver = async token => comoUsuario(null, async () => (await db.query('select * from public.ver_convite($1)', [token])).rows)
+  const v = await ver(t)
+  confere(v.length === 1 && v[0].empresa === 'Galpão Agro' && v[0].papel === 'caixa' && v[0].situacao === 'valido',
+    'ver_convite: visitante com o link vê empresa e papel', JSON.stringify(v))
+  await comoUsuario(intruso, async () => { await db.query('select public.aceitar_convite($1)', [t]) })
+  confere((await ver(t))[0]?.situacao === 'usado', 'ver_convite: convite aceito aparece como usado')
+  confere((await ver('f'.repeat(64))).length === 0, 'ver_convite: token inventado não revela nada')
+  await db.query('delete from public.membros where usuario_id = $1 and empresa_id = $2', [intruso, empA])
+}
+{
+  const salvar = (quem, empresa, id, dados, codigos = []) =>
+    comoUsuario(quem, async () => (await um('select public.salvar_produto($1, $2, $3, $4) as id', [empresa, id, dados, JSON.stringify(codigos)])).id)
+  const dados = { nome: 'Lambda-cialotrina 50 EC', unidade: 'L', preco_venda: 96, rastreio: 'lote' }
+  const novo = await salvar(gerente, empA, null, dados, [{ codigo: '7891000000045' }, { codigo: '17891000000042', fator: 12 }])
+  const cods = (await db.query('select codigo, fator::float as fator from public.produtos_codigos where produto_id = $1 order by codigo', [novo])).rows
+  confere(cods.length === 2 && cods[0].codigo === '07891000000045' && cods[1].fator === 12, 'salvar_produto: produto e códigos (com fator da caixa) juntos', JSON.stringify(cods))
+  await salvar(gerente, empA, novo, { ...dados, preco_venda: 99 }, [{ codigo: '7891000000045' }])
+  const depois = await um('select (select count(*)::int from public.produtos_codigos where produto_id = $1) as n, preco_venda::float as preco from public.produtos where id = $1', [novo])
+  confere(depois.n === 1 && depois.preco === 99, 'salvar_produto: edição atualiza dados e remove código retirado')
+  await esperaErro('salvar_produto: código de outro produto é recusado com o nome dele',
+    () => salvar(gerente, empA, novo, dados, [{ codigo: '7891000000014' }]), 'já está cadastrado no produto "Glifosato 480 SL"')
+  confere((await um('select count(*)::int as n from public.produtos_codigos where produto_id = $1', [novo])).n === 1, '…e nada muda (tudo ou nada)')
+  await esperaErro('salvar_produto: caixa não cadastra', () => salvar(caixa, empA, null, dados), 'row-level security')
+  await esperaErro('salvar_produto: outra empresa não cadastra na minha', () => salvar(intruso, empA, null, dados), 'row-level security')
+  await esperaErro('salvar_produto: outra empresa não edita produto meu', () => salvar(intruso, empA, prodA, dados), 'não encontrado')
+}
+{
+  const novato = await criarUsuario('nina@exemplo.test', 'Nina Novata')
+  const emp = await comoUsuario(novato, async () => (await um('select public.criar_empresa_exemplo() as id')).id)
+  await comoUsuario(novato, async () => {
+    const c = await um(`select (select count(*)::int from public.produtos) as produtos, (select count(*)::int from public.produtos_codigos) as codigos,
+      (select count(*)::int from public.lotes) as lotes, (select nome from public.empresas) as nome`)
+    confere(c.produtos === 12 && c.codigos === 9 && c.lotes === 13 && c.nome === 'Agro Exemplo', 'empresa de exemplo: 12 produtos, 9 códigos de barras, 13 lotes', JSON.stringify(c))
+    const saldo = async (produto, lote) => Number((await um(`select s.saldo from public.vw_estoque s join public.produtos p on p.id = s.produto_id
+      where p.nome = $1 and s.lote = $2`, [produto, lote])).saldo)
+    confere(await saldo('Glifosato 480 SL', 'GL2508') === 260, 'exemplo: Glifosato com 260 L (400 − 160 + correção de 20)')
+    confere(await saldo('Atrazina 500 SC', 'AT2401') === 40, 'exemplo: lote vencido da Atrazina com 40 L')
+    const vencido = await um(`select validade < (now() at time zone 'America/Sao_Paulo')::date as v from public.lotes where lote = 'AT2401'`)
+    confere(vencido.v === true, 'exemplo: AT2401 já vencido')
+    const ordem = (await db.query('select id, ocorrido_em from public.movimentacoes order by id')).rows
+    confere(ordem.every((m, i) => i === 0 || m.ocorrido_em >= ordem[i - 1].ocorrido_em), `exemplo: ${ordem.length} lançamentos numerados em ordem cronológica`)
+    const cor = await um(`select c.quantidade::float as q, s.quantidade::float as orig from public.movimentacoes c join public.movimentacoes s on s.id = c.referencia_id where c.tipo = 'CORRECAO'`)
+    confere(cor?.q === 20 && cor?.orig === 60, 'exemplo: correção de +20 ligada à saída de 60')
+    const estado = (await db.query('select estado, config from public.minhas_empresas()')).rows[0]
+    confere(estado.estado === 'ativa' && estado.config.exemplo === true, 'exemplo: em teste grátis e marcada como exemplo')
+  })
+  confere((await db.query('select * from app.verificar_saldos($1)', [emp])).rows.length === 0, 'exemplo: saldos batem com o histórico')
+  await comoUsuario(novato, () => esperaErro('a semente não é chamável diretamente', () => db.query('select app.semear_exemplo_galpao($1, $1)', [emp]), 'permission denied'))
+}
 
 // ----------------------------------------------------------------------
 secao('Plano e assinatura:')

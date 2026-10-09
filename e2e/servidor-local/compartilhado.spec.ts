@@ -1,8 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
-import { escolherProduto, linhasEstoque, toast } from '../base'
+import { escolherProduto, linhasEstoque, toast } from '../base.ts'
 
-// Servidor local de teste (npm run dev:servidor): dois aparelhos — computador e celular —
-// usando o mesmo banco pelo servidor do PC, com tempo real e dados persistidos.
+// Servidor local de teste (npm run dev sem .env): dois aparelhos — computador e celular —
+// usando o mesmo banco pelo servidor do PC, com WebSocket de verdade e dados persistidos.
 
 function vigiarErros(page: Page, erros: string[]) {
   page.on('pageerror', e => erros.push(`[pageerror] ${e.message}`))
@@ -11,13 +11,12 @@ function vigiarErros(page: Page, erros: string[]) {
   })
 }
 
-async function solicitarAcesso(page: Page, nome: string, email: string, senha: string) {
-  await page.goto('/painel')
-  await page.getByRole('button', { name: 'Solicitar acesso' }).click()
+async function criarConta(page: Page, nome: string, email: string, senha: string) {
+  await page.getByRole('button', { name: 'Criar conta' }).first().click()
   await page.getByLabel('Seu nome').fill(nome)
   await page.getByLabel('E-mail').fill(email)
   await page.getByLabel('Senha').fill(senha)
-  await page.getByRole('button', { name: 'Criar conta' }).click()
+  await page.getByRole('button', { name: 'Criar conta' }).last().click()
 }
 
 test('computador e celular compartilham o mesmo banco, em tempo real', async ({ browser }) => {
@@ -28,21 +27,23 @@ test('computador e celular compartilham o mesmo banco, em tempo real', async ({ 
   vigiarErros(computador, erros)
   vigiarErros(celular, erros)
 
-  // 1. Primeira conta (no computador) vira administradora e já vê os dados do banco
-  await solicitarAcesso(computador, 'Gerente Teste', 'gerente@teste.local', 'teste-gerente-1')
-  await expect(computador.locator('aside').getByText('Administrador', { exact: true })).toBeVisible()
+  // 1. No computador: cria a conta (sem confirmação de e-mail no servidor local) e a empresa de exemplo
+  await computador.goto('/painel')
+  await criarConta(computador, 'Gerente Teste', 'gerente@teste.local', 'teste-gerente-1')
+  await computador.getByRole('button', { name: 'Conhecer com dados de exemplo' }).click()
   await expect(computador.getByRole('button', { name: /Produtos com saldo/ })).toContainText('10')
 
-  // 2. Conta criada no celular fica aguardando liberação
-  await solicitarAcesso(celular, 'Operador Pátio', 'patio@teste.local', 'teste-patio-1')
-  await expect(celular.getByRole('heading', { name: 'Aguardando liberação' })).toBeVisible()
+  // 2. Convida o celular do pátio pela tela Equipe
+  await computador.goto('/equipe')
+  await computador.getByRole('button', { name: 'Convidar pessoa' }).click()
+  await computador.getByRole('button', { name: 'Criar link de convite' }).click()
+  const link = await computador.getByLabel('Link do convite').inputValue()
 
-  // 3. Administrador libera pelo computador; o celular entra
-  await computador.goto('/usuarios')
-  await computador.getByLabel('Acesso de Operador Pátio').selectOption('operador')
-  await expect(toast(computador, 'Operador Pátio: Operador.')).toBeVisible()
-  await celular.getByRole('button', { name: 'Já fui liberado' }).click()
-  await expect(celular.getByRole('heading', { name: /Operador/ })).toBeVisible()
+  // 3. No celular: abre o link, cria a conta e aceita o convite
+  await celular.goto(link.replace(/^https?:\/\/[^/]+/, ''))
+  await criarConta(celular, 'Operador Pátio', 'patio@teste.local', 'teste-patio-1')
+  await celular.getByRole('button', { name: 'Aceitar convite' }).click()
+  await expect(toast(celular, /Você entrou na equipe/)).toBeVisible()
 
   // 4. Computador fica olhando o estoque; o celular dá baixa
   await computador.goto('/estoque')

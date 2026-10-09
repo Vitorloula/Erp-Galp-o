@@ -3,17 +3,20 @@ import { useEffect, useMemo, useState } from 'react'
 import { useToast } from '../components/Toast'
 import { Aviso, BadgeSituacao, BadgeTipo, Cabecalho, Carregando, Kpi, Segmentado, cx } from '../components/ui'
 import { useDados } from '../contexto/Dados'
-import { NOME_EMPRESA, repositorio } from '../lib/dados'
+import { useAtiva } from '../contexto/Empresa'
+import { movimentos } from '../lib/dados'
 import type { Secoes } from '../lib/exportar/excel'
 import { formatarDataHora, formatarNumero, formatarValidade, hojeISO } from '../lib/formato'
 import { PERIODOS, intervaloParaInstantes, intervaloRapido, type Intervalo, type PeriodoRapido } from '../lib/periodos'
-import { baixarArquivo, montarRelatorio, nomeArquivo } from '../lib/relatorio'
+import { baixarArquivo, montarRelatorio, nomeArquivo, tituloEmpresa } from '../lib/relatorio'
 import type { Movimentacao } from '../lib/tipos'
 
 type Aba = 'resumo' | 'movimentacoes' | 'posicao'
 
 export function Relatorios() {
-  const { produtos, lotes, versao, carregando } = useDados()
+  const { produtos, lotes, versao, carregando, nomeCategoria } = useDados()
+  const { empresa, loja, lojas } = useAtiva()
+  const titulo = tituloEmpresa(empresa.nome, loja.nome, (lojas?.length ?? 0) > 1)
   const toast = useToast()
   const [periodo, setPeriodo] = useState<PeriodoRapido>('7dias')
   const [personalizado, setPersonalizado] = useState<Intervalo>(() => intervaloRapido('mes'))
@@ -31,18 +34,18 @@ export function Relatorios() {
     setMovs(null)
     setErro('')
     // Busca do início do período até agora: o que veio depois serve para calcular o saldo no fim do período.
-    repositorio
-      .listarMovimentacoes({ desde: intervaloParaInstantes(intervalo).desde })
+    movimentos
+      .listarMovimentacoes(empresa.empresa_id, loja.id, { desde: intervaloParaInstantes(intervalo).desde })
       .then(m => ativo && setMovs(m))
       .catch(e => ativo && setErro((e as Error).message))
     return () => {
       ativo = false
     }
-  }, [intervalo.de, intervalo.ate, versao])
+  }, [intervalo.de, intervalo.ate, versao, empresa.empresa_id, loja.id])
 
   const relatorio = useMemo(
-    () => (movs ? montarRelatorio(intervalo, produtos, lotes, movs, produtoId || undefined) : null),
-    [movs, produtos, lotes, produtoId, intervalo.de, intervalo.ate],
+    () => (movs ? montarRelatorio(intervalo, produtos, lotes, movs, nomeCategoria, produtoId || undefined) : null),
+    [movs, produtos, lotes, produtoId, intervalo.de, intervalo.ate, nomeCategoria],
   )
 
   async function exportar(formato: 'xlsx' | 'pdf') {
@@ -52,8 +55,8 @@ export function Relatorios() {
     try {
       const blob =
         formato === 'xlsx'
-          ? await (await import('../lib/exportar/excel')).gerarExcel(relatorio, NOME_EMPRESA, secoes)
-          : await (await import('../lib/exportar/pdf')).gerarPdf(relatorio, NOME_EMPRESA, secoes)
+          ? await (await import('../lib/exportar/excel')).gerarExcel(relatorio, titulo, secoes)
+          : await (await import('../lib/exportar/pdf')).gerarPdf(relatorio, titulo, secoes)
       baixarArquivo(blob, nomeArquivo(relatorio, formato))
       toast.sucesso(formato === 'xlsx' ? 'Planilha Excel gerada.' : 'PDF gerado.')
     } catch (e) {
@@ -150,7 +153,7 @@ export function Relatorios() {
           <div className="mb-4 grid grid-cols-3 gap-3">
             <Kpi titulo="Entradas" valor={relatorio.totais.entradas} icone={ArrowDownToLine} tom="verde" />
             <Kpi titulo="Saídas" valor={relatorio.totais.saidas} icone={ArrowUpFromLine} />
-            <Kpi titulo="Correções" valor={relatorio.totais.correcoes} icone={RotateCcw} />
+            <Kpi titulo="Ajustes e correções" valor={relatorio.totais.ajustes} icone={RotateCcw} />
           </div>
 
           <Segmentado
@@ -173,7 +176,7 @@ export function Relatorios() {
                     <th className="px-3 py-2.5 text-right">Saldo inicial</th>
                     <th className="px-3 py-2.5 text-right">Entradas</th>
                     <th className="px-3 py-2.5 text-right">Saídas</th>
-                    <th className="px-3 py-2.5 text-right">Correções</th>
+                    <th className="px-3 py-2.5 text-right">Ajustes</th>
                     <th className="px-3 py-2.5 text-right">Saldo final</th>
                   </tr>
                 </thead>
@@ -186,7 +189,7 @@ export function Relatorios() {
                       <td className="px-3 py-2 text-right">{formatarNumero(l.saldoInicial)}</td>
                       <td className="px-3 py-2 text-right text-emerald-700">{l.entradas ? '+' + formatarNumero(l.entradas) : '—'}</td>
                       <td className="px-3 py-2 text-right text-red-700">{l.saidas ? '−' + formatarNumero(l.saidas) : '—'}</td>
-                      <td className="px-3 py-2 text-right text-violet-700">{l.correcoes ? (l.correcoes > 0 ? '+' : '') + formatarNumero(l.correcoes) : '—'}</td>
+                      <td className="px-3 py-2 text-right text-violet-700">{l.ajustes ? (l.ajustes > 0 ? '+' : '') + formatarNumero(l.ajustes) : '—'}</td>
                       <td className="px-3 py-2 text-right font-bold">{formatarNumero(l.saldoFinal)}</td>
                     </tr>
                   ))}

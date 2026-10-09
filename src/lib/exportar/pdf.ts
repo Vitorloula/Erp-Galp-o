@@ -32,7 +32,7 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
   doc.setTextColor(71, 85, 105)
   doc.text(`Período: ${formatarData(r.intervalo.de)} a ${formatarData(r.intervalo.ate)}   ·   Gerado em ${formatarDataHora(r.geradoEm.toISOString())}`, margem, 29)
   doc.text(
-    `Lançamentos no período: ${r.totais.entradas} entrada(s), ${r.totais.saidas} saída(s), ${r.totais.correcoes} correção(ões)`,
+    `Lançamentos no período: ${r.totais.entradas} entrada(s), ${r.totais.saidas} saída(s), ${r.totais.ajustes} ajuste(s)/correção(ões)`,
     margem,
     34,
   )
@@ -62,8 +62,8 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
     autoTable(doc, {
       ...estilo,
       startY: y,
-      head: [['Código', 'Produto', 'Categoria', 'Unid.', 'Saldo inicial', 'Entradas', 'Saídas', 'Correções', 'Saldo final']],
-      body: r.resumo.map(l => [l.codigo, l.produto, l.categoria, l.unidade, num(l.saldoInicial), num(l.entradas), num(l.saidas), num(l.correcoes, true), num(l.saldoFinal)]),
+      head: [['Código', 'Produto', 'Categoria', 'Unid.', 'Saldo inicial', 'Entradas', 'Saídas', 'Ajustes', 'Saldo final']],
+      body: r.resumo.map(l => [l.codigo, l.produto, l.categoria, l.unidade, num(l.saldoInicial), num(l.entradas), num(l.saidas), num(l.ajustes, true), num(l.saldoFinal)]),
       columnStyles: { 4: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right' }, 7: { halign: 'right' }, 8: { halign: 'right', fontStyle: 'bold' } },
     })
     y = finalY() + 10

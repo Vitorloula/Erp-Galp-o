@@ -3,8 +3,9 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { BadgeSituacao, Cabecalho, Carregando, Vazio, cx } from '../components/ui'
 import { useDados } from '../contexto/Dados'
+import { useEmpresa } from '../contexto/Empresa'
 import { DIAS_ALERTA, PRIORIDADE, montarLinhasEstoque, produtoCombina, type LinhaEstoque, type Situacao } from '../lib/estoque'
-import { CATEGORIAS, NOME_CATEGORIA, formatarData, formatarEmbalagens, formatarNumero, formatarValidade } from '../lib/formato'
+import { formatarData, formatarEmbalagens, formatarNumero, formatarValidade } from '../lib/formato'
 
 type Filtro = 'todos' | Situacao
 type Ordem = 'nome' | 'validade' | 'situacao'
@@ -28,7 +29,8 @@ function ordenar(linhas: LinhaEstoque[], ordem: Ordem) {
 }
 
 export function Estoque() {
-  const { produtos, lotes, carregando } = useDados()
+  const { produtos, lotes, categorias, nomeCategoria, carregando } = useDados()
+  const { pode } = useEmpresa()
   const [params, setParams] = useSearchParams()
   const navegar = useNavigate()
   const filtro = (FILTROS.find(f => f.valor === params.get('filtro'))?.valor ?? 'todos') as Filtro
@@ -37,7 +39,7 @@ export function Estoque() {
   const [ordem, setOrdem] = useState<Ordem>('nome')
 
   const todas = useMemo(() => montarLinhasEstoque(produtos, lotes), [produtos, lotes])
-  const base = useMemo(() => todas.filter(l => (!categoria || l.produto.categoria === categoria) && produtoCombina(l.produto, termo)), [todas, categoria, termo])
+  const base = useMemo(() => todas.filter(l => (!categoria || l.produto.categoria_id === categoria) && produtoCombina(l.produto, termo)), [todas, categoria, termo])
   const contagem = useMemo(() => {
     const c: Record<Filtro, number> = { todos: base.length, vencido: 0, zerado: 0, vencendo: 0, ok: 0 }
     base.forEach(l => c[l.situacao]++)
@@ -75,7 +77,7 @@ export function Estoque() {
           <div className="grid grid-cols-2 gap-2 sm:flex">
             <select className="campo sm:w-48" value={categoria} onChange={e => setCategoria(e.target.value)} aria-label="Categoria">
               <option value="">Todas as categorias</option>
-              {CATEGORIAS.map(c => <option key={c.valor} value={c.valor}>{c.nome}</option>)}
+              {categorias.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
             </select>
             <select className="campo sm:w-44" value={ordem} onChange={e => setOrdem(e.target.value as Ordem)} aria-label="Ordenar por">
               <option value="nome">Ordem: nome</option>
@@ -119,7 +121,7 @@ export function Estoque() {
                   <tr key={l.chave} data-linha-estoque data-situacao={l.situacao} onClick={() => navegar(`/produtos/${l.produto.id}`)} className={cx('cursor-pointer transition hover:brightness-[.97]', `linha-${l.situacao}`)}>
                     <td className="px-4 py-3">
                       <p className="font-semibold">{l.produto.nome}</p>
-                      <p className="text-xs opacity-70">{l.produto.codigo_interno} · {NOME_CATEGORIA[l.produto.categoria]}</p>
+                      <p className="text-xs opacity-70">{l.produto.codigo_interno} · {nomeCategoria(l.produto.categoria_id)}</p>
                     </td>
                     <td className="px-3 py-3 font-mono text-xs">{l.lote?.lote || '—'}</td>
                     <td className="px-3 py-3" title={formatarData(l.validade)}>
@@ -133,7 +135,7 @@ export function Estoque() {
                     </td>
                     <td className="px-3 py-3"><BadgeSituacao situacao={l.situacao} validade={l.validade} /></td>
                     <td className="px-3 py-3 text-right">
-                      {l.lote && (
+                      {l.lote && pode.movimentar && (
                         <Link
                           to={`/movimentar?tipo=saida&produto=${l.produto.id}&lote=${l.lote.lote_id}`}
                           onClick={e => e.stopPropagation()}

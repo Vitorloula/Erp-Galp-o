@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { dataDaqui, expect, test, toast } from '../base'
+import { dataDaqui, expect, test, toast } from '../base.ts'
 
 // Nos dados de demonstração há 6 lançamentos nos últimos 7 dias (1 entrada, 5 saídas)
 // e 33 no total (13 entradas, 19 saídas, 1 correção), o mais antigo há 58 dias.

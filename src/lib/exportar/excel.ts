@@ -83,7 +83,7 @@ export async function gerarExcel(r: Relatorio, empresa: string, secoes: Secoes):
       { titulo: 'Saldo inicial', largura: 13 },
       { titulo: 'Entradas', largura: 12 },
       { titulo: 'Saídas', largura: 12 },
-      { titulo: 'Correções', largura: 12 },
+      { titulo: 'Ajustes/correções', largura: 16 },
       { titulo: 'Saldo final', largura: 13 },
     ])
     for (const l of r.resumo) {
@@ -91,7 +91,7 @@ export async function gerarExcel(r: Relatorio, empresa: string, secoes: Secoes):
       formatoNumero(row.getCell(5), l.saldoInicial)
       formatoNumero(row.getCell(6), l.entradas)
       formatoNumero(row.getCell(7), l.saidas)
-      formatoNumero(row.getCell(8), l.correcoes, true)
+      formatoNumero(row.getCell(8), l.ajustes, true)
       formatoNumero(row.getCell(9), l.saldoFinal)
       row.getCell(9).font = { bold: true }
       if (l.saldoFinal <= 0) row.eachCell(c => (c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FUNDO.vermelho.fundo } }))

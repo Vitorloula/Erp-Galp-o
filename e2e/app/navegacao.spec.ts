@@ -1,4 +1,4 @@
-import { ehCelular, expect, semRolagemHorizontal, test } from '../base'
+import { ehCelular, expect, semRolagemHorizontal, test } from '../base.ts'
 
 const TELAS = [
   { rota: '/painel', titulo: /(Bom dia|Boa tarde|Boa noite)/ },
@@ -7,7 +7,8 @@ const TELAS = [
   { rota: '/historico', titulo: 'Histórico de movimentações' },
   { rota: '/produtos', titulo: 'Produtos' },
   { rota: '/relatorios', titulo: 'Relatórios' },
-  { rota: '/usuarios', titulo: 'Usuários' },
+  { rota: '/equipe', titulo: 'Equipe' },
+  { rota: '/empresa', titulo: 'Empresa' },
   { rota: '/mais', titulo: 'Mais opções' },
 ]
 
@@ -16,7 +17,7 @@ test.describe('Navegação', () => {
     test(`tela ${rota} abre sem erros e sem rolagem lateral`, async ({ page }) => {
       await page.goto(rota)
       await expect(page.getByRole('heading', { level: 1, name: titulo })).toBeVisible()
-      await expect(page.getByText('Modo demonstração:')).toBeVisible()
+      await expect(page.getByText('Empresa de exemplo:')).toBeVisible()
       await semRolagemHorizontal(page)
     })
   }
@@ -36,9 +37,9 @@ test.describe('Navegação', () => {
       }
       await barra.getByRole('link', { name: 'Movimentar' }).click()
       await expect(page).toHaveURL(/\/movimentar$/)
-      // Produtos, Relatórios e Usuários ficam em "Mais" no celular
+      // Produtos, Relatórios, Equipe e Empresa ficam em "Mais" no celular
       await page.goto('/mais')
-      for (const [item, rota] of [['Produtos', '/produtos'], ['Relatórios', '/relatorios'], ['Usuários', '/usuarios']] as const) {
+      for (const [item, rota] of [['Produtos', '/produtos'], ['Relatórios', '/relatorios'], ['Equipe', '/equipe'], ['Empresa', '/empresa']] as const) {
         await page.getByRole('link', { name: new RegExp('^' + item) }).click()
         await expect(page).toHaveURL(new RegExp(rota + '$'))
         await page.goBack()
@@ -46,11 +47,12 @@ test.describe('Navegação', () => {
       await expect(page.locator('aside')).toBeHidden()
     } else {
       const menu = page.locator('aside nav')
-      for (const [item, rota] of [['Estoque', '/estoque'], ['Movimentar', '/movimentar'], ['Histórico', '/historico'], ['Produtos', '/produtos'], ['Relatórios', '/relatorios'], ['Usuários', '/usuarios'], ['Painel', '/painel']] as const) {
+      for (const [item, rota] of [['Estoque', '/estoque'], ['Movimentar', '/movimentar'], ['Histórico', '/historico'], ['Produtos', '/produtos'], ['Relatórios', '/relatorios'], ['Equipe', '/equipe'], ['Empresa', '/empresa'], ['Painel', '/painel']] as const) {
         await menu.getByRole('link', { name: item }).click()
         await expect(page).toHaveURL(new RegExp(rota + '$'))
       }
-      await expect(page.getByText('Você (demonstração)').first()).toBeVisible()
+      await expect(page.locator('aside').getByText('Ana Teste')).toBeVisible()
+      await expect(page.locator('aside').getByText('Dono', { exact: true })).toBeVisible()
     }
   })
 

@@ -1,41 +1,41 @@
 import {
   ArrowLeftRight,
   Boxes,
+  Building2,
+  Check,
+  ChevronsUpDown,
   Ellipsis,
   FileSpreadsheet,
   History,
   LayoutDashboard,
   LogOut,
   Package,
+  Plus,
   RefreshCw,
   ScanBarcode,
+  Store,
   Users,
   WifiOff,
   type LucideIcon,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router'
+import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import { useAuth } from '../contexto/Auth'
 import { useDados } from '../contexto/Dados'
-import { NOME_EMPRESA, repositorio } from '../lib/dados'
-import { Aviso, cx } from './ui'
+import { useAtiva } from '../contexto/Empresa'
+import { formatarData } from '../lib/formato'
+import { NOME_PAPEL } from '../lib/permissoes'
+import type { Vinculo } from '../lib/tipos'
+import { Aviso, Modal, cx } from './ui'
+
+/** Nome do sistema (marca do produto) — a empresa do cliente aparece ao lado. */
+export const NOME_SISTEMA = (import.meta.env.VITE_NOME_SISTEMA as string | undefined) || 'Controle de Estoque'
 
 interface ItemMenu {
   para: string
   rotulo: string
   icone: LucideIcon
 }
-
-const MENU: ItemMenu[] = [
-  { para: '/painel', rotulo: 'Painel', icone: LayoutDashboard },
-  { para: '/estoque', rotulo: 'Estoque', icone: Boxes },
-  { para: '/movimentar', rotulo: 'Movimentar', icone: ArrowLeftRight },
-  { para: '/historico', rotulo: 'Histórico', icone: History },
-  { para: '/produtos', rotulo: 'Produtos', icone: Package },
-  { para: '/relatorios', rotulo: 'Relatórios', icone: FileSpreadsheet },
-]
-
-const MENU_ADMIN: ItemMenu = { para: '/usuarios', rotulo: 'Usuários', icone: Users }
 
 function useOnline() {
   const [online, setOnline] = useState(navigator.onLine)
@@ -52,22 +52,49 @@ function useOnline() {
   return online
 }
 
-export function Marca({ claro }: { claro?: boolean }) {
+export function Marca({ claro, titulo = NOME_SISTEMA, subtitulo = 'Estoque e vendas' }: { claro?: boolean; titulo?: string; subtitulo?: string }) {
   return (
-    <div className="flex items-center gap-2.5">
-      <img src="/icone.svg" alt="" className="size-9 rounded-xl" />
-      <div className="leading-tight">
-        <p className={cx('text-sm font-bold', claro ? 'text-white' : 'text-slate-900')}>{NOME_EMPRESA}</p>
-        <p className={cx('text-xs', claro ? 'text-emerald-200' : 'text-slate-500')}>Estoque do galpão</p>
+    <div className="flex min-w-0 items-center gap-2.5">
+      <img src="/icone.svg" alt="" className="size-9 shrink-0 rounded-xl" />
+      <div className="min-w-0 leading-tight">
+        <p className={cx('truncate text-sm font-bold', claro ? 'text-white' : 'text-slate-900')}>{titulo}</p>
+        <p className={cx('truncate text-xs', claro ? 'text-emerald-200' : 'text-slate-500')}>{subtitulo}</p>
       </div>
     </div>
   )
 }
 
+/** Aviso da assinatura: atraso, somente leitura, suspensa. */
+function AvisoAssinatura({ empresa }: { empresa: Vinculo }) {
+  const limite = empresa.pago_ate ?? empresa.trial_ate
+  switch (empresa.estado) {
+    case 'atrasada':
+      return (
+        <Aviso tom="alerta">
+          <strong>Assinatura em atraso.</strong> Regularize para evitar o bloqueio dos lançamentos
+          {limite ? ` (venceu em ${formatarData(limite)})` : ''}.
+        </Aviso>
+      )
+    case 'somente_leitura':
+    case 'suspensa':
+    case 'cancelada':
+      return (
+        <Aviso tom="erro">
+          <strong>{empresa.estado === 'cancelada' ? 'Assinatura cancelada.' : 'Assinatura vencida.'}</strong> O sistema está somente para consulta: nada
+          foi apagado e os relatórios continuam disponíveis. {empresa.papel === 'dono' ? 'Regularize a assinatura para voltar a lançar.' : 'Fale com o responsável pela empresa.'}
+        </Aviso>
+      )
+    default:
+      return null
+  }
+}
+
 export function Layout() {
-  const { usuario, admin, sair } = useAuth()
+  const { usuario, sair } = useAuth()
+  const { empresa, loja, lojas, vinculos, pode, trocarLoja } = useAtiva()
   const { erro, recarregar } = useDados()
   const [tentando, setTentando] = useState(false)
+  const [escolhendo, setEscolhendo] = useState(false)
   const online = useOnline()
   const local = useLocation()
 
@@ -75,15 +102,36 @@ export function Layout() {
     window.scrollTo(0, 0)
   }, [local.pathname])
 
+  const menu: ItemMenu[] = [
+    { para: '/painel', rotulo: 'Painel', icone: LayoutDashboard },
+    { para: '/estoque', rotulo: 'Estoque', icone: Boxes },
+    ...(pode.movimentar ? [{ para: '/movimentar', rotulo: 'Movimentar', icone: ArrowLeftRight }] : []),
+    { para: '/historico', rotulo: 'Histórico', icone: History },
+    { para: '/produtos', rotulo: 'Produtos', icone: Package },
+    { para: '/relatorios', rotulo: 'Relatórios', icone: FileSpreadsheet },
+    ...(pode.convidar || pode.gerenciarEquipe ? [{ para: '/equipe', rotulo: 'Equipe', icone: Users }] : []),
+    { para: '/empresa', rotulo: 'Empresa', icone: Building2 },
+  ]
+  const variasLojas = (lojas?.length ?? 0) > 1
+  const subtitulo = variasLojas ? loja.nome : NOME_SISTEMA
+
   return (
     <div className="min-h-dvh lg:pl-64">
       {/* Menu lateral (computador) */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-slate-200 bg-white lg:flex">
-        <div className="px-5 py-5">
-          <Marca />
+        <div className="space-y-2 px-4 py-4">
+          <button
+            className="flex w-full items-center gap-2 rounded-xl p-1 text-left transition hover:bg-slate-50"
+            onClick={() => setEscolhendo(true)}
+            title="Trocar de empresa"
+          >
+            <Marca titulo={empresa.nome} subtitulo={subtitulo} />
+            <ChevronsUpDown className="ml-auto size-4 shrink-0 text-slate-400" />
+          </button>
+          {variasLojas && <SeletorLoja />}
         </div>
         <nav className="flex-1 space-y-1 px-3">
-          {(admin ? [...MENU, MENU_ADMIN] : MENU).map(item => (
+          {menu.map(item => (
             <NavLink
               key={item.para}
               to={item.para}
@@ -106,20 +154,21 @@ export function Layout() {
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-slate-800">{usuario?.nome}</p>
-              <p className="text-xs text-slate-500">{usuario?.papel === 'admin' ? 'Administrador' : 'Operador'}</p>
+              <p className="text-xs text-slate-500">{NOME_PAPEL[empresa.papel]}</p>
             </div>
-            {repositorio.modo === 'supabase' && (
-              <button onClick={sair} className="btn btn-fantasma p-2" title="Sair">
-                <LogOut className="size-4.5" />
-              </button>
-            )}
+            <button onClick={sair} className="btn btn-fantasma p-2" title="Sair">
+              <LogOut className="size-4.5" />
+            </button>
           </div>
         </div>
       </aside>
 
       {/* Barra superior (celular) */}
-      <header className="sticky top-0 z-20 border-b border-emerald-800 bg-emerald-700 px-4 py-2.5 lg:hidden">
-        <Marca claro />
+      <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-emerald-800 bg-emerald-700 px-4 py-2.5 lg:hidden">
+        <button className="min-w-0 text-left" onClick={() => setEscolhendo(true)} aria-label="Trocar de empresa ou loja">
+          <Marca claro titulo={empresa.nome} subtitulo={subtitulo} />
+        </button>
+        {(variasLojas || (vinculos?.length ?? 0) > 1) && <ChevronsUpDown className="size-4 shrink-0 text-emerald-200" />}
       </header>
 
       <div className="space-y-2 px-4 pt-3 empty:hidden sm:px-6 lg:px-8">
@@ -147,10 +196,11 @@ export function Layout() {
             </span>
           </Aviso>
         )}
-        {repositorio.modo === 'demo' && (
-          <Aviso tom="alerta">
-            <strong>Modo demonstração:</strong> os dados ficam salvos apenas neste navegador. Configure o Supabase (veja o
-            README) para uso real e compartilhado.
+        <AvisoAssinatura empresa={empresa} />
+        {empresa.config.exemplo && (
+          <Aviso tom="info">
+            <strong>Empresa de exemplo:</strong> os dados são fictícios, para você conhecer o sistema.{' '}
+            <Link to="/empresas/nova" className="font-semibold underline underline-offset-2">Cadastrar minha empresa</Link>
           </Aviso>
         )}
       </div>
@@ -161,29 +211,93 @@ export function Layout() {
 
       {/* Navegação inferior (celular) */}
       <nav className="pb-seguro fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur lg:hidden">
-        <div className="mx-auto grid max-w-md grid-cols-5 items-end px-2">
+        <div className={cx('mx-auto grid max-w-md items-end px-2', pode.movimentar ? 'grid-cols-5' : 'grid-cols-4')}>
           <ItemInferior para="/painel" rotulo="Painel" icone={LayoutDashboard} />
           <ItemInferior para="/estoque" rotulo="Estoque" icone={Boxes} />
-          <NavLink to="/movimentar" className="-mt-5 flex flex-col items-center gap-1 pb-2">
-            {({ isActive }) => (
-              <>
-                <span
-                  className={cx(
-                    'grid size-14 place-items-center rounded-2xl text-white shadow-lg shadow-emerald-900/25 ring-4 ring-white transition',
-                    isActive ? 'bg-emerald-800' : 'bg-emerald-700',
-                  )}
-                >
-                  <ScanBarcode className="size-7" />
-                </span>
-                <span className={cx('text-[11px] font-semibold', isActive ? 'text-emerald-800' : 'text-slate-600')}>Movimentar</span>
-              </>
-            )}
-          </NavLink>
+          {pode.movimentar && (
+            <NavLink to="/movimentar" className="-mt-5 flex flex-col items-center gap-1 pb-2">
+              {({ isActive }) => (
+                <>
+                  <span
+                    className={cx(
+                      'grid size-14 place-items-center rounded-2xl text-white shadow-lg shadow-emerald-900/25 ring-4 ring-white transition',
+                      isActive ? 'bg-emerald-800' : 'bg-emerald-700',
+                    )}
+                  >
+                    <ScanBarcode className="size-7" />
+                  </span>
+                  <span className={cx('text-[11px] font-semibold', isActive ? 'text-emerald-800' : 'text-slate-600')}>Movimentar</span>
+                </>
+              )}
+            </NavLink>
+          )}
           <ItemInferior para="/historico" rotulo="Histórico" icone={History} />
-          <ItemInferior para="/mais" rotulo="Mais" icone={Ellipsis} ativoEm={['/mais', '/produtos', '/relatorios', '/usuarios']} />
+          <ItemInferior para="/mais" rotulo="Mais" icone={Ellipsis} ativoEm={['/mais', '/produtos', '/relatorios', '/equipe', '/empresa']} />
         </div>
       </nav>
+
+      <EscolherEmpresa aberto={escolhendo} aoFechar={() => setEscolhendo(false)} trocarLoja={trocarLoja} />
     </div>
+  )
+}
+
+function SeletorLoja() {
+  const { loja, lojas, trocarLoja } = useAtiva()
+  return (
+    <label className="flex items-center gap-2 rounded-xl bg-slate-50 px-2.5 py-1.5">
+      <Store className="size-4 shrink-0 text-slate-500" />
+      <span className="sr-only">Loja</span>
+      <select className="w-full bg-transparent text-sm font-medium text-slate-700 outline-none" value={loja.id} onChange={e => trocarLoja(e.target.value)} aria-label="Loja">
+        {lojas!.map(l => <option key={l.id} value={l.id}>{l.nome}</option>)}
+      </select>
+    </label>
+  )
+}
+
+/** Troca de empresa (para quem trabalha em mais de uma) e de loja (no celular). */
+function EscolherEmpresa({ aberto, aoFechar, trocarLoja }: { aberto: boolean; aoFechar: () => void; trocarLoja: (id: string) => void }) {
+  const { vinculos, empresa, loja, lojas, trocarEmpresa } = useAtiva()
+  return (
+    <Modal aberto={aberto} aoFechar={aoFechar} titulo="Empresa e loja">
+      <div className="space-y-5">
+        {(lojas?.length ?? 0) > 1 && (
+          <section>
+            <h3 className="rotulo">Loja</h3>
+            <div className="cartao divide-y divide-slate-100 overflow-hidden">
+              {lojas!.map(l => (
+                <button key={l.id} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-slate-50" onClick={() => { trocarLoja(l.id); aoFechar() }}>
+                  <Store className="size-4.5 text-slate-400" />
+                  <span className="flex-1 font-medium text-slate-800">{l.nome}</span>
+                  {l.id === loja.id && <Check className="size-4.5 text-emerald-700" />}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+        <section>
+          <h3 className="rotulo">Empresa</h3>
+          <div className="cartao divide-y divide-slate-100 overflow-hidden">
+            {(vinculos ?? []).map(v => (
+              <button
+                key={v.empresa_id}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-slate-50"
+                onClick={() => { trocarEmpresa(v.empresa_id); aoFechar() }}
+              >
+                <Building2 className="size-4.5 text-slate-400" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium text-slate-800">{v.nome}</span>
+                  <span className="block text-xs text-slate-500">{NOME_PAPEL[v.papel]}</span>
+                </span>
+                {v.empresa_id === empresa.empresa_id && <Check className="size-4.5 text-emerald-700" />}
+              </button>
+            ))}
+            <Link to="/empresas/nova" onClick={aoFechar} className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-emerald-800 hover:bg-slate-50">
+              <Plus className="size-4.5" /> Cadastrar outra empresa
+            </Link>
+          </div>
+        </section>
+      </div>
+    </Modal>
   )
 }
 

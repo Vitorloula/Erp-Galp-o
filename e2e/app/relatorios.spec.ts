@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs'
 import { readFileSync } from 'node:fs'
 import type { Page } from '@playwright/test'
-import { dataDaqui, expect, test, toast, valorKpi } from '../base'
+import { dataDaqui, expect, test, toast, valorKpi } from '../base.ts'
 
 const lerNumero = (t: string) => {
   const s = t.replace(/[+\s]/g, '').replace('−', '-').replace(/\./g, '').replace(',', '.')
@@ -22,7 +22,7 @@ test.describe('Relatórios', () => {
     expect(await valorKpi(kpis.nth(0))).toBe(1)
     await expect(kpis.nth(1)).toContainText('Saídas')
     expect(await valorKpi(kpis.nth(1))).toBe(5)
-    await expect(kpis.nth(2)).toContainText('Correções')
+    await expect(kpis.nth(2)).toContainText('Ajustes e correções')
     expect(await valorKpi(kpis.nth(2))).toBe(0)
 
     await page.getByRole('button', { name: 'Movimentações', exact: true }).click()
@@ -33,7 +33,7 @@ test.describe('Relatórios', () => {
     await expect(page.locator('main table tbody tr.linha-vencendo')).toHaveCount(3)
   })
 
-  test('resumo fecha a conta: saldo inicial + entradas − saídas ± correções = saldo final', async ({ page }) => {
+  test('resumo fecha a conta: saldo inicial + entradas − saídas ± ajustes = saldo final', async ({ page }) => {
     await page.goto('/relatorios')
     await page.getByRole('button', { name: 'Mês anterior' }).click()
     await page.getByRole('button', { name: 'Últimos 30 dias' }).click()

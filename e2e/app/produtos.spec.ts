@@ -1,4 +1,4 @@
-import { dataDaqui, escolherProduto, expect, linhasEstoque, test, toast } from '../base'
+import { dataDaqui, escolherProduto, expect, linhasEstoque, test, toast } from '../base.ts'
 
 test.describe('Produtos', () => {
   test('lista, busca e filtro por categoria', async ({ page }) => {
@@ -9,7 +9,7 @@ test.describe('Produtos', () => {
     await page.getByLabel('Buscar').fill('fertimais')
     await expect(itens).toHaveCount(4)
     await page.getByLabel('Buscar').fill('')
-    await page.getByLabel('Categoria').selectOption('adjuvante')
+    await page.getByLabel('Categoria').selectOption({ label: 'Adjuvante' })
     await expect(itens).toHaveCount(1)
     await expect(itens).toContainText('Óleo mineral adjuvante')
   })
@@ -20,7 +20,7 @@ test.describe('Produtos', () => {
     const d = page.getByRole('dialog', { name: 'Novo produto' })
     await d.getByLabel('Nome do produto *').fill('  Fungicida   Teste 250 EC ')
     await d.getByLabel('Unidade *').selectOption('L')
-    await d.getByLabel('Categoria').selectOption('defensivo')
+    await d.getByLabel('Categoria').selectOption({ label: 'Defensivo agrícola' })
     await d.getByLabel(/Conteúdo por embalagem/).fill('5')
     await d.getByLabel('Código de barras').fill('7890000099990')
     await d.getByLabel('Fabricante').fill('Teste S.A.')
@@ -46,9 +46,9 @@ test.describe('Produtos', () => {
     await d.getByLabel('Nome do produto *').fill('Duplicado')
     await d.getByLabel('Código de barras').fill('7891000000014')
     await d.getByRole('button', { name: 'Salvar' }).click()
-    await expect(d.getByText('Já existe um produto com este código de barras.')).toBeVisible()
+    await expect(d.getByText('O código 7891000000014 já está cadastrado no produto "Glifosato 480 SL".')).toBeVisible()
 
-    await d.getByLabel('Código de barras').fill('')
+    await d.getByRole('button', { name: 'Remover código 7891000000014' }).click()
     await d.getByLabel('Código interno').fill('p0001')
     await d.getByRole('button', { name: 'Salvar' }).click()
     await expect(d.getByText('Já existe um produto com este código interno.')).toBeVisible()
@@ -63,7 +63,7 @@ test.describe('Produtos', () => {
     await expect(page.getByText('12 produtos ativos')).toBeVisible()
   })
 
-  test('administrador edita o cadastro', async ({ page }) => {
+  test('dono edita o cadastro', async ({ page }) => {
     await page.goto('/produtos')
     await page.getByRole('link', { name: /Óleo mineral adjuvante/ }).click()
     await page.getByRole('button', { name: 'Editar' }).click()
@@ -125,7 +125,7 @@ test.describe('Produtos', () => {
     await expect(page.locator('[data-lote="DA0925"]')).toHaveAttribute('data-situacao', 'zerado')
   })
 
-  test('administrador corrige a validade de um lote digitada errada', async ({ page }) => {
+  test('dono corrige a validade de um lote digitada errada', async ({ page }) => {
     await page.goto('/produtos')
     await page.getByRole('link', { name: /Atrazina 500 SC/ }).click()
     await page.locator('[data-lote="AT2401"]').getByRole('button', { name: /Corrigir número do lote/ }).click()

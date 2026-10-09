@@ -1,6 +1,6 @@
-import { ehCelular, expect, linhasEstoque, test, valorKpi } from '../base'
+import { ehCelular, expect, linhasEstoque, test, valorKpi } from '../base.ts'
 
-// Dados de demonstração: 12 produtos; 2 lotes vencidos, 3 vencendo em 30 dias,
+// Empresa de exemplo (mesmos dados da antiga demonstração): 12 produtos; 2 lotes vencidos, 3 vencendo em 30 dias,
 // 2 produtos zerados e 6 lotes em dia (13 linhas no estoque).
 
 test.describe('Painel', () => {
@@ -102,7 +102,7 @@ test.describe('Estoque', () => {
     await expect(linhasEstoque(page)).toContainText('MAP 11-52-00')
 
     await page.getByLabel('Buscar').fill('')
-    await page.getByLabel('Categoria').selectOption('fertilizante')
+    await page.getByLabel('Categoria').selectOption({ label: 'Fertilizante' })
     await expect(linhasEstoque(page)).toHaveCount(5)
 
     await page.getByLabel('Categoria').selectOption('')

@@ -1,4 +1,4 @@
-import { expect, test } from '../base'
+import { expect, test } from '../base.ts'
 import { cameraLigada, monitorarCamera } from './monitor'
 
 // Câmera falsa apontada para uma "prateleira" sem código de barras.

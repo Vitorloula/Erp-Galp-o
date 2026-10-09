@@ -1,6 +1,6 @@
 {
-  "name": "Galpão · Controle de Estoque",
-  "short_name": "Galpão",
+  "name": "Controle de Estoque",
+  "short_name": "Estoque",
   "description": "Controle de entradas, saídas e validade de defensivos e fertilizantes.",
   "lang": "pt-BR",
   "start_url": "/",

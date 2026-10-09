@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useDados } from '../contexto/Dados'
-import { repositorio } from '../lib/dados'
+import { useAtiva } from '../contexto/Empresa'
+import { movimentos } from '../lib/dados'
 import { NOME_TIPO, arred, formatarDataHora, formatarDelta, formatarQtd, formatarValidade } from '../lib/formato'
 import type { Movimentacao } from '../lib/tipos'
 import { CampoQuantidade } from './CampoQuantidade'
@@ -23,6 +24,8 @@ export function CorrecaoModal({ movimentacao, aoFechar }: Props) {
 
 function Conteudo({ m, aoFechar }: { m: Movimentacao; aoFechar: () => void }) {
   const { produtoPorId, lotePorId, recarregar } = useDados()
+  const { empresa, loja } = useAtiva()
+  const origem = useRef(crypto.randomUUID())
   const toast = useToast()
   const produto = produtoPorId.get(m.produto_id)
   const lote = lotePorId.get(m.lote_id)
@@ -35,11 +38,11 @@ function Conteudo({ m, aoFechar }: { m: Movimentacao; aoFechar: () => void }) {
 
   // Efeito atual = lançamento original + correções já feitas sobre ele.
   useEffect(() => {
-    repositorio
-      .listarMovimentacoes({ referenciaId: m.id })
+    movimentos
+      .listarMovimentacoes(empresa.empresa_id, loja.id, { referenciaId: m.id })
       .then(cs => setEfeitoAtual(arred(m.delta + cs.reduce((s, c) => s + c.delta, 0))))
       .catch(e => setErro((e as Error).message))
-  }, [m])
+  }, [m, empresa.empresa_id, loja.id])
 
   if (!produto) return null
   const sinal = m.tipo === 'SAIDA' ? -1 : 1
@@ -54,7 +57,12 @@ function Conteudo({ m, aoFechar }: { m: Movimentacao; aoFechar: () => void }) {
     if (motivo.trim().length < 3) return setErro('Descreva o motivo da correção.')
     setSalvando(true)
     try {
-      const id = await repositorio.registrarCorrecao({ loteId: m.lote_id, quantidade: diferenca, observacao: motivo.trim(), referenciaId: m.id })
+      const id = await movimentos.registrarCorrecao(
+        empresa.empresa_id,
+        loja.id,
+        { loteId: m.lote_id, quantidade: diferenca, observacao: motivo.trim(), referenciaId: m.id },
+        origem.current,
+      )
       await recarregar()
       toast.sucesso(`Correção #${id} registrada (${formatarDelta(diferenca, produto!.unidade)}).`)
       aoFechar()
@@ -83,7 +91,7 @@ function Conteudo({ m, aoFechar }: { m: Movimentacao; aoFechar: () => void }) {
         <div className="rounded-xl bg-slate-50 p-3 text-sm">
           <p className="font-semibold text-slate-900">{produto.nome}</p>
           <p className="text-slate-600">
-            {NOME_TIPO[m.tipo]} de <strong>{formatarQtd(m.quantidade, produto.unidade)}</strong> em {formatarDataHora(m.criado_em)}
+            {NOME_TIPO[m.tipo]} de <strong>{formatarQtd(m.quantidade, produto.unidade)}</strong> em {formatarDataHora(m.ocorrido_em)}
           </p>
           <p className="text-slate-500">
             {lote?.lote ? `Lote ${lote.lote}` : 'Sem lote'} · val. {formatarValidade(lote?.validade)} · por {m.usuario_nome ?? '—'}

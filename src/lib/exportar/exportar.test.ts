@@ -2,26 +2,34 @@ import ExcelJS from 'exceljs'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { criarRepositorioDemo } from '../dados/demo'
-import { intervaloParaInstantes, intervaloRapido } from '../periodos'
+import { hojeISO, somarDias } from '../formato'
+import { intervaloRapido } from '../periodos'
 import { montarRelatorio } from '../relatorio'
+import type { Lote, Movimentacao, Produto, TipoMov } from '../tipos'
 import { gerarExcel } from './excel'
 import { gerarPdf } from './pdf'
 
-class MemoriaStorage implements Storage {
-  private m = new Map<string, string>()
-  get length() { return this.m.size }
-  clear() { this.m.clear() }
-  getItem(k: string) { return this.m.get(k) ?? null }
-  key(i: number) { return [...this.m.keys()][i] ?? null }
-  removeItem(k: string) { this.m.delete(k) }
-  setItem(k: string, v: string) { this.m.set(k, v) }
-}
+// Estoque de exemplo com um lote em dia, um vencido e um vencendo.
+const hoje = hojeISO()
+const produto = (id: string, nome: string, unidade: Produto['unidade'] = 'L'): Produto => ({
+  id, codigo_interno: 'P000' + id.length, nome, categoria_id: 'cat', unidade, conteudo_embalagem: null, preco_venda: null, custo_ultimo: null,
+  rastreio: 'lote', fabricante: null, observacao: null, ativo: true, criado_em: '', codigos: [],
+})
+const produtos = [produto('a', 'Glifosato 480 SL'), produto('bb', 'Atrazina 500 SC'), produto('ccc', 'Mancozebe 800 WP', 'kg')]
+const lote = (lote_id: string, produto_id: string, nome: string, validadeEmDias: number, saldo: number): Lote => ({
+  lote_id, produto_id, lote: nome, validade: somarDias(hoje, validadeEmDias), saldo, ultima_movimentacao: null,
+})
+const lotes = [lote('la', 'a', 'GL1', 200, 240), lote('lb', 'bb', 'AT1', -5, 40), lote('lc', 'ccc', 'MZ1', 10, 75)]
+let id = 0
+const mov = (diasAtras: number, tipo: TipoMov, lote_id: string, produto_id: string, quantidade: number): Movimentacao => ({
+  id: ++id, ocorrido_em: new Date(Date.now() - diasAtras * 86_400_000).toISOString(), registrado_em: new Date().toISOString(), tipo, loja_id: 'loja',
+  lote_id, produto_id, quantidade, delta: tipo === 'SAIDA' ? -quantidade : quantidade, documento: null, observacao: null, referencia_id: null,
+  origem: 'manual', usuario_id: null, usuario_nome: 'Ana',
+})
+const movs = [mov(20, 'ENTRADA', 'la', 'a', 300), mov(10, 'SAIDA', 'la', 'a', 60), mov(5, 'ENTRADA', 'lb', 'bb', 40), mov(3, 'ENTRADA', 'lc', 'ccc', 75)]
 
 async function relatorioDemo() {
-  const repo = criarRepositorioDemo(new MemoriaStorage())
-  const iv = intervaloRapido('30dias')
-  return montarRelatorio(iv, await repo.listarProdutos(), await repo.listarLotes(), await repo.listarMovimentacoes({ desde: intervaloParaInstantes(iv).desde }))
+  return montarRelatorio(intervaloRapido('30dias'), produtos, lotes, movs, () => 'Defensivo agrícola')
 }
 
 const TODAS = { resumo: true, movimentacoes: true, posicao: true }

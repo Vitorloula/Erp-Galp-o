@@ -1,4 +1,4 @@
-import type { Categoria, TipoMov, Unidade } from './tipos'
+import type { TipoMov, Unidade } from './tipos'
 
 export const UNIDADES: { valor: Unidade; nome: string }[] = [
   { valor: 'L', nome: 'Litros (L)' },
@@ -10,22 +10,49 @@ export const UNIDADES: { valor: Unidade; nome: string }[] = [
   { valor: 'gl', nome: 'Galões (gl)' },
   { valor: 'cx', nome: 'Caixas (cx)' },
   { valor: 'un', nome: 'Unidades (un)' },
+  { valor: 'pc', nome: 'Peças (pc)' },
+  { valor: 'par', nome: 'Pares (par)' },
+  { valor: 'kit', nome: 'Kits (kit)' },
+  { valor: 'm', nome: 'Metros (m)' },
 ]
-
-export const CATEGORIAS: { valor: Categoria; nome: string }[] = [
-  { valor: 'defensivo', nome: 'Defensivo agrícola' },
-  { valor: 'fertilizante', nome: 'Fertilizante' },
-  { valor: 'adjuvante', nome: 'Adjuvante' },
-  { valor: 'semente', nome: 'Semente' },
-  { valor: 'outro', nome: 'Outro' },
-]
-
-export const NOME_CATEGORIA = Object.fromEntries(CATEGORIAS.map(c => [c.valor, c.nome])) as Record<Categoria, string>
 
 export const NOME_TIPO: Record<TipoMov, string> = {
   ENTRADA: 'Entrada',
   SAIDA: 'Saída',
+  AJUSTE: 'Ajuste',
   CORRECAO: 'Correção',
+  VENDA: 'Venda',
+  CANCELAMENTO_VENDA: 'Venda cancelada',
+  DEVOLUCAO: 'Devolução',
+  TRANSF_SAIDA: 'Transferência (saída)',
+  TRANSF_ENTRADA: 'Transferência (entrada)',
+}
+
+/** Como cada tipo entra nos totais dos relatórios. */
+export function grupoDoTipo(tipo: TipoMov): 'entrada' | 'saida' | 'ajuste' {
+  if (tipo === 'AJUSTE' || tipo === 'CORRECAO') return 'ajuste'
+  if (tipo === 'SAIDA' || tipo === 'VENDA' || tipo === 'TRANSF_SAIDA') return 'saida'
+  return 'entrada'
+}
+
+/**
+ * Mesma regra do banco (app.canonizar_codigo): códigos numéricos de 8, 12, 13 ou 14
+ * dígitos viram GTIN-14; os demais ficam em maiúsculas, sem espaços.
+ */
+export function canonizarCodigo(codigo: string): string {
+  const limpo = codigo.replace(/\s/g, '')
+  return /^(\d{8}|\d{12,14})$/.test(limpo) ? limpo.padStart(14, '0') : limpo.toUpperCase()
+}
+
+/** Exibe o código como está na embalagem: o GTIN-14 de um EAN-13 volta a ter 13 dígitos. */
+export function exibirCodigo(codigo: string): string {
+  return /^0\d{13}$/.test(codigo) ? codigo.slice(1) : codigo
+}
+
+const fmtMoeda = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+
+export function formatarMoeda(n: number | null | undefined): string {
+  return n === null || n === undefined || Number.isNaN(n) ? '—' : fmtMoeda.format(n)
 }
 
 const MESES = ['jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.']

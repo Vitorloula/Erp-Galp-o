@@ -1,5 +1,6 @@
 import {
   ArrowDownToLine,
+  ArrowRightLeft,
   ArrowUpFromLine,
   CircleCheck,
   Clock,
@@ -7,6 +8,9 @@ import {
   OctagonAlert,
   PackageX,
   RotateCcw,
+  ShoppingCart,
+  SlidersHorizontal,
+  Undo2,
   X,
   type LucideIcon,
 } from 'lucide-react'
@@ -64,7 +68,13 @@ export function BadgeSituacao({ situacao, validade, curto }: { situacao: Situaca
 const ESTILO_TIPO: Record<TipoMov, { classe: string; icone: LucideIcon }> = {
   ENTRADA: { classe: 'bg-emerald-100 text-emerald-800', icone: ArrowDownToLine },
   SAIDA: { classe: 'bg-sky-100 text-sky-800', icone: ArrowUpFromLine },
+  AJUSTE: { classe: 'bg-violet-100 text-violet-800', icone: SlidersHorizontal },
   CORRECAO: { classe: 'bg-violet-100 text-violet-800', icone: RotateCcw },
+  VENDA: { classe: 'bg-sky-100 text-sky-800', icone: ShoppingCart },
+  CANCELAMENTO_VENDA: { classe: 'bg-amber-100 text-amber-800', icone: Undo2 },
+  DEVOLUCAO: { classe: 'bg-emerald-100 text-emerald-800', icone: Undo2 },
+  TRANSF_SAIDA: { classe: 'bg-sky-100 text-sky-800', icone: ArrowRightLeft },
+  TRANSF_ENTRADA: { classe: 'bg-emerald-100 text-emerald-800', icone: ArrowRightLeft },
 }
 
 export function BadgeTipo({ tipo }: { tipo: TipoMov }) {

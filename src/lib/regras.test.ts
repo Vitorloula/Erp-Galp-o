@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { criarRepositorioDemo } from './dados/demo'
 import { encontrarPorCodigo, montarLinhasEstoque, resumirProduto, situacaoLote } from './estoque'
-import { formatarValidade, lerNumero } from './formato'
+import { canonizarCodigo, exibirCodigo, formatarValidade, grupoDoTipo, lerNumero } from './formato'
+import { permissoes } from './permissoes'
 import { lerCodigo } from './gs1'
 import { intervaloRapido } from './periodos'
 import type { Lote, Produto } from './tipos'
 
 const HOJE = '2026-10-03'
 const lote = (saldo: number, validade: string | null, extra: Partial<Lote> = {}): Lote => ({
-  lote_id: Math.random().toString(), produto_id: 'p1', lote: '', validade, criado_em: '', saldo, ultima_movimentacao: null, ...extra,
+  lote_id: Math.random().toString(), produto_id: 'p1', lote: '', validade, saldo, ultima_movimentacao: null, ...extra,
 })
 const produto = (id: string, extra: Partial<Produto> = {}): Produto => ({
-  id, codigo_interno: 'P' + id, codigo_barras: null, nome: 'Produto ' + id, categoria: 'defensivo', unidade: 'L',
-  conteudo_embalagem: null, fabricante: null, observacao: null, ativo: true, criado_em: '', ...extra,
+  id, codigo_interno: 'P' + id, nome: 'Produto ' + id, categoria_id: null, unidade: 'L', conteudo_embalagem: null, preco_venda: null,
+  custo_ultimo: null, rastreio: 'lote', fabricante: null, observacao: null, ativo: true, criado_em: '', codigos: [], ...extra,
 })
 
 describe('formato', () => {
@@ -54,12 +54,21 @@ describe('alertas de estoque', () => {
     const r = resumirProduto([lote(5, '2026-09-01'), lote(10, '2027-01-01'), lote(0, '2026-01-01')], HOJE)
     expect(r).toMatchObject({ saldo: 15, situacao: 'vencido', proximaValidade: '2026-09-01', lotesComSaldo: 2 })
   })
-  it('encontra produto por EAN-13, GTIN-14 ou código interno', () => {
-    const lista = [produto('1', { codigo_barras: '7891000000014', codigo_interno: 'P0001' })]
-    expect(encontrarPorCodigo(lista, '7891000000014')?.id).toBe('1')
-    expect(encontrarPorCodigo(lista, '07891000000014')?.id).toBe('1')
-    expect(encontrarPorCodigo(lista, 'p0001')?.id).toBe('1')
+  it('encontra produto por EAN-13, GTIN-14, código da caixa ou código interno', () => {
+    const codigos = [{ codigo: '07891000000014', fator: 1 }, { codigo: '17891000000011', fator: 12 }]
+    const lista = [produto('1', { codigos, codigo_interno: 'P0001' })]
+    expect(encontrarPorCodigo(lista, '7891000000014')).toMatchObject({ produto: { id: '1' }, fator: 1 })
+    expect(encontrarPorCodigo(lista, '07891000000014')?.produto.id).toBe('1')
+    expect(encontrarPorCodigo(lista, '17891000000011')?.fator).toBe(12) // caixa com 12
+    expect(encontrarPorCodigo(lista, 'p0001')?.produto.id).toBe('1')
     expect(encontrarPorCodigo(lista, '123')).toBeUndefined()
+  })
+  it('normaliza códigos como o banco e exibe como na embalagem', () => {
+    expect(canonizarCodigo(' 7891000000014 ')).toBe('07891000000014')
+    expect(canonizarCodigo('12345670')).toBe('00000012345670')
+    expect(canonizarCodigo('abc-1')).toBe('ABC-1')
+    expect(exibirCodigo('07891000000014')).toBe('7891000000014')
+    expect(exibirCodigo('17891000000011')).toBe('17891000000011')
   })
 })
 
@@ -83,46 +92,23 @@ describe('períodos', () => {
   })
 })
 
-class MemoriaStorage implements Storage {
-  private m = new Map<string, string>()
-  get length() { return this.m.size }
-  clear() { this.m.clear() }
-  getItem(k: string) { return this.m.get(k) ?? null }
-  key(i: number) { return [...this.m.keys()][i] ?? null }
-  removeItem(k: string) { this.m.delete(k) }
-  setItem(k: string, v: string) { this.m.set(k, v) }
-}
-
-describe('repositório de demonstração aplica as regras do banco', () => {
-  it('entrada, saída, saldo insuficiente e correção', async () => {
-    const repo = criarRepositorioDemo(new MemoriaStorage())
-    const p = await repo.salvarProduto({ codigo_interno: '', codigo_barras: null, nome: ' Teste  X ', categoria: 'outro', unidade: 'kg', conteudo_embalagem: null, fabricante: null, observacao: null, ativo: true })
-    expect(p.nome).toBe('Teste X')
-    expect(p.codigo_interno).toMatch(/^P\d{4}$/)
-
-    const idEntrada = await repo.registrarEntrada({ produtoId: p.id, lote: ' l1 ', validade: '2027-01-31', quantidade: 10 })
-    await repo.registrarEntrada({ produtoId: p.id, lote: 'L1', validade: '2027-01-31', quantidade: 5 })
-    let lotes = (await repo.listarLotes()).filter(l => l.produto_id === p.id)
-    expect(lotes).toHaveLength(1)
-    expect(lotes[0]).toMatchObject({ lote: 'L1', saldo: 15 })
-
-    const idSaida = await repo.registrarSaida({ loteId: lotes[0].lote_id, quantidade: 4 })
-    await expect(repo.registrarSaida({ loteId: lotes[0].lote_id, quantidade: 12 })).rejects.toThrow('Saldo insuficiente')
-    await expect(repo.registrarCorrecao({ loteId: lotes[0].lote_id, quantidade: 1, observacao: '' })).rejects.toThrow('motivo')
-    await repo.registrarCorrecao({ loteId: lotes[0].lote_id, quantidade: 1, observacao: 'Saída eram 3', referenciaId: idSaida })
-
-    lotes = (await repo.listarLotes()).filter(l => l.produto_id === p.id)
-    expect(lotes[0].saldo).toBe(12)
-    const movs = await repo.listarMovimentacoes({ produtoId: p.id })
-    expect(movs.map(m => m.tipo)).toEqual(['CORRECAO', 'SAIDA', 'ENTRADA', 'ENTRADA'])
-    expect(movs.at(-1)!.id).toBe(idEntrada)
+describe('permissões por papel', () => {
+  it('espelham as regras do banco', () => {
+    expect(permissoes('dono', 'ativa')).toMatchObject({ movimentar: true, convidarGerente: true, gerenciarEquipe: true, corrigirLote: true })
+    expect(permissoes('gerente', 'ativa')).toMatchObject({ movimentar: true, convidar: true, convidarGerente: false, gerenciarEquipe: false })
+    expect(permissoes('estoquista', 'ativa')).toMatchObject({ movimentar: true, cadastrarProduto: true, corrigirLote: false, convidar: false })
+    expect(permissoes('caixa', 'ativa')).toMatchObject({ movimentar: false, cadastrarProduto: false, convidar: false })
   })
+  it('assinatura vencida deixa tudo somente leitura (carência ainda grava)', () => {
+    expect(permissoes('dono', 'atrasada').movimentar).toBe(true)
+    expect(permissoes('dono', 'somente_leitura')).toMatchObject({ gravavel: false, movimentar: false, convidar: false })
+  })
+})
 
-  it('dados de exemplo têm itens vencidos, vencendo e zerados', async () => {
-    const repo = criarRepositorioDemo(new MemoriaStorage())
-    const linhas = montarLinhasEstoque(await repo.listarProdutos(), await repo.listarLotes())
-    const sit = new Set(linhas.map(l => l.situacao))
-    expect(sit).toEqual(new Set(['vencido', 'zerado', 'vencendo', 'ok']))
-    expect(linhas.every(l => l.saldo >= 0)).toBe(true)
+describe('tipos de movimentação nos relatórios', () => {
+  it('agrupa em entradas, saídas e ajustes', () => {
+    expect(['ENTRADA', 'DEVOLUCAO', 'TRANSF_ENTRADA', 'CANCELAMENTO_VENDA'].map(t => grupoDoTipo(t as never))).toEqual(['entrada', 'entrada', 'entrada', 'entrada'])
+    expect(['SAIDA', 'VENDA', 'TRANSF_SAIDA'].map(t => grupoDoTipo(t as never))).toEqual(['saida', 'saida', 'saida'])
+    expect(['AJUSTE', 'CORRECAO'].map(t => grupoDoTipo(t as never))).toEqual(['ajuste', 'ajuste'])
   })
 })

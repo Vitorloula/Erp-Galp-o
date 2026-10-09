@@ -2,7 +2,7 @@ import { ChevronRight, PackagePlus, ScanBarcode, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useDados } from '../contexto/Dados'
 import { encontrarPorCodigo, produtoCombina, resumirProduto } from '../lib/estoque'
-import { formatarEmbalagens, formatarQtd } from '../lib/formato'
+import { exibirCodigo, formatarEmbalagens, formatarQtd } from '../lib/formato'
 import type { CodigoLido } from '../lib/gs1'
 import type { Produto } from '../lib/tipos'
 import { LeitorCodigo } from './LeitorCodigo'
@@ -12,6 +12,8 @@ import { Aviso, BadgeSituacao } from './ui'
 export interface ExtrasLeitura {
   lote?: string
   validade?: string
+  /** Leitura do código de uma caixa fechada (ex.: 12 unidades). */
+  fator?: number
 }
 
 interface Props {
@@ -36,10 +38,10 @@ export function BuscaProduto({ aoSelecionar, abrirCamera }: Props) {
 
   function tratarCodigo(lido: CodigoLido) {
     setLendo(false)
-    const p = encontrarPorCodigo(ativos, lido.codigo)
-    if (p) {
+    const achado = encontrarPorCodigo(ativos, lido.codigo)
+    if (achado) {
       setNaoEncontrado(null)
-      aoSelecionar(p, { lote: lido.lote, validade: lido.validade })
+      aoSelecionar(achado.produto, { lote: lido.lote, validade: lido.validade, fator: achado.fator })
     } else {
       setNaoEncontrado(lido.codigo)
     }
@@ -51,7 +53,7 @@ export function BuscaProduto({ aoSelecionar, abrirCamera }: Props) {
     const t = termo.trim()
     if (!t) return
     const exato = encontrarPorCodigo(ativos, t)
-    if (exato) return aoSelecionar(exato)
+    if (exato) return aoSelecionar(exato.produto, { fator: exato.fator })
     if (resultados.length === 1) return aoSelecionar(resultados[0])
     if (/^\d{8,14}$/.test(t)) setNaoEncontrado(t) // parece um código de barras de leitor USB
   }
@@ -112,7 +114,7 @@ export function BuscaProduto({ aoSelecionar, abrirCamera }: Props) {
                 <p className="truncate font-semibold text-slate-900">{p.nome}</p>
                 <p className="truncate text-xs text-slate-500">
                   {p.codigo_interno}
-                  {p.codigo_barras && ` · ${p.codigo_barras}`}
+                  {p.codigos[0] && ` · ${exibirCodigo(p.codigos[0].codigo)}`}
                 </p>
               </div>
               <div className="text-right">

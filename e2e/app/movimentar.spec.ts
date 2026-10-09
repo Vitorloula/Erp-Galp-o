@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { abrirMovimentar, dataDaqui, escolherProduto, expect, linhasEstoque, saldoNoCartao, test, toast } from '../base'
+import { abrirMovimentar, dataDaqui, escolherProduto, expect, linhasEstoque, saldoNoCartao, test, toast } from '../base.ts'
 
 const botaoTipo = (page: Page, nome: 'Entrada' | 'Saída' | 'Ajuste') => page.getByRole('button', { name: nome, exact: true })
 
@@ -134,7 +134,7 @@ test.describe('Ajuste de inventário', () => {
 
     await page.goto('/historico')
     const mov = page.locator('[data-mov]').first()
-    await expect(mov).toHaveAttribute('data-tipo', 'CORRECAO')
+    await expect(mov).toHaveAttribute('data-tipo', 'AJUSTE')
     await expect(mov).toContainText('Inventário mensal')
   })
 
@@ -165,7 +165,7 @@ test.describe('Identificação do produto', () => {
     await page.goto('/movimentar?tipo=entrada')
     await escolherProduto(page, 'p0011', /Óleo mineral adjuvante/)
     await expect(page.getByLabel('Quantidade recebida')).toBeVisible()
-    await page.getByRole('button', { name: 'Trocar' }).click()
+    await page.getByRole('button', { name: 'Trocar produto' }).click()
     await escolherProduto(page, 'oleo', /Óleo mineral adjuvante/)
     await expect(page.getByLabel('Quantidade recebida')).toBeVisible()
   })
@@ -238,7 +238,7 @@ test.describe('Identificação do produto', () => {
     await expect(page.getByRole('radio', { name: /GL2508/ })).toBeChecked()
     await botaoTipo(page, 'Ajuste').click()
     await expect(page.getByLabel('Saldo contado fisicamente')).toBeVisible()
-    await page.getByRole('button', { name: 'Trocar' }).click()
+    await page.getByRole('button', { name: 'Trocar produto' }).click()
     await expect(page.getByLabel('Buscar produto')).toBeVisible()
   })
 })

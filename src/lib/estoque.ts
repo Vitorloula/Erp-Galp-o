@@ -1,4 +1,4 @@
-import { diferencaDias, hojeISO, normalizarBusca } from './formato'
+import { canonizarCodigo, diferencaDias, exibirCodigo, hojeISO, normalizarBusca } from './formato'
 import type { Lote, Produto } from './tipos'
 
 /** Janela do alerta amarelo (vencimento próximo). */
@@ -132,25 +132,24 @@ export function resumirProduto(lotesDoProduto: Lote[], hoje = hojeISO()): Resumo
 export function produtoCombina(produto: Produto, termo: string): boolean {
   const t = normalizarBusca(termo)
   if (!t) return true
-  return [produto.nome, produto.codigo_interno, produto.codigo_barras ?? '', produto.fabricante ?? '']
+  return [produto.nome, produto.codigo_interno, produto.fabricante ?? '', ...produto.codigos.map(c => exibirCodigo(c.codigo))]
     .some(campo => normalizarBusca(campo).includes(t))
 }
 
-const soDigitos = (s: string) => /^\d+$/.test(s)
-
-/** Compara códigos de barras tolerando zeros à esquerda (EAN-13 x GTIN-14). */
-export function mesmoCodigo(a: string | null | undefined, b: string | null | undefined): boolean {
-  if (!a || !b) return false
-  const x = a.trim().toUpperCase()
-  const y = b.trim().toUpperCase()
-  if (x === y) return true
-  if (soDigitos(x) && soDigitos(y)) return x.replace(/^0+/, '') === y.replace(/^0+/, '')
-  return false
+export interface ProdutoLido {
+  produto: Produto
+  /** Unidades que a leitura representa (ex.: código da caixa com 12 = 12). */
+  fator: number
 }
 
-export function encontrarPorCodigo(produtos: Produto[], codigo: string): Produto | undefined {
-  return (
-    produtos.find(p => mesmoCodigo(p.codigo_barras, codigo)) ??
-    produtos.find(p => p.codigo_interno.toUpperCase() === codigo.trim().toUpperCase())
-  )
+/** Encontra o produto pelo código de barras (EAN-8/13, UPC, GTIN-14, DUN) ou pelo código interno. */
+export function encontrarPorCodigo(produtos: Produto[], codigo: string): ProdutoLido | undefined {
+  const canonico = canonizarCodigo(codigo)
+  if (!canonico) return undefined
+  for (const produto of produtos) {
+    const c = produto.codigos.find(x => x.codigo === canonico)
+    if (c) return { produto, fator: c.fator }
+  }
+  const porInterno = produtos.find(p => p.codigo_interno.toUpperCase() === codigo.trim().toUpperCase())
+  return porInterno ? { produto: porInterno, fator: 1 } : undefined
 }

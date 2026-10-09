@@ -5,7 +5,8 @@ import { ListaMovimentacoes } from '../components/ListaMovimentacoes'
 import { BadgeSituacao, Carregando, Kpi, cx } from '../components/ui'
 import { useAuth } from '../contexto/Auth'
 import { useDados } from '../contexto/Dados'
-import { repositorio } from '../lib/dados'
+import { useAtiva } from '../contexto/Empresa'
+import { movimentos } from '../lib/dados'
 import { PRIORIDADE, montarLinhasEstoque } from '../lib/estoque'
 import { formatarQtd, formatarValidade, hojeISO } from '../lib/formato'
 import type { Movimentacao } from '../lib/tipos'
@@ -17,13 +18,14 @@ function saudacao() {
 
 export function Painel() {
   const { usuario } = useAuth()
+  const { empresa, loja, pode } = useAtiva()
   const { produtos, lotes, carregando, versao } = useDados()
   const navegar = useNavigate()
   const [recentes, setRecentes] = useState<Movimentacao[] | null>(null)
 
   useEffect(() => {
-    repositorio.listarMovimentacoes({ limite: 8 }).then(setRecentes).catch(() => setRecentes([]))
-  }, [versao])
+    movimentos.listarMovimentacoes(empresa.empresa_id, loja.id, { limite: 8 }).then(setRecentes).catch(() => setRecentes([]))
+  }, [versao, empresa.empresa_id, loja.id])
 
   const linhas = useMemo(() => montarLinhasEstoque(produtos, lotes), [produtos, lotes])
   const contagem = useMemo(() => {
@@ -41,7 +43,7 @@ export function Painel() {
     [linhas],
   )
   const hoje = hojeISO()
-  const movHoje = (recentes ?? []).filter(m => hojeISO(new Date(m.criado_em)) === hoje)
+  const movHoje = (recentes ?? []).filter(m => hojeISO(new Date(m.ocorrido_em)) === hoje)
 
   if (carregando) return <Carregando />
 
@@ -56,6 +58,7 @@ export function Painel() {
         </h1>
       </div>
 
+      {pode.movimentar && (
       <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:hidden">
         <Link to="/movimentar?tipo=entrada" className="cartao flex flex-col items-center gap-1.5 p-3 text-center text-sm font-semibold text-slate-700 active:bg-slate-50">
           <span className="grid size-10 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><ArrowDownToLine className="size-5" /></span>
@@ -70,6 +73,7 @@ export function Painel() {
           Saída manual
         </Link>
       </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi titulo="Produtos com saldo" valor={comSaldo} icone={Boxes} tom="verde" detalhe={`${produtos.filter(p => p.ativo).length} cadastrados`} onClick={() => navegar('/estoque')} />

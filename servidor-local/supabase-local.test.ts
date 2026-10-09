@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest'
@@ -492,7 +492,8 @@ describe('Banco em pasta (servidor local)', LENTO, () => {
 
   test('os dados e as sessões sobrevivem a um reinício; migrações não são reaplicadas', async () => {
     const primeiro = await subir({ pasta })
-    expect(primeiro.supabase.migracoesNovas).toEqual(['20261008120000_base_multiempresa'])
+    const todas = readdirSync(new URL('../supabase/migrations/', import.meta.url)).filter(f => f.endsWith('.sql')).sort().map(f => f.slice(0, -4))
+    expect(primeiro.supabase.migracoesNovas).toEqual(todas)
     const { c, empresa } = await primeiro.novaEmpresa('Persistente')
     const tokens = (await c.auth.getSession()).data.session!
     await primeiro.fechar()

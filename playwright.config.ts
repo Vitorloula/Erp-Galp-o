@@ -10,6 +10,11 @@ if (process.platform === 'win32') {
   if (!caminhos.some(c => c.toLowerCase() === system32.toLowerCase())) process.env.PATH = [...caminhos, system32].join(';')
 }
 
+// Datas dos testes (Node), do navegador e das empresas (America/Sao_Paulo) no mesmo fuso,
+// para "hoje" ser o mesmo dia em todos — inclusive no CI, que roda em UTC.
+const FUSO = 'America/Sao_Paulo'
+process.env.TZ = FUSO
+
 /** Vídeo da câmera falsa (um código EAN-13 na frente da "câmera"), gerado em e2e/preparar.ts. */
 export const VIDEO_CAMERA = join(tmpdir(), 'galpao-e2e-camera.y4m')
 export const VIDEO_SEM_CODIGO = join(tmpdir(), 'galpao-e2e-camera-sem-codigo.y4m')
@@ -19,11 +24,10 @@ const cameraFalsa = (video: string) => ({
   launchOptions: { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', `--use-file-for-fake-video-capture=${video}`] },
 })
 
-const DEMO = 'http://localhost:5180'
-const SUPABASE = 'http://localhost:5181'
+const APP = 'http://localhost:5180'
 const SERVIDOR_LOCAL = 'http://localhost:5182'
-// Arquivo de dados novo a cada execução, para não tocar no banco local de verdade.
-const DADOS_SERVIDOR_LOCAL = join(tmpdir(), `galpao-e2e-servidor-local-${process.pid}.json`)
+// Banco novo a cada execução, para não tocar no banco local de verdade.
+const BANCO_SERVIDOR_LOCAL = join(tmpdir(), `galpao-e2e-banco-${process.pid}`)
 
 // Usa o Microsoft Edge já instalado no Windows (não precisa baixar navegador).
 const navegador = { channel: 'msedge' as const }
@@ -38,23 +42,25 @@ export default defineConfig({
   timeout: 45_000,
   expect: { timeout: 8_000 },
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
-  use: { locale: 'pt-BR', trace: 'retain-on-failure', screenshot: 'only-on-failure', acceptDownloads: true },
+  use: { locale: 'pt-BR', timezoneId: FUSO, trace: 'retain-on-failure', screenshot: 'only-on-failure', acceptDownloads: true },
   projects: [
-    { name: 'demo-computador', testMatch: 'demo/**/*.spec.ts', use: { ...navegador, ...computador, baseURL: DEMO } },
-    { name: 'demo-celular', testMatch: 'demo/**/*.spec.ts', use: { ...navegador, ...celular, baseURL: DEMO } },
-    { name: 'camera', testMatch: 'camera/leitor.spec.ts', use: { ...navegador, ...celular, baseURL: DEMO, ...cameraFalsa(VIDEO_CAMERA) } },
-    { name: 'camera-sem-codigo', testMatch: 'camera/sem-codigo.spec.ts', use: { ...navegador, ...celular, baseURL: DEMO, ...cameraFalsa(VIDEO_SEM_CODIGO) } },
-    { name: 'supabase', testMatch: 'supabase/**/*.spec.ts', use: { ...navegador, ...computador, baseURL: SUPABASE } },
+    // Telas do sistema, cada teste com a própria empresa de exemplo no banco real (PGlite).
+    { name: 'app-computador', testMatch: 'app/**/*.spec.ts', use: { ...navegador, ...computador, baseURL: APP } },
+    { name: 'app-celular', testMatch: 'app/**/*.spec.ts', use: { ...navegador, ...celular, baseURL: APP } },
+    { name: 'camera', testMatch: 'camera/leitor.spec.ts', use: { ...navegador, ...celular, baseURL: APP, ...cameraFalsa(VIDEO_CAMERA) } },
+    { name: 'camera-sem-codigo', testMatch: 'camera/sem-codigo.spec.ts', use: { ...navegador, ...celular, baseURL: APP, ...cameraFalsa(VIDEO_SEM_CODIGO) } },
+    // Login, cadastro, convites, papéis, assinatura e o que o app envia ao Supabase.
+    { name: 'acesso', testMatch: 'acesso/**/*.spec.ts', use: { ...navegador, ...computador, baseURL: APP } },
+    // Servidor de desenvolvimento de verdade (npm run dev), com WebSocket real.
     { name: 'servidor-local', testMatch: 'servidor-local/**/*.spec.ts', use: { ...navegador, baseURL: SERVIDOR_LOCAL } },
   ],
-  // Testa o build de produção (o mesmo que vai para o ar).
   webServer: [
-    { command: 'node e2e/servidor.mjs demo 5180', url: DEMO, timeout: 180_000, reuseExistingServer: false },
-    { command: 'node e2e/servidor.mjs supabase 5181', url: SUPABASE, timeout: 180_000, reuseExistingServer: false },
+    // Build de produção (o mesmo que vai para o ar), apontando para o Supabase dos testes.
+    { command: 'node e2e/servidor.mjs 5180', url: APP, timeout: 180_000, reuseExistingServer: false },
     {
       command: 'node node_modules/vite/bin/vite.js --mode servidor --port 5182 --strictPort',
       url: SERVIDOR_LOCAL,
-      env: { GALPAO_DADOS_LOCAL: DADOS_SERVIDOR_LOCAL, VITE_CONFIG_NATIVE_IGNORE_WARNING: 'true' },
+      env: { GALPAO_BANCO_LOCAL: BANCO_SERVIDOR_LOCAL, VITE_CONFIG_NATIVE_IGNORE_WARNING: 'true' },
       timeout: 180_000,
       reuseExistingServer: false,
     },

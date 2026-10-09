@@ -1,14 +1,15 @@
 import { ArrowDownToLine, ArrowUpFromLine, CircleCheck, ScanBarcode, SlidersHorizontal, X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { BuscaProduto, type ExtrasLeitura } from '../components/BuscaProduto'
 import { CampoQuantidade } from '../components/CampoQuantidade'
 import { useToast } from '../components/Toast'
 import { Aviso, BadgeSituacao, Cabecalho, Segmentado, cx } from '../components/ui'
 import { useDados } from '../contexto/Dados'
-import { repositorio } from '../lib/dados'
+import { useAtiva } from '../contexto/Empresa'
+import { movimentos } from '../lib/dados'
 import { ordenarFefo, resumirProduto, situacaoLote, situacaoValidade } from '../lib/estoque'
-import { arred, formatarData, formatarDelta, formatarEmbalagens, formatarQtd, formatarValidade, hojeISO } from '../lib/formato'
+import { arred, exibirCodigo, formatarData, formatarDelta, formatarEmbalagens, formatarQtd, formatarValidade, hojeISO } from '../lib/formato'
 import type { Produto } from '../lib/tipos'
 
 type Modo = 'entrada' | 'saida' | 'ajuste'
@@ -21,6 +22,7 @@ interface UltimoLancamento {
 export function Movimentar() {
   const [params, setParams] = useSearchParams()
   const { produtoPorId } = useDados()
+  const { pode, loja, lojas } = useAtiva()
   const modo: Modo = (['entrada', 'saida', 'ajuste'] as const).find(m => m === params.get('tipo')) ?? 'saida'
   const produtoParam = params.get('produto')
   const [produto, setProduto] = useState<Produto | null>(null)
@@ -69,9 +71,22 @@ export function Movimentar() {
     window.scrollTo({ top: 0 })
   }
 
+  if (!pode.movimentar)
+    return (
+      <div className="mx-auto max-w-2xl">
+        <Cabecalho titulo="Movimentar estoque" />
+        <Aviso tom="alerta">
+          {pode.gravavel ? 'Seu acesso permite consultar o estoque, mas não lançar entradas e saídas.' : 'A assinatura está vencida: o sistema está somente para consulta.'}
+        </Aviso>
+      </div>
+    )
+
   return (
     <div className="mx-auto max-w-2xl">
-      <Cabecalho titulo="Movimentar estoque" subtitulo="Escaneie ou busque o produto e registre a movimentação." />
+      <Cabecalho
+        titulo="Movimentar estoque"
+        subtitulo={`Escaneie ou busque o produto e registre a movimentação${lojas && lojas.length > 1 ? ` em ${loja.nome}` : ''}.`}
+      />
 
       <Segmentado
         className="mb-5"
@@ -123,7 +138,7 @@ function CartaoProduto({ produto, aoTrocar }: { produto: Produto; aoTrocar: () =
         <p className="text-lg font-bold leading-snug text-slate-900">{produto.nome}</p>
         <p className="text-xs text-slate-500">
           {produto.codigo_interno}
-          {produto.codigo_barras && ` · ${produto.codigo_barras}`}
+          {produto.codigos[0] && ` · ${exibirCodigo(produto.codigos[0].codigo)}`}
           {produto.conteudo_embalagem && ` · emb. ${produto.conteudo_embalagem} ${produto.unidade}`}
         </p>
         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -134,7 +149,7 @@ function CartaoProduto({ produto, aoTrocar }: { produto: Produto; aoTrocar: () =
           <BadgeSituacao situacao={r.situacao} validade={r.proximaValidade} />
         </div>
       </div>
-      <button onClick={aoTrocar} className="btn btn-secundario shrink-0 px-3 py-2 text-xs">
+      <button onClick={aoTrocar} className="btn btn-secundario shrink-0 px-3 py-2 text-xs" aria-label="Trocar produto">
         <ScanBarcode className="size-4" /> Trocar
       </button>
     </div>
@@ -165,13 +180,16 @@ function Campos({ documento, setDocumento, observacao, setObservacao, rotuloDoc 
 function useEnvio() {
   const toast = useToast()
   const { recarregar } = useDados()
+  const ativa = useAtiva()
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
-  async function enviar(acao: () => Promise<string>, aoConcluir: (t: string) => void) {
+  // Mesma chave em todas as tentativas deste formulário: reenviar após falha de rede não duplica.
+  const origem = useRef(crypto.randomUUID())
+  async function enviar(acao: (origemId: string) => Promise<string>, aoConcluir: (t: string) => void) {
     setErro('')
     setSalvando(true)
     try {
-      const texto = await acao()
+      const texto = await acao(origem.current)
       await recarregar()
       toast.sucesso(texto)
       aoConcluir(texto)
@@ -181,7 +199,7 @@ function useEnvio() {
       setSalvando(false)
     }
   }
-  return { salvando, erro, setErro, enviar }
+  return { salvando, erro, setErro, enviar, empresaId: ativa.empresa.empresa_id, lojaId: ativa.loja.id }
 }
 
 /* ------------------------------ ENTRADA ------------------------------ */
@@ -194,7 +212,8 @@ function FormEntrada({ produto, extras, aoConcluir }: { produto: Produto; extras
   const [quantidade, setQuantidade] = useState<number | null>(null)
   const [documento, setDocumento] = useState('')
   const [observacao, setObservacao] = useState('')
-  const { salvando, erro, setErro, enviar } = useEnvio()
+  const { salvando, erro, setErro, enviar, lojaId } = useEnvio()
+  const comLote = produto.rastreio !== 'nenhum'
 
   const situacao = validade ? situacaoValidade(validade) : null
   const existentes = useMemo(() => ordenarFefo(lotes.filter(l => l.lote)), [lotes])
@@ -208,14 +227,17 @@ function FormEntrada({ produto, extras, aoConcluir }: { produto: Produto; extras
   function registrar(e: React.FormEvent) {
     e.preventDefault()
     if (!quantidade) return setErro('Informe a quantidade recebida.')
-    enviar(async () => {
-      await repositorio.registrarEntrada({ produtoId: produto.id, lote, validade: validade || null, quantidade, documento, observacao })
+    enviar(async origemId => {
+      const dados = { produtoId: produto.id, lote: comLote ? lote : '', validade: comLote ? validade || null : null, quantidade, documento, observacao }
+      await movimentos.registrarEntrada(lojaId, dados, origemId)
       return `Entrada registrada: ${formatarDelta(quantidade, produto.unidade)} de ${produto.nome}${lote ? ` (lote ${lote.trim().toUpperCase()})` : ''}.`
     }, aoConcluir)
   }
 
   return (
     <form onSubmit={registrar} className="cartao space-y-4 p-4">
+      {comLote && (
+      <>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="rotulo" htmlFor="lote">Lote</label>
@@ -239,8 +261,10 @@ function FormEntrada({ produto, extras, aoConcluir }: { produto: Produto; extras
       )}
       {!validade && <p className="-mt-2 text-xs text-slate-500">Deixe a validade em branco apenas se o produto não tiver vencimento.</p>}
       {extras?.validade && <Aviso tom="info">Lote e validade preenchidos automaticamente pelo código da embalagem.</Aviso>}
+      </>
+      )}
 
-      <CampoQuantidade produto={produto} aoMudar={setQuantidade} rotulo="Quantidade recebida" />
+      <CampoQuantidade produto={produto} aoMudar={setQuantidade} rotulo="Quantidade recebida" inicial={extras?.fator && extras.fator > 1 ? extras.fator : null} />
       <Campos documento={documento} setDocumento={setDocumento} observacao={observacao} setObservacao={setObservacao} rotuloDoc="Nota fiscal / documento" />
       {erro && <Aviso tom="erro">{erro}</Aviso>}
       <button className="btn btn-primario btn-grande w-full" disabled={salvando || !quantidade}>
@@ -267,10 +291,10 @@ function FormSaida({ produto, extras, loteInicial, aoConcluir }: { produto: Prod
   })
   const [quantidade, setQuantidade] = useState<number | null>(null)
   const [chaveQtd, setChaveQtd] = useState(0)
-  const [inicialQtd, setInicialQtd] = useState<number | null>(null)
+  const [inicialQtd, setInicialQtd] = useState<number | null>(extras?.fator && extras.fator > 1 ? extras.fator : null)
   const [documento, setDocumento] = useState('')
   const [observacao, setObservacao] = useState('')
-  const { salvando, erro, setErro, enviar } = useEnvio()
+  const { salvando, erro, setErro, enviar, empresaId, lojaId } = useEnvio()
 
   const lote = disponiveis.find(l => l.lote_id === loteId)
   const excede = lote && quantidade !== null && quantidade > lote.saldo
@@ -288,8 +312,8 @@ function FormSaida({ produto, extras, loteInicial, aoConcluir }: { produto: Prod
     if (!lote) return setErro('Escolha o lote.')
     if (!quantidade) return setErro('Informe a quantidade.')
     if (excede) return setErro(`Saldo insuficiente no lote. Disponível: ${formatarQtd(lote.saldo, produto.unidade)}.`)
-    enviar(async () => {
-      await repositorio.registrarSaida({ loteId: lote.lote_id, quantidade, documento, observacao })
+    enviar(async origemId => {
+      await movimentos.registrarSaida(empresaId, lojaId, { loteId: lote.lote_id, quantidade, documento, observacao }, origemId)
       return `Saída registrada: ${formatarDelta(-quantidade, produto.unidade)} de ${produto.nome}. Saldo do lote: ${formatarQtd(arred(lote.saldo - quantidade), produto.unidade)}.`
     }, aoConcluir)
   }
@@ -374,7 +398,7 @@ function FormAjuste({ produto, loteInicial, aoConcluir }: { produto: Produto; lo
   const [loteId, setLoteId] = useState(() => (lotes.find(l => l.lote_id === loteInicial) ?? lotes.find(l => l.saldo > 0) ?? lotes[0])?.lote_id ?? '')
   const [contado, setContado] = useState<number | null>(null)
   const [motivo, setMotivo] = useState('')
-  const { salvando, erro, setErro, enviar } = useEnvio()
+  const { salvando, erro, setErro, enviar, empresaId, lojaId } = useEnvio()
   const lote = lotes.find(l => l.lote_id === loteId)
   const diferenca = lote && contado !== null ? arred(contado - lote.saldo) : null
 
@@ -386,8 +410,8 @@ function FormAjuste({ produto, loteInicial, aoConcluir }: { produto: Produto; lo
     if (!lote || diferenca === null) return setErro('Informe o saldo contado.')
     if (diferenca === 0) return setErro('O saldo contado é igual ao do sistema. Nada a ajustar.')
     if (motivo.trim().length < 3) return setErro('Informe o motivo do ajuste.')
-    enviar(async () => {
-      await repositorio.registrarCorrecao({ loteId: lote.lote_id, quantidade: diferenca, observacao: motivo })
+    enviar(async origemId => {
+      await movimentos.registrarAjuste(empresaId, lojaId, { loteId: lote.lote_id, quantidade: diferenca, observacao: motivo }, origemId)
       return `Ajuste registrado: ${formatarDelta(diferenca, produto.unidade)} em ${produto.nome}.`
     }, aoConcluir)
   }

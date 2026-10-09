@@ -1,5 +1,5 @@
 import { descreverSituacao, montarLinhasEstoque, type Situacao } from './estoque'
-import { NOME_CATEGORIA, NOME_TIPO, arred } from './formato'
+import { NOME_TIPO, arred, grupoDoTipo } from './formato'
 import type { Intervalo } from './periodos'
 import { intervaloParaInstantes } from './periodos'
 import type { Lote, Movimentacao, Produto, TipoMov } from './tipos'
@@ -28,7 +28,8 @@ export interface LinhaResumoRel {
   saldoInicial: number
   entradas: number
   saidas: number
-  correcoes: number
+  /** Ajustes de inventário e correções (com sinal). */
+  ajustes: number
   saldoFinal: number
 }
 
@@ -50,11 +51,11 @@ export interface Relatorio {
   movimentacoes: LinhaMovRel[]
   resumo: LinhaResumoRel[]
   posicao: LinhaPosicaoRel[]
-  totais: { entradas: number; saidas: number; correcoes: number }
+  totais: { entradas: number; saidas: number; ajustes: number }
 }
 
 /**
- * Monta o relatório do período.
+ * Monta o relatório do período (pela data em que cada movimentação aconteceu).
  * @param movsDesdeInicio movimentações de `intervalo.de` até AGORA (as posteriores ao período
  *   são usadas para reconstituir o saldo exato no fim do período).
  */
@@ -63,6 +64,7 @@ export function montarRelatorio(
   produtos: Produto[],
   lotes: Lote[],
   movsDesdeInicio: Movimentacao[],
+  nomeCategoria: (id: string | null) => string,
   produtoId?: string,
 ): Relatorio {
   // Compara instantes (e não textos): o banco pode devolver "…Z" ou "…-03:00".
@@ -71,15 +73,17 @@ export function montarRelatorio(
   const lotePorId = new Map(lotes.map(l => [l.lote_id, l]))
   const doFiltro = (pid: string) => !produtoId || pid === produtoId
 
-  const noPeriodo = movsDesdeInicio.filter(m => Date.parse(m.criado_em) <= fim && doFiltro(m.produto_id)).sort((a, b) => a.id - b.id)
-  const depois = movsDesdeInicio.filter(m => Date.parse(m.criado_em) > fim)
+  const noPeriodo = movsDesdeInicio
+    .filter(m => Date.parse(m.ocorrido_em) <= fim && doFiltro(m.produto_id))
+    .sort((a, b) => Date.parse(a.ocorrido_em) - Date.parse(b.ocorrido_em) || a.id - b.id)
+  const depois = movsDesdeInicio.filter(m => Date.parse(m.ocorrido_em) > fim)
 
   const movimentacoes: LinhaMovRel[] = noPeriodo.map(m => {
     const p = produtoPorId.get(m.produto_id)
     const l = lotePorId.get(m.lote_id)
     return {
       id: m.id,
-      data: new Date(m.criado_em),
+      data: new Date(m.ocorrido_em),
       tipo: m.tipo,
       tipoNome: NOME_TIPO[m.tipo],
       codigo: p?.codigo_interno ?? '',
@@ -103,21 +107,22 @@ export function montarRelatorio(
   for (const p of produtos) {
     if (!doFiltro(p.id)) continue
     const movs = noPeriodo.filter(m => m.produto_id === p.id)
-    const entradas = arred(movs.filter(m => m.tipo === 'ENTRADA').reduce((s, m) => s + m.quantidade, 0))
-    const saidas = arred(movs.filter(m => m.tipo === 'SAIDA').reduce((s, m) => s + m.quantidade, 0))
-    const correcoes = arred(movs.filter(m => m.tipo === 'CORRECAO').reduce((s, m) => s + m.delta, 0))
+    const soma = (grupo: ReturnType<typeof grupoDoTipo>) => arred(movs.filter(m => grupoDoTipo(m.tipo) === grupo).reduce((s, m) => s + m.delta, 0))
+    const entradas = soma('entrada')
+    const saidas = -soma('saida')
+    const ajustes = soma('ajuste')
     const saldoFinal = arred((saldoAtual.get(p.id) ?? 0) - (posterior.get(p.id) ?? 0))
-    const saldoInicial = arred(saldoFinal - entradas + saidas - correcoes)
+    const saldoInicial = arred(saldoFinal - entradas + saidas - ajustes)
     if (!p.ativo && movs.length === 0 && saldoFinal === 0) continue
     resumo.push({
       codigo: p.codigo_interno,
       produto: p.nome,
-      categoria: NOME_CATEGORIA[p.categoria],
+      categoria: nomeCategoria(p.categoria_id),
       unidade: p.unidade,
       saldoInicial,
       entradas,
       saidas,
-      correcoes,
+      ajustes,
       saldoFinal,
     })
   }
@@ -125,7 +130,7 @@ export function montarRelatorio(
   const posicao: LinhaPosicaoRel[] = montarLinhasEstoque(produtos.filter(p => doFiltro(p.id)), lotes).map(l => ({
     codigo: l.produto.codigo_interno,
     produto: l.produto.nome,
-    categoria: NOME_CATEGORIA[l.produto.categoria],
+    categoria: nomeCategoria(l.produto.categoria_id),
     lote: l.lote?.lote ?? '',
     validade: l.validade,
     saldo: l.saldo,
@@ -141,15 +146,20 @@ export function montarRelatorio(
     resumo,
     posicao,
     totais: {
-      entradas: noPeriodo.filter(m => m.tipo === 'ENTRADA').length,
-      saidas: noPeriodo.filter(m => m.tipo === 'SAIDA').length,
-      correcoes: noPeriodo.filter(m => m.tipo === 'CORRECAO').length,
+      entradas: noPeriodo.filter(m => grupoDoTipo(m.tipo) === 'entrada').length,
+      saidas: noPeriodo.filter(m => grupoDoTipo(m.tipo) === 'saida').length,
+      ajustes: noPeriodo.filter(m => grupoDoTipo(m.tipo) === 'ajuste').length,
     },
   }
 }
 
 export function nomeArquivo(r: Relatorio, ext: string) {
   return `relatorio-estoque_${r.intervalo.de}_a_${r.intervalo.ate}.${ext}`
+}
+
+/** Nome que aparece no topo dos relatórios: empresa e, se houver mais de uma, a loja. */
+export function tituloEmpresa(empresa: string, loja: string, variasLojas: boolean) {
+  return variasLojas ? `${empresa} — ${loja}` : empresa
 }
 
 export function baixarArquivo(conteudo: Blob, nome: string) {

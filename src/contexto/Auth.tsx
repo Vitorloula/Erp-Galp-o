@@ -1,34 +1,36 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import { repositorio } from '../lib/dados'
-import type { Usuario } from '../lib/tipos'
+import { sessao, veioDaRecuperacaoDeSenha } from '../lib/dados'
+import type { Perfil } from '../lib/tipos'
 
 interface AuthValor {
-  usuario: Usuario | null
+  usuario: Perfil | null
   pronto: boolean
-  admin: boolean
+  /** Entrou pelo link de "esqueci minha senha": precisa definir a nova senha. */
+  definindoSenha: boolean
   entrar(email: string, senha: string): Promise<void>
   sair(): Promise<void>
-  /** Relê o perfil (ex.: para ver se o administrador já liberou o acesso). */
-  atualizar(): Promise<void>
+  senhaDefinida(): void
+  atualizarUsuario(p: Perfil): void
 }
 
 const AuthContexto = createContext<AuthValor | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [usuario, setUsuario] = useState<Usuario | null>(null)
+  const [usuario, setUsuario] = useState<Perfil | null>(null)
   const [pronto, setPronto] = useState(false)
+  const [definindoSenha, setDefinindoSenha] = useState(veioDaRecuperacaoDeSenha)
 
   useEffect(() => {
     let ativo = true
-    repositorio
-      .sessaoAtual()
+    sessao
+      .sessaoAtual(p => ativo && setUsuario(p))
       .catch(() => null)
       .then(u => {
         if (!ativo) return
         setUsuario(u)
         setPronto(true)
       })
-    const parar = repositorio.aoMudarSessao(u => ativo && setUsuario(u))
+    const parar = sessao.aoMudarSessao(u => ativo && setUsuario(u))
     return () => {
       ativo = false
       parar()
@@ -38,17 +40,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const valor: AuthValor = {
     usuario,
     pronto,
-    admin: usuario?.papel === 'admin',
+    definindoSenha: definindoSenha && !!usuario,
     async entrar(email, senha) {
-      setUsuario(await repositorio.entrar(email, senha))
+      setUsuario(await sessao.entrar(email, senha))
     },
     async sair() {
-      await repositorio.sair()
+      await sessao.sair()
       setUsuario(null)
+      setDefinindoSenha(false)
     },
-    async atualizar() {
-      setUsuario(await repositorio.sessaoAtual())
+    senhaDefinida() {
+      setDefinindoSenha(false)
     },
+    atualizarUsuario: setUsuario,
   }
 
   return <AuthContexto.Provider value={valor}>{children}</AuthContexto.Provider>

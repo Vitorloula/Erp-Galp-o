@@ -4,13 +4,15 @@ import { CorrecaoModal } from '../components/CorrecaoModal'
 import { ListaMovimentacoes } from '../components/ListaMovimentacoes'
 import { Aviso, Cabecalho, Carregando, Vazio, cx } from '../components/ui'
 import { useDados } from '../contexto/Dados'
-import { repositorio } from '../lib/dados'
-import { hojeISO, normalizarBusca } from '../lib/formato'
+import { useAtiva } from '../contexto/Empresa'
+import { movimentos } from '../lib/dados'
+import { exibirCodigo, hojeISO, normalizarBusca } from '../lib/formato'
 import { PERIODOS, intervaloParaInstantes, intervaloRapido, type Intervalo, type PeriodoRapido } from '../lib/periodos'
 import type { Movimentacao, TipoMov } from '../lib/tipos'
 
 export function Historico() {
   const { versao, produtoPorId, lotePorId } = useDados()
+  const { empresa, loja, pode } = useAtiva()
   const [periodo, setPeriodo] = useState<PeriodoRapido>('7dias')
   const [personalizado, setPersonalizado] = useState<Intervalo>(() => intervaloRapido('30dias'))
   const [tipo, setTipo] = useState<TipoMov | ''>('')
@@ -24,14 +26,14 @@ export function Historico() {
   useEffect(() => {
     let ativo = true
     setErro('')
-    repositorio
-      .listarMovimentacoes(intervaloParaInstantes(intervalo))
+    movimentos
+      .listarMovimentacoes(empresa.empresa_id, loja.id, intervaloParaInstantes(intervalo))
       .then(m => ativo && setMovs(m))
       .catch(e => ativo && setErro((e as Error).message))
     return () => {
       ativo = false
     }
-  }, [intervalo.de, intervalo.ate, versao])
+  }, [intervalo.de, intervalo.ate, versao, empresa.empresa_id, loja.id])
 
   const filtradas = useMemo(() => {
     const t = normalizarBusca(termo)
@@ -40,7 +42,7 @@ export function Historico() {
       if (!t) return true
       const p = produtoPorId.get(m.produto_id)
       const l = lotePorId.get(m.lote_id)
-      return [p?.nome, p?.codigo_interno, p?.codigo_barras, l?.lote, m.documento, m.usuario_nome, m.observacao, `#${m.id}`]
+      return [p?.nome, p?.codigo_interno, ...(p?.codigos.map(c => exibirCodigo(c.codigo)) ?? []), l?.lote, m.documento, m.usuario_nome, m.observacao, `#${m.id}`]
         .some(c => c && normalizarBusca(c).includes(t))
     })
   }, [movs, tipo, termo, produtoPorId, lotePorId])
@@ -78,6 +80,7 @@ export function Historico() {
             <option value="">Todos os tipos</option>
             <option value="ENTRADA">Entradas</option>
             <option value="SAIDA">Saídas</option>
+            <option value="AJUSTE">Ajustes</option>
             <option value="CORRECAO">Correções</option>
           </select>
         </div>
@@ -99,7 +102,7 @@ export function Historico() {
           <Vazio icone={History} titulo="Nenhuma movimentação" texto="Não há lançamentos para os filtros escolhidos." />
         </div>
       ) : (
-        <ListaMovimentacoes movimentacoes={filtradas} aoCorrigir={setCorrigindo} />
+        <ListaMovimentacoes movimentacoes={filtradas} aoCorrigir={pode.movimentar ? setCorrigindo : undefined} />
       )}
 
       <CorrecaoModal movimentacao={corrigindo} aoFechar={() => setCorrigindo(null)} />
