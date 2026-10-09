@@ -1,5 +1,11 @@
 # Sistema Web de Controle de Estoque e Fluxo de Galpão
 
+> **Branch `saas` — em desenvolvimento (fase 1 do PDV por assinatura).**
+> O banco multiempresa está em [`supabase/migrations/`](supabase/migrations) e é testado por `npm run test:sql`
+> (isolamento entre empresas, papéis, convites, plano/assinatura, histórico imutável, desempenho).
+> As telas ainda usam o modelo da versão do galpão e serão adaptadas nas próximas etapas.
+> A versão entregue ao cliente galpão fica no branch `galpao-1.x` (tags `v1.0.0-galpao`, `v1.0.1-galpao`).
+
 Controle de entradas, saídas e baixas de **defensivos agrícolas e fertilizantes**, com leitura de código de barras pela câmera do celular, alertas de validade e relatórios em Excel/PDF. Funciona no computador e no celular, 100% online, com custo mensal zero (Supabase + hospedagem estática gratuita).
 
 ## O que o sistema faz

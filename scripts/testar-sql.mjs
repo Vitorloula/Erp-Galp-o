@@ -1,10 +1,11 @@
-// Testa supabase/schema.sql em um PostgreSQL embutido (PGlite),
-// simulando o ambiente do Supabase (roles anon/authenticated, auth.uid()).
+// Testa as migrações de supabase/migrations num PostgreSQL embutido (PGlite),
+// simulando o ambiente do Supabase (roles anon/authenticated, auth.uid(), auth.jwt()).
 // Uso: npm run test:sql
 import { PGlite } from '@electric-sql/pglite'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 
-const schema = readFileSync(new URL('../supabase/schema.sql', import.meta.url), 'utf8')
+const PASTA = new URL('../supabase/migrations/', import.meta.url)
+const migracoes = readdirSync(PASTA).filter(f => /^\d{14}_.+\.sql$/.test(f)).sort()
 
 const STUB_SUPABASE = `
   create role anon nologin;
@@ -19,7 +20,10 @@ const STUB_SUPABASE = `
   create function auth.uid() returns uuid language sql stable as $$
     select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
   $$;
-  grant execute on function auth.uid() to anon, authenticated;
+  create function auth.jwt() returns jsonb language sql stable as $$
+    select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb
+  $$;
+  grant execute on function auth.uid(), auth.jwt() to anon, authenticated;
   create publication supabase_realtime;
   alter default privileges in schema public grant all on tables to anon, authenticated;
   alter default privileges in schema public grant all on sequences to anon, authenticated;
@@ -27,14 +31,20 @@ const STUB_SUPABASE = `
 `
 
 const db = new PGlite()
-let falhas = 0
 let ok = 0
+let falhas = 0
+const emails = new Map()
 
-function passou(nome) { ok++; console.log('  ✓ ' + nome) }
-function falhou(nome, det) { falhas++; console.log('  ✗ ' + nome + (det ? ' -> ' + det : '')) }
+const passou = nome => { ok++; console.log('  ✓ ' + nome) }
+const falhou = (nome, det) => { falhas++; console.log('  ✗ ' + nome + (det ? ' -> ' + det : '')) }
+const secao = titulo => console.log('\n' + titulo)
+const confere = (cond, nome, det) => (cond ? passou(nome) : falhou(nome, det))
+const um = async (sql, params) => (await db.query(sql, params)).rows[0]
 
 async function comoUsuario(uid, fn) {
-  await db.exec(`reset role; select set_config('request.jwt.claim.sub', '${uid ?? ''}', false);`)
+  await db.exec('reset role')
+  const claims = uid ? JSON.stringify({ sub: uid, email: emails.get(uid), role: 'authenticated' }) : ''
+  await db.query(`select set_config('request.jwt.claim.sub', $1, false), set_config('request.jwt.claims', $2, false)`, [uid ?? '', claims])
   await db.exec(uid ? 'set role authenticated' : 'set role anon')
   try { return await fn() } finally { await db.exec('reset role') }
 }
@@ -44,151 +54,356 @@ async function esperaErro(nome, fn, trecho) {
     await fn()
     falhou(nome, 'deveria ter falhado')
   } catch (e) {
-    if (trecho && !String(e.message).includes(trecho)) falhou(nome, 'erro inesperado: ' + e.message)
-    else passou(nome + '  [' + e.message.split('\n')[0] + ']')
+    if (trecho && !(trecho instanceof RegExp ? trecho.test(e.message) : e.message.includes(trecho))) falhou(nome, 'erro inesperado: ' + e.message)
+    else passou(`${nome}  [${e.message.split('\n')[0].slice(0, 90)}]`)
   }
 }
 
-async function saldo(loteId) {
-  const r = await db.query('select saldo from public.vw_estoque_lotes where lote_id = $1', [loteId])
-  return Number(r.rows[0]?.saldo)
+/** UPDATE/DELETE que não pode afetar nada: aceita 0 linhas ou permissão negada. */
+async function semEfeito(nome, fn) {
+  try {
+    const r = await fn()
+    confere(r.affectedRows === 0, nome, `${r.affectedRows} linha(s) afetada(s)`)
+  } catch (e) {
+    if (/permission denied|row-level security/.test(e.message)) passou(nome + '  [negado]')
+    else falhou(nome, 'erro inesperado: ' + e.message)
+  }
 }
 
+async function criarUsuario(email, nome) {
+  const id = (await um(`insert into auth.users (email, raw_user_meta_data) values ($1, $2) returning id`, [email, JSON.stringify({ nome })])).id
+  emails.set(id, email)
+  return id
+}
+
+// ======================================================================
 console.log('Criando ambiente Supabase simulado...')
 await db.exec(STUB_SUPABASE)
-console.log('Executando supabase/schema.sql...')
-await db.exec(schema)
-passou('schema.sql executado sem erros')
+for (const m of migracoes) {
+  await db.exec(readFileSync(new URL(m, PASTA), 'utf8'))
+  passou(`migração ${m}`)
+}
 
-// Usuários: o primeiro vira admin; os seguintes nascem pendentes.
-const adm = (await db.query(`insert into auth.users (email) values ('admin@galpao.com') returning id`)).rows[0].id
-const op = (await db.query(`insert into auth.users (email, raw_user_meta_data) values ('op@galpao.com', '{"nome":"Operador João"}') returning id`)).rows[0].id
-const papelDe = async id => (await db.query('select papel from public.perfis where id = $1', [id])).rows[0]?.papel
-;(await papelDe(adm)) === 'admin' ? passou('primeiro usuário vira administrador automaticamente') : falhou('primeiro admin', await papelDe(adm))
-;(await papelDe(op)) === 'pendente' ? passou('usuários seguintes nascem "pendente"') : falhou('novo usuário pendente', await papelDe(op))
+// ----------------------------------------------------------------------
+secao('Estrutura (metatestes — falham se alguém criar tabela sem proteção):')
+{
+  const tabelas = (await db.query(`select c.relname as nome, c.relrowsecurity as rls from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relkind = 'r' order by 1`)).rows
+  const semRls = tabelas.filter(t => !t.rls).map(t => t.nome)
+  confere(semRls.length === 0, `todas as ${tabelas.length} tabelas têm RLS ligado`, semRls.join(', '))
 
-console.log('\nConta pendente (cadastrou-se mas ainda não foi liberada):')
-await db.exec(`insert into public.produtos (nome, unidade) values ('Produto pré-existente', 'kg')`)
-await comoUsuario(op, async () => {
-  const r = await db.query('select count(*)::int as n from public.produtos')
-  r.rows[0].n === 0 ? passou('não enxerga nenhum produto') : falhou('pendente vê produtos', r.rows[0].n)
-  await esperaErro('não cadastra produto', () => db.query(`insert into public.produtos (nome, unidade) values ('X', 'L')`), 'row-level security')
-  await esperaErro('não se libera sozinho', () => db.query(`update public.perfis set papel = 'operador' where id = $1`, [op]).then(x => { if (!x.affectedRows) throw new Error('0 linhas (bloqueado pela RLS)') }))
+  const sistema = ['perfis', 'planos', 'plataforma_admins', 'empresas']
+  const comEmpresa = new Set((await db.query(`select table_name from information_schema.columns where table_schema = 'public' and column_name = 'empresa_id'`)).rows.map(r => r.table_name))
+  const semEmpresa = tabelas.map(t => t.nome).filter(t => !sistema.includes(t) && !comEmpresa.has(t))
+  confere(semEmpresa.length === 0, 'toda tabela de negócio tem empresa_id', semEmpresa.join(', '))
+
+  const politicas = (await db.query(`select tablename, policyname, coalesce(qual, '') || ' ' || coalesce(with_check, '') as expr from pg_policies where schemaname = 'public'`)).rows
+  const diretas = politicas.filter(p => [...p.expr.matchAll(/(\(?\s*SELECT\s+)?\b(auth|app)\.\w+\(/gi)].some(m => !m[1])).map(p => `${p.tablename}.${p.policyname}`)
+  confere(diretas.length === 0, `as ${politicas.length} políticas chamam funções via (select …) (avaliadas uma vez por consulta)`, diretas.join(', '))
+
+  const anonLe = (await db.query(`select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relkind in ('r', 'v') and has_table_privilege('anon', c.oid, 'select')`)).rows.map(r => r.relname)
+  confere(anonLe.length === 0, 'visitante sem login não tem acesso a nenhuma tabela ou visão', anonLe.join(', '))
+
+  const anonExec = (await db.query(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname in ('public', 'app') and has_function_privilege('anon', p.oid, 'execute')`)).rows.map(r => r.proname)
+  confere(anonExec.length === 0, 'visitante sem login não executa nenhuma função', anonExec.join(', '))
+}
+
+// ----------------------------------------------------------------------
+secao('Cadastro e criação de empresas:')
+const donoA = await criarUsuario('ana@galpao.test', 'Ana Dona')
+const donoB = await criarUsuario('bruno@mercado.test', 'Bruno Dono')
+const estoquista = await criarUsuario('edu@galpao.test', 'Edu Estoque')
+const caixa = await criarUsuario('carla@galpao.test', 'Carla Caixa')
+const gerente = await criarUsuario('gil@galpao.test', 'Gil Gerente')
+const lojista1 = await criarUsuario('lia@galpao.test', 'Lia Loja 1')
+const intruso = await criarUsuario('ivo@outro.test', 'Ivo Intruso')
+
+await comoUsuario(donoA, async () => {
+  confere((await um('select count(*)::int as n from public.empresas')).n === 0, 'conta nova não enxerga nenhuma empresa')
+})
+const empA = await comoUsuario(donoA, async () => (await um(`select public.criar_empresa('Galpão Agro', 'galpao') as id`)).id)
+const empB = await comoUsuario(donoB, async () => (await um(`select public.criar_empresa('Mercadinho Bom Preço', 'mercadinho', 'Matriz') as id`)).id)
+let lojaA1, lojaB1
+await comoUsuario(donoA, async () => {
+  const e = await um('select e.segmento, a.plano_id, a.status, a.trial_ate > now() + interval \'13 days\' as trial_ok from public.empresas e join public.assinaturas a on a.empresa_id = e.id')
+  confere(e.segmento === 'galpao' && e.plano_id === 'teste' && e.status === 'trial' && e.trial_ok, 'criar_empresa: empresa + teste grátis de 14 dias', JSON.stringify(e))
+  lojaA1 = (await um('select id from public.lojas')).id
+  confere(!!lojaA1, 'criar_empresa: loja principal criada')
+  const m = await um('select papel from public.membros where usuario_id = $1', [donoA])
+  confere(m?.papel === 'dono', 'criar_empresa: quem cria vira dono')
+  const cats = (await db.query('select nome from public.categorias order by nome')).rows.map(r => r.nome)
+  confere(cats.includes('Defensivo agrícola') && cats.length === 5, 'categorias padrão do segmento galpão', cats.join(', '))
+})
+await comoUsuario(donoB, async () => {
+  lojaB1 = (await um('select id from public.lojas')).id
+  const cfg = (await um('select config from public.empresas')).config
+  confere(cfg.venda_sem_estoque === 'permitir' && cfg.balanca?.prefixo === '2', 'mercadinho já vem com venda sem estoque e etiqueta de balança', JSON.stringify(cfg))
+  confere((await um('select count(*)::int as n from public.empresas')).n === 1, 'cada dono só enxerga a própria empresa')
 })
 
-await comoUsuario(adm, async () => {
-  const u = await db.query(`update public.perfis set papel = 'operador' where id = $1`, [op])
-  u.affectedRows === 1 ? passou('administrador libera a conta como operador') : falhou('admin liberar')
-  const proprio = await db.query(`update public.perfis set papel = 'operador' where id = $1`, [adm])
-  proprio.affectedRows === 0 ? passou('administrador não altera o próprio papel (evita ficar sem admin)') : falhou('admin alterou o próprio papel')
-  await esperaErro('administrador não altera outros campos do perfil', () => db.query(`update public.perfis set email = 'x@x.com' where id = $1`, [op]), 'permission denied')
+// ----------------------------------------------------------------------
+secao('Convites e papéis:')
+const convidar = (quem, papel, email, lojas = null) =>
+  comoUsuario(quem, async () => (await um('select public.criar_convite($1, $2, $3, $4) as t', [empA, papel, email, lojas])).t)
+
+const tEst = await convidar(donoA, 'estoquista', 'edu@galpao.test')
+confere(/^[0-9a-f]{64}$/.test(tEst), 'dono gera convite com token de 64 caracteres')
+await comoUsuario(intruso, () => esperaErro('convite para outro e-mail não pode ser usado', () => db.query('select public.aceitar_convite($1)', [tEst]), 'outro e-mail'))
+await comoUsuario(estoquista, async () => {
+  confere((await um('select public.aceitar_convite($1) as e', [tEst])).e === empA, 'convidado aceita e entra na empresa')
 })
-await db.exec(`delete from public.produtos`)
+await comoUsuario(estoquista, () => esperaErro('o mesmo convite não serve duas vezes', () => db.query('select public.aceitar_convite($1)', [tEst]), 'já utilizado'))
 
-console.log('\nOperador (usuário comum):')
-let produtoId, loteA, loteB, entradaId, saidaId
-await comoUsuario(op, async () => {
-  const p = await db.query(`insert into public.produtos (nome, unidade, codigo_barras, categoria, conteudo_embalagem)
-    values ('  Glifosato   480 SL ', 'L', '7891234567895', 'defensivo', 20) returning id, nome, codigo_interno, criado_por`)
-  produtoId = p.rows[0].id
-  ;/^P\d{4}$/.test(p.rows[0].codigo_interno) && p.rows[0].nome === 'Glifosato 480 SL' && p.rows[0].criado_por === op
-    ? passou('cadastra produto (código automático ' + p.rows[0].codigo_interno + ', nome padronizado)')
-    : falhou('cadastro de produto', JSON.stringify(p.rows[0]))
+const tCaixa = await convidar(donoA, 'caixa', null)
+await comoUsuario(caixa, async () => { await db.query('select public.aceitar_convite($1)', [tCaixa]) })
+passou('convite sem e-mail (link para WhatsApp) funciona uma vez')
+const tGer = await convidar(donoA, 'gerente', 'gil@galpao.test')
+await comoUsuario(gerente, async () => { await db.query('select public.aceitar_convite($1)', [tGer]) })
 
-  const e1 = await db.query(`select public.registrar_entrada($1, ' lt-01 ', '2026-06-30', 100, 'NF 123', null) as id`, [produtoId])
-  entradaId = e1.rows[0].id
-  const e2 = await db.query(`select public.registrar_entrada($1, 'LT-01', '2026-06-30', 20, null, null) as id`, [produtoId])
-  const lotes = await db.query('select id, lote from public.lotes where produto_id = $1', [produtoId])
-  loteA = lotes.rows[0].id
-  lotes.rows.length === 1 && lotes.rows[0].lote === 'LT-01'
-    ? passou('entradas no mesmo lote reaproveitam o lote (normalizado "LT-01")')
-    : falhou('reaproveitar lote', JSON.stringify(lotes.rows))
-  ;(await saldo(loteA)) === 120 ? passou('saldo consolidado após entradas = 120') : falhou('saldo após entradas', await saldo(loteA))
+const tExp = await convidar(donoA, 'caixa', 'ivo@outro.test')
+await db.query(`update public.convites set expira_em = now() - interval '1 minute' where email = 'ivo@outro.test'`)
+await comoUsuario(intruso, () => esperaErro('convite expirado é recusado', () => db.query('select public.aceitar_convite($1)', [tExp]), 'expirado'))
+await comoUsuario(intruso, () => esperaErro('token inventado é recusado', () => db.query('select public.aceitar_convite($1)', ['0'.repeat(64)]), 'inválido'))
 
-  const e3 = await db.query(`select public.registrar_entrada($1, '', null, 5, null, null) as id`, [produtoId])
-  loteB = (await db.query(`select lote_id from public.movimentacoes where id = $1`, [e3.rows[0].id])).rows[0].lote_id
-  const e4 = await db.query(`select public.registrar_entrada($1, null, null, 5, null, null) as id`, [produtoId])
-  const loteB2 = (await db.query(`select lote_id from public.movimentacoes where id = $1`, [e4.rows[0].id])).rows[0].lote_id
-  loteB === loteB2 ? passou('lote sem número/validade também é reaproveitado (NULLS NOT DISTINCT)') : falhou('lote nulo reaproveitado')
-
-  const s = await db.query(`insert into public.movimentacoes (tipo, lote_id, quantidade, criado_em, usuario_id)
-    values ('SAIDA', $1, 30, '2020-01-01', $2) returning id, criado_em, usuario_id, usuario_nome, produto_id`, [loteA, adm])
-  saidaId = s.rows[0].id
-  const row = s.rows[0]
-  new Date(row.criado_em).getFullYear() >= 2025 ? passou('data/hora é carimbada pelo servidor (tentativa de retroagir ignorada)') : falhou('carimbo de data', row.criado_em)
-  row.usuario_id === op && row.usuario_nome === 'Operador João' ? passou('usuário é carimbado pelo servidor (não dá para se passar por outro)') : falhou('carimbo de usuário', JSON.stringify(row))
-  row.produto_id === produtoId ? passou('produto da movimentação vem do lote') : falhou('produto da movimentação')
-  ;(await saldo(loteA)) === 90 ? passou('saldo após saída = 90') : falhou('saldo após saída', await saldo(loteA))
-
-  await esperaErro('bloqueia saída maior que o saldo', () =>
-    db.query(`insert into public.movimentacoes (tipo, lote_id, quantidade) values ('SAIDA', $1, 91)`, [loteA]), 'Saldo insuficiente')
-  await esperaErro('bloqueia quantidade zero/negativa em saída', () =>
-    db.query(`insert into public.movimentacoes (tipo, lote_id, quantidade) values ('SAIDA', $1, -5)`, [loteA]), 'quantidade_valida')
-  await esperaErro('correção exige motivo', () =>
-    db.query(`insert into public.movimentacoes (tipo, lote_id, quantidade) values ('CORRECAO', $1, 2)`, [loteA]), 'correcao_com_motivo')
-  await esperaErro('correção não pode apontar para outro lote', () =>
-    db.query(`insert into public.movimentacoes (tipo, lote_id, quantidade, observacao, referencia_id) values ('CORRECAO', $1, 2, 'erro de digitação', $2)`, [loteB, saidaId]), 'mesmo produto/lote')
-
-  await db.query(`insert into public.movimentacoes (tipo, lote_id, quantidade, observacao, referencia_id) values ('CORRECAO', $1, 5, 'Saída digitada errada: eram 25', $2)`, [loteA, saidaId])
-  ;(await saldo(loteA)) === 95 ? passou('movimentação de correção ajusta o saldo (90 + 5 = 95)') : falhou('correção', await saldo(loteA))
-
-  await esperaErro('NÃO altera movimentação (UPDATE)', () =>
-    db.query(`update public.movimentacoes set quantidade = 1 where id = $1`, [saidaId]))
-  await esperaErro('NÃO exclui movimentação (DELETE)', () =>
-    db.query(`delete from public.movimentacoes where id = $1`, [saidaId]))
-  await esperaErro('NÃO trunca movimentações', () => db.query(`truncate public.movimentacoes`))
-
-  const up = await db.query(`update public.produtos set nome = 'Hackeado' where id = $1`, [produtoId])
-  up.affectedRows === 0 ? passou('operador não edita cadastro de produto (RLS: 0 linhas)') : falhou('operador editou produto')
-  await esperaErro('operador não exclui produto', () => db.query(`delete from public.produtos where id = $1`, [produtoId]))
-  await esperaErro('operador não exclui lote', () => db.query(`delete from public.lotes where id = $1`, [loteA]))
-  const promo = await db.query(`update public.perfis set papel = 'admin' where id = $1`, [op])
-  promo.affectedRows === 0 ? passou('operador não se promove a admin (RLS: 0 linhas)') : falhou('operador se promoveu')
-  const vis = await db.query('select count(*)::int as n from public.perfis')
-  vis.rows[0].n === 1 ? passou('operador só enxerga o próprio perfil') : falhou('visibilidade de perfis', vis.rows[0].n)
+await comoUsuario(gerente, () => esperaErro('gerente não convida outro gerente', () => db.query('select public.criar_convite($1, $2)', [empA, 'gerente']), 'Somente o dono'))
+await comoUsuario(caixa, () => esperaErro('caixa não convida ninguém', () => db.query('select public.criar_convite($1, $2)', [empA, 'caixa']), 'Somente dono ou gerente'))
+await comoUsuario(estoquista, async () => {
+  confere((await um('select count(*)::int as n from public.convites')).n === 0, 'estoquista não vê a lista de convites')
+})
+await comoUsuario(donoA, async () => {
+  confere((await um('select count(*)::int as n from public.convites')).n === 4, 'dono vê os convites da empresa')
+  await esperaErro('ninguém lê o hash do token', () => db.query('select token_hash from public.convites'), 'permission denied')
 })
 
-console.log('\nAdministrador:')
-await comoUsuario(adm, async () => {
-  const up = await db.query(`update public.produtos set nome = 'Glifosato 480 SL (galão 20 L)' where id = $1`, [produtoId])
-  up.affectedRows === 1 ? passou('admin edita cadastro de produto') : falhou('admin editar produto')
-  const ul = await db.query(`update public.lotes set validade = '2026-07-31' where id = $1`, [loteA])
-  ul.affectedRows === 1 ? passou('admin corrige validade do lote') : falhou('admin editar lote')
-  await esperaErro('admin também NÃO altera movimentação', () =>
-    db.query(`update public.movimentacoes set quantidade = 1 where id = $1`, [entradaId]))
-  await esperaErro('admin também NÃO exclui movimentação', () =>
-    db.query(`delete from public.movimentacoes where id = $1`, [entradaId]))
-  const vis = await db.query('select count(*)::int as n from public.perfis')
-  vis.rows[0].n === 2 ? passou('admin enxerga todos os perfis') : falhou('admin perfis', vis.rows[0].n)
+// ----------------------------------------------------------------------
+secao('Catálogo:')
+let prodA, prodB
+await comoUsuario(donoA, async () => {
+  const p = await um(`insert into public.produtos (empresa_id, nome, unidade, preco_venda, rastreio) values ($1, '  Glifosato   480 SL ', 'L', 89.9, 'lote') returning id, nome, codigo_interno, versao`, [empA])
+  prodA = p.id
+  confere(p.codigo_interno === 'P0001' && p.nome === 'Glifosato 480 SL', 'código interno automático por empresa e nome padronizado', JSON.stringify(p))
+  const c = await um(`insert into public.produtos_codigos (empresa_id, produto_id, codigo) values ($1, $2, '7891000000014') returning codigo`, [empA, prodA])
+  confere(c.codigo === '07891000000014', 'EAN-13 guardado como GTIN-14 (busca direta)')
+  await esperaErro('código de barras repetido na mesma empresa', () =>
+    db.query(`insert into public.produtos_codigos (empresa_id, produto_id, codigo) values ($1, $2, '07891000000014')`, [empA, prodA]), 'duplicate key')
+})
+await comoUsuario(donoB, async () => {
+  const p = await um(`insert into public.produtos (empresa_id, nome, unidade, preco_venda, pesavel, codigo_balanca) values ($1, 'Queijo mussarela', 'kg', 49.9, true, '0042') returning id, codigo_interno`, [empB])
+  prodB = p.id
+  confere(p.codigo_interno === 'P0001', 'outra empresa também começa do P0001 (numeração independente)')
+  await db.query(`insert into public.produtos_codigos (empresa_id, produto_id, codigo) values ($1, $2, '7891000000014')`, [empB, prodB])
+  passou('o mesmo código de barras pode existir em empresas diferentes')
+})
+await comoUsuario(caixa, () => esperaErro('caixa não cadastra produto', () =>
+  db.query(`insert into public.produtos (empresa_id, nome, unidade) values ($1, 'X', 'un')`, [empA]), 'row-level security'))
+await comoUsuario(estoquista, async () => {
+  await db.query(`insert into public.produtos (empresa_id, nome, unidade) values ($1, 'Ureia 45%', 'sc')`, [empA])
+  const r = await db.query(`update public.produtos set preco_venda = 95 where id = $1`, [prodA])
+  confere(r.affectedRows === 1, 'estoquista cadastra e edita produtos')
+})
+await comoUsuario(caixa, async () => {
+  confere((await um('select count(*)::int as n from public.produtos')).n === 2, 'caixa consulta o catálogo da empresa')
 })
 
-console.log('\nVisitante sem login (anon):')
+// ----------------------------------------------------------------------
+secao('Estoque por loja e histórico imutável:')
+let entrada1, loteA, lojaA2
+await comoUsuario(estoquista, async () => {
+  const origem = '11111111-1111-4111-8111-111111111111'
+  entrada1 = (await um(`select public.registrar_entrada($1, $2, ' lt-01 ', '2027-06-30', 120, 'NF 1', null, $3) as id`, [lojaA1, prodA, origem])).id
+  const repetida = (await um(`select public.registrar_entrada($1, $2, 'LT-01', '2027-06-30', 120, 'NF 1', null, $3) as id`, [lojaA1, prodA, origem])).id
+  confere(repetida === entrada1, 'reenvio da mesma entrada (mesmo origem_id) não duplica')
+  const s = await um('select lote_id, lote, saldo from public.vw_estoque where produto_id = $1', [prodA])
+  loteA = s.lote_id
+  confere(s.lote === 'LT-01' && Number(s.saldo) === 120, 'saldo materializado = 120 e lote normalizado', JSON.stringify(s))
+
+  const m = await um(`insert into public.movimentacoes (empresa_id, loja_id, lote_id, tipo, quantidade, ocorrido_em, usuario_id, origem)
+    values ($1, $2, $3, 'SAIDA', 30, '2020-01-01', $4, 'manual') returning ocorrido_em, usuario_id, usuario_nome`, [empA, lojaA1, loteA, donoA])
+  confere(new Date(m.ocorrido_em).getFullYear() >= 2026 && m.usuario_id === estoquista && m.usuario_nome === 'Edu Estoque',
+    'data e autor carimbados pelo servidor (não dá para retroagir nem lançar em nome de outro)', JSON.stringify(m))
+  await esperaErro('saída maior que o saldo', () =>
+    db.query(`insert into public.movimentacoes (empresa_id, loja_id, lote_id, tipo, quantidade) values ($1, $2, $3, 'SAIDA', 91)`, [empA, lojaA1, loteA]), 'Saldo insuficiente. Disponível neste lote: 90 L')
+  await esperaErro('ajuste exige motivo', () =>
+    db.query(`insert into public.movimentacoes (empresa_id, loja_id, lote_id, tipo, quantidade) values ($1, $2, $3, 'AJUSTE', -2)`, [empA, lojaA1, loteA]), 'ajuste_com_motivo')
+  await db.query(`insert into public.movimentacoes (empresa_id, loja_id, lote_id, tipo, quantidade, observacao, referencia_id)
+    values ($1, $2, $3, 'CORRECAO', 5, 'Saída eram 25', $4)`, [empA, lojaA1, loteA, entrada1])
+  confere(Number((await um('select saldo from public.vw_estoque where lote_id = $1', [loteA])).saldo) === 95, 'correção vinculada ajusta o saldo (90 + 5)')
+  await esperaErro('lançamento de PDV não entra por inserção direta', () =>
+    db.query(`insert into public.movimentacoes (empresa_id, loja_id, lote_id, tipo, quantidade, origem) values ($1, $2, $3, 'SAIDA', 1, 'pdv')`, [empA, lojaA1, loteA]), 'row-level security')
+  await esperaErro('venda não entra por inserção direta', () =>
+    db.query(`insert into public.movimentacoes (empresa_id, loja_id, lote_id, tipo, quantidade) values ($1, $2, $3, 'VENDA', 1)`, [empA, lojaA1, loteA]), 'row-level security')
+  await esperaErro('não altera movimentação', () => db.query(`update public.movimentacoes set quantidade = 1 where id = $1`, [entrada1]), 'permission denied')
+  await esperaErro('não exclui movimentação', () => db.query(`delete from public.movimentacoes where id = $1`, [entrada1]), 'permission denied')
+  await esperaErro('não altera o saldo diretamente', () => db.query(`update public.estoque_saldos set saldo = 9999`), 'permission denied')
+})
+await comoUsuario(caixa, () => esperaErro('caixa não faz lançamento manual de estoque', () =>
+  db.query(`insert into public.movimentacoes (empresa_id, loja_id, lote_id, tipo, quantidade) values ($1, $2, $3, 'ENTRADA', 1)`, [empA, lojaA1, loteA]), 'row-level security'))
+await esperaErro('nem o dono do banco apaga o histórico', () => db.query('delete from public.movimentacoes'), 'não pode ser alterado')
+
+await comoUsuario(donoA, async () => {
+  lojaA2 = (await um(`insert into public.lojas (empresa_id, nome) values ($1, 'Filial Rio Verde') returning id`, [empA])).id
+  await db.query(`select public.registrar_entrada($1, $2, 'LT-01', '2027-06-30', 40)`, [lojaA2, prodA])
+  const porLoja = (await db.query('select loja_id, saldo from public.vw_estoque where lote_id = $1 order by saldo', [loteA])).rows
+  confere(porLoja.length === 2 && Number(porLoja[0].saldo) === 40 && Number(porLoja[1].saldo) === 95, 'mesmo lote com saldo separado por loja (40 e 95)', JSON.stringify(porLoja))
+  await esperaErro('correção não pode apontar para lançamento de outra loja', () =>
+    db.query(`insert into public.movimentacoes (empresa_id, loja_id, lote_id, tipo, quantidade, observacao, referencia_id) values ($1, $2, $3, 'CORRECAO', 1, 'teste', $4)`, [empA, lojaA2, loteA, entrada1]), 'mesmo produto, lote e loja')
+})
+const tLoja1 = await convidar(donoA, 'estoquista', 'lia@galpao.test', [lojaA1])
+await comoUsuario(lojista1, async () => {
+  await db.query('select public.aceitar_convite($1)', [tLoja1])
+  const lojas = (await db.query('select distinct loja_id from public.vw_estoque')).rows
+  confere(lojas.length === 1 && lojas[0].loja_id === lojaA1, 'funcionário restrito à loja 1 só vê o estoque da loja 1')
+  confere((await um('select count(*)::int as n from public.movimentacoes where loja_id = $1', [lojaA2])).n === 0, '…e não vê o histórico da filial')
+  await esperaErro('…nem lança na filial', () => db.query(`select public.registrar_entrada($1, $2, 'X', null, 1)`, [lojaA2, prodA]), 'row-level security')
+})
+{
+  // Desempenho: o custo de um lançamento não pode crescer com o tamanho do histórico
+  // (num mercadinho, o mesmo produto recebe milhares de vendas por mês).
+  await db.exec(`create function pg_temp.medir(p_empresa uuid, p_loja uuid, p_lote uuid, n int) returns numeric language plpgsql as $$
+    declare t timestamptz := clock_timestamp();
+    begin
+      for i in 1..n loop
+        insert into public.movimentacoes (empresa_id, loja_id, lote_id, tipo, quantidade, origem) values (p_empresa, p_loja, p_lote, 'ENTRADA', 1, 'sistema');
+      end loop;
+      return extract(epoch from clock_timestamp() - t) * 1000 / n;
+    end $$`)
+  const inicio = Number((await um('select pg_temp.medir($1, $2, $3, 300) as ms', [empA, lojaA1, loteA])).ms)
+  await db.query(`insert into public.movimentacoes (empresa_id, loja_id, lote_id, tipo, quantidade, origem)
+    select $1, $2, $3, 'ENTRADA', 1, 'sistema' from generate_series(1, 10000)`, [empA, lojaA1, loteA])
+  const depois = Number((await um('select pg_temp.medir($1, $2, $3, 300) as ms', [empA, lojaA1, loteA])).ms)
+  confere(depois < inicio * 2.5 + 0.2, `lançamento custa o mesmo com 10 mil registros no lote (${inicio.toFixed(2)} ms → ${depois.toFixed(2)} ms)`)
+}
+confere((await db.query('select * from app.verificar_saldos()')).rows.length === 0, 'saldo materializado confere com a soma do histórico')
+
+// ----------------------------------------------------------------------
+secao('Isolamento entre empresas (matriz automática — empresa A tentando acessar a B):')
+await comoUsuario(donoB, async () => {
+  await db.query(`select public.registrar_entrada($1, $2, '', null, 10)`, [lojaB1, prodB])
+  await db.query(`select public.criar_convite($1, 'caixa')`, [empB])
+  await db.query(`insert into public.categorias (empresa_id, nome) values ($1, 'Frios')`, [empB])
+})
+{
+  const objetos = (await db.query(`select c.table_name as nome, t.table_type as tipo from information_schema.columns c
+    join information_schema.tables t on t.table_schema = c.table_schema and t.table_name = c.table_name
+    where c.table_schema = 'public' and c.column_name = 'empresa_id' order by 1`)).rows
+  const colunasUpdate = new Map()
+  for (const o of objetos) {
+    const c = await um(`select column_name from information_schema.column_privileges where table_schema = 'public' and table_name = $1 and grantee = 'authenticated' and privilege_type = 'UPDATE' limit 1`, [o.nome])
+    colunasUpdate.set(o.nome, c?.column_name ?? 'empresa_id')
+  }
+  await comoUsuario(donoA, async () => {
+    for (const { nome, tipo } of objetos) {
+      const n = (await um(`select count(*)::int as n from public.${nome} where empresa_id = $1`, [empB])).n
+      confere(n === 0, `${nome}: não lê dados da outra empresa`, `${n} linha(s) visível(is)`)
+      if (tipo === 'VIEW') continue
+      const col = colunasUpdate.get(nome)
+      await semEfeito(`${nome}: não altera dados da outra empresa`, () => db.query(`update public.${nome} set ${col} = ${col} where empresa_id = $1`, [empB]))
+      await semEfeito(`${nome}: não apaga dados da outra empresa`, () => db.query(`delete from public.${nome} where empresa_id = $1`, [empB]))
+    }
+  })
+  passou(`matriz cobriu ${objetos.length} tabelas/visões com empresa_id`)
+}
+await comoUsuario(donoA, async () => {
+  const catB = (await um(`select id from public.categorias where empresa_id = $1 limit 1`, [empB]))?.id
+  confere(catB === undefined, 'ids da outra empresa não aparecem nem por consulta direta')
+  const loteB = (await db.query(`select id from public.lotes where empresa_id = $1`, [empB])).rows
+  confere(loteB.length === 0, 'lotes da outra empresa invisíveis')
+})
+const [loteDeB] = (await db.query(`select id from public.lotes where empresa_id = $1`, [empB])).rows
+const [catDeB] = (await db.query(`select id from public.categorias where empresa_id = $1`, [empB])).rows
+await comoUsuario(donoA, async () => {
+  await esperaErro('não cria produto dentro da outra empresa', () =>
+    db.query(`insert into public.produtos (empresa_id, nome, unidade) values ($1, 'Invasor', 'un')`, [empB]), 'row-level security')
+  await esperaErro('não vincula lote próprio a produto da outra empresa (FK composta)', () =>
+    db.query(`insert into public.lotes (empresa_id, produto_id, lote) values ($1, $2, 'X')`, [empA, prodB]), 'foreign key')
+  await esperaErro('não vincula código de barras a produto da outra empresa', () =>
+    db.query(`insert into public.produtos_codigos (empresa_id, produto_id, codigo) values ($1, $2, '123')`, [empA, prodB]), 'foreign key')
+  await esperaErro('não lança movimentação em lote da outra empresa', () =>
+    db.query(`insert into public.movimentacoes (empresa_id, loja_id, lote_id, tipo, quantidade) values ($1, $2, $3, 'ENTRADA', 1)`, [empA, lojaA1, loteDeB.id]), /Lote não encontrado|foreign key/)
+  await esperaErro('não usa categoria da outra empresa', () =>
+    db.query(`update public.produtos set categoria_id = $1 where id = $2`, [catDeB.id, prodA]), 'foreign key')
+  await esperaErro('não registra entrada de produto da outra empresa', () =>
+    db.query(`select public.registrar_entrada($1, $2, 'X', null, 1)`, [lojaA1, prodB]), 'Produto não encontrado')
+  await esperaErro('não registra entrada na loja da outra empresa', () =>
+    db.query(`select public.registrar_entrada($1, $2, 'X', null, 1)`, [lojaB1, prodA]), /foreign key|row-level security/)
+  await esperaErro('não convida pessoas para a outra empresa', () =>
+    db.query(`select public.criar_convite($1, 'caixa')`, [empB]), 'Somente dono ou gerente')
+  await esperaErro('não se adiciona como membro de outra empresa', () =>
+    db.query(`insert into public.membros (empresa_id, usuario_id, papel) values ($1, $2, 'dono')`, [empB, donoA]), 'permission denied')
+  const perfisVisiveis = (await db.query('select id from public.perfis')).rows.map(r => r.id)
+  confere(!perfisVisiveis.includes(donoB), 'não vê os dados pessoais de quem é só da outra empresa')
+})
+await comoUsuario(intruso, async () => {
+  const n = (await um(`select (select count(*) from public.produtos) + (select count(*) from public.movimentacoes) + (select count(*) from public.empresas) as n`)).n
+  confere(Number(n) === 0, 'conta sem empresa não vê nada de ninguém')
+})
+
+// ----------------------------------------------------------------------
+secao('Equipe:')
+await comoUsuario(donoA, async () => {
+  const r = await db.query(`update public.membros set papel = 'caixa' where usuario_id = $1`, [donoA])
+  confere(r.affectedRows === 0, 'dono não altera o próprio papel')
+  const r2 = await db.query(`update public.membros set papel = 'caixa' where usuario_id = $1 and empresa_id = $2`, [estoquista, empA])
+  confere(r2.affectedRows === 1, 'dono muda o papel de outra pessoa')
+})
+await comoUsuario(gerente, async () => {
+  const r = await db.query(`update public.membros set papel = 'gerente' where usuario_id = $1`, [caixa])
+  confere(r.affectedRows === 0, 'gerente não altera papéis (só o dono)')
+})
+await esperaErro('empresa nunca fica sem dono', () => db.query(`delete from public.membros where usuario_id = $1 and empresa_id = $2`, [donoA, empA]), 'pelo menos um dono')
+{
+  const antes = (await um('select count(*)::int as n from public.movimentacoes where usuario_id = $1', [estoquista])).n
+  await db.query('delete from auth.users where id = $1', [estoquista])
+  const depois = await um('select count(*)::int as n, min(usuario_nome) as nome from public.movimentacoes where usuario_id = $1', [estoquista])
+  confere(depois.n === antes && depois.nome === 'Edu Estoque', `excluir funcionário preserva o histórico (${antes} lançamentos de "${depois.nome}")`)
+}
+await esperaErro('excluir a conta do único dono é bloqueado (transferir antes)', () => db.query('delete from auth.users where id = $1', [donoB]), 'pelo menos um dono')
+
+// ----------------------------------------------------------------------
+secao('Plano e assinatura:')
+await db.query(`update public.assinaturas set plano_id = 'essencial' where empresa_id = $1`, [empB])
+await comoUsuario(donoB, () => esperaErro('limite de lojas do plano', () =>
+  db.query(`insert into public.lojas (empresa_id, nome) values ($1, 'Filial')`, [empB]), 'Limite do plano Essencial atingido: no máximo 1 lojas'))
+await db.query(`update public.assinaturas set trial_ate = now() - interval '3 days' where empresa_id = $1`, [empA])
+await comoUsuario(donoA, async () => {
+  confere((await um('select app.estado_empresa($1) as e', [empA])).e === 'atrasada', '3 dias de atraso: estado "atrasada" (só aviso)')
+  await db.query(`insert into public.produtos (empresa_id, nome, unidade) values ($1, 'Em carência', 'un')`, [empA])
+  passou('…e continua gravando normalmente')
+})
+await db.query(`update public.assinaturas set trial_ate = now() - interval '10 days' where empresa_id = $1`, [empA])
+await comoUsuario(donoA, async () => {
+  confere((await um('select app.estado_empresa($1) as e', [empA])).e === 'somente_leitura', '10 dias de atraso: somente leitura')
+  confere((await um('select count(*)::int as n from public.produtos')).n > 0, '…consulta continua liberada')
+  await esperaErro('…cadastro bloqueado', () => db.query(`insert into public.produtos (empresa_id, nome, unidade) values ($1, 'Bloqueado', 'un')`, [empA]), 'row-level security')
+  await esperaErro('…lançamento bloqueado', () => db.query(`select public.registrar_entrada($1, $2, 'X', null, 1)`, [lojaA1, prodA]), 'row-level security')
+})
+await db.query(`update public.assinaturas set trial_ate = now() - interval '30 days' where empresa_id = $1`, [empA])
+confere((await um('select app.estado_empresa($1) as e', [empA])).e === 'suspensa', '30 dias de atraso: suspensa')
+await db.query(`update public.assinaturas set status = 'cortesia' where empresa_id = $1`, [empA])
+confere((await um('select app.estado_empresa($1) as e', [empA])).e === 'ativa', 'conta cortesia (ex.: cliente galpão) fica sempre ativa')
+
+// ----------------------------------------------------------------------
+secao('Expurgo de empresa cancelada (somente plataforma):')
+await comoUsuario(donoB, () => esperaErro('usuário não consegue chamar o expurgo', () => db.query('select app.expurgar_empresa($1)', [empB]), 'permission denied'))
+{
+  const totalA = (await um('select count(*)::int as n from public.movimentacoes where empresa_id = $1', [empA])).n
+  await db.query('select app.expurgar_empresa($1)', [empB])
+  const restoB = (await um(`select (select count(*) from public.empresas where id = $1) + (select count(*) from public.produtos where empresa_id = $1)
+    + (select count(*) from public.movimentacoes where empresa_id = $1) + (select count(*) from public.membros where empresa_id = $1) as n`, [empB])).n
+  confere(Number(restoB) === 0, 'expurgo remove todos os dados da empresa B, inclusive o histórico')
+  confere((await um('select count(*)::int as n from public.movimentacoes where empresa_id = $1', [empA])).n === totalA, '…sem tocar na empresa A')
+  await esperaErro('fora do expurgo, o histórico continua imutável', () => db.query('delete from public.movimentacoes where empresa_id = $1', [empA]), 'não pode ser alterado')
+}
+
+// ----------------------------------------------------------------------
+secao('Visitante sem login:')
 await comoUsuario(null, async () => {
   await esperaErro('não lê produtos', () => db.query('select * from public.produtos'), 'permission denied')
-  await esperaErro('não lê estoque', () => db.query('select * from public.vw_estoque_lotes'), 'permission denied')
-  await esperaErro('não lança movimentação', () =>
-    db.query(`insert into public.movimentacoes (tipo, lote_id, quantidade) values ('ENTRADA', $1, 1)`, [loteA]), 'permission denied')
-  await esperaErro('não chama registrar_entrada', () =>
-    db.query(`select public.registrar_entrada($1, 'X', null, 1)`, [produtoId]), 'permission denied')
+  await esperaErro('não cria empresa', () => db.query(`select public.criar_empresa('X', 'outro')`), 'permission denied')
+  await esperaErro('não aceita convite', () => db.query(`select public.aceitar_convite('x')`), 'permission denied')
 })
-
-console.log('\nDono do banco (postgres):')
-await esperaErro('mesmo o dono do banco não apaga o histórico', () => db.query(`delete from public.movimentacoes`), 'não pode ser alterado')
-
-console.log('\nExclusão de usuário (ex.: funcionário que saiu da empresa):')
-try {
-  const antes = (await db.query(`select count(*)::int as n from public.movimentacoes where usuario_id = $1`, [op])).rows[0].n
-  await db.query(`delete from auth.users where id = $1`, [op])
-  passou('excluir usuário que já lançou movimentações e cadastrou produtos funciona')
-  const depois = await db.query(`select count(*)::int as n, min(usuario_nome) as nome from public.movimentacoes where usuario_id = $1`, [op])
-  depois.rows[0].n === antes && depois.rows[0].nome === 'Operador João'
-    ? passou(`histórico preservado com o nome de quem lançou (${antes} lançamentos de "${depois.rows[0].nome}")`)
-    : falhou('histórico após exclusão', JSON.stringify(depois.rows[0]))
-  const perfil = await db.query(`select count(*)::int as n from public.perfis where id = $1`, [op])
-  perfil.rows[0].n === 0 ? passou('perfil do usuário excluído é removido') : falhou('perfil não removido')
-} catch (e) {
-  falhou('excluir usuário que já lançou movimentações', e.message.split('\n')[0])
-}
 
 console.log(`\n${ok} verificações OK, ${falhas} falha(s).`)
 process.exit(falhas ? 1 : 0)
