@@ -218,7 +218,7 @@ describe('API REST (PostgREST) com as regras reais do banco', LENTO, () => {
   beforeAll(async () => {
     a = await subir()
     A = await a.novaEmpresa('Agro A', 'galpao')
-    B = await a.novaEmpresa('Mercadinho B', 'mercadinho')
+    B = await a.novaEmpresa('Eletrônicos B', 'eletronicos') // sem o produto "Diversos" do mercadinho
   }, 60_000)
   afterAll(() => a.fechar())
 
@@ -238,8 +238,8 @@ describe('API REST (PostgREST) com as regras reais do banco', LENTO, () => {
     expect(assinatura).toEqual({ plano_id: 'teste', status: 'trial' })
     const { count } = await A.c.from('categorias').select('*', { count: 'exact', head: true })
     expect(count).toBe(5)
-    const { count: doMercadinho } = await B.c.from('categorias').select('*', { count: 'exact', head: true })
-    expect(doMercadinho).toBe(7)
+    const { count: daOutra } = await B.c.from('categorias').select('*', { count: 'exact', head: true })
+    expect(daOutra).toBe(5)
   })
 
   test('insert com select().single() devolve a linha como o banco gravou', async () => {
