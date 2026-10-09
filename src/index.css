@@ -100,3 +100,28 @@
   height: 100% !important;
   object-fit: cover;
 }
+
+/* Cupom de 80 mm (impressora térmica pelo navegador): na impressão só o cupom aparece. */
+.cupom-impressao {
+  display: none;
+}
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  body > *:not(.cupom-impressao) {
+    display: none !important;
+  }
+  .cupom-impressao {
+    display: block;
+    width: 80mm;
+    padding: 3mm 4mm;
+    font: 11px/1.35 ui-monospace, "Cascadia Mono", Consolas, monospace;
+    color: #000;
+  }
+}

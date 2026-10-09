@@ -40,6 +40,7 @@ export function traduzirErro(e: ErroBanco | null | undefined): Error {
       if (txt.includes('codigo_interno')) return new Error('Já existe um produto com este código interno.')
       if (txt.includes('lotes_unicos')) return new Error('Já existe outro lote igual (mesmo número e validade) para este produto.')
       if (txt.includes('categorias_nome')) return new Error('Já existe uma categoria com este nome.')
+      if (txt.includes('balanca')) return new Error('Já existe um produto com este código de balança.')
       return new Error('Registro duplicado.')
     case '23503':
       if (txt.includes('categoria')) return new Error('Esta categoria está em uso por produtos. Mude a categoria deles antes de excluir.')

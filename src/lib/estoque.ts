@@ -73,6 +73,7 @@ export function montarLinhasEstoque(produtos: Produto[], lotes: Lote[], hoje = h
   const porProduto = agruparLotes(lotes)
   const linhas: LinhaEstoque[] = []
   for (const produto of produtos) {
+    if (!produto.controla_estoque) continue // serviços e "Diversos" não têm estoque
     const comSaldo = ordenarFefo((porProduto.get(produto.id) ?? []).filter(l => l.saldo > 0))
     if (comSaldo.length === 0) {
       if (!produto.ativo) continue

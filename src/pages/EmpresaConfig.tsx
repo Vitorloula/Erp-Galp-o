@@ -1,9 +1,10 @@
-import { Building2, CreditCard, Pencil, Plus, Store } from 'lucide-react'
+import { Building2, CreditCard, Monitor, Pencil, Plus, Store } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useToast } from '../components/Toast'
 import { Aviso, Cabecalho, Carregando, Modal, cx } from '../components/ui'
 import { useAtiva } from '../contexto/Empresa'
-import { empresas } from '../lib/dados'
+import { empresas, vendas as dadosVendas } from '../lib/dados'
+import type { Caixa } from '../lib/dados/vendas'
 import { formatarData } from '../lib/formato'
 import { NOME_PAPEL } from '../lib/permissoes'
 import type { DadosEmpresa, Loja, Vinculo } from '../lib/tipos'
@@ -135,6 +136,8 @@ export function EmpresaConfig() {
         )}
       </section>
 
+      <Caixas lojas={todasLojas} />
+
       <EditarLoja
         loja={lojaEditando}
         aoFechar={() => setLojaEditando(null)}
@@ -203,5 +206,97 @@ function EditarLoja({ loja, aoFechar, aoSalvar }: { loja: Partial<Loja> | null; 
         )}
       </form>
     </Modal>
+  )
+}
+
+/** Caixas (PDV) de cada loja: o número do caixa vira a série da NFC-e na fase fiscal. */
+function Caixas({ lojas }: { lojas: Loja[] | null }) {
+  const { empresa, pode } = useAtiva()
+  const toast = useToast()
+  const [caixas, setCaixas] = useState<Caixa[] | null>(null)
+  const [editando, setEditando] = useState<{ id?: string; loja_id: string; nome: string; ativo: boolean } | null>(null)
+  const [erro, setErro] = useState('')
+
+  const carregar = () => dadosVendas.listarCaixas(empresa.empresa_id).then(setCaixas, e => setErro((e as Error).message))
+  useEffect(() => {
+    carregar()
+  }, [empresa.empresa_id])
+
+  async function salvar(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editando) return
+    try {
+      await dadosVendas.salvarCaixa(empresa.empresa_id, editando.loja_id, { nome: editando.nome, ativo: editando.ativo }, editando.id)
+      toast.sucesso(editando.id ? 'Caixa atualizado.' : `${editando.nome.trim()} criado.`)
+      setEditando(null)
+      carregar()
+    } catch (er) {
+      setErro((er as Error).message)
+    }
+  }
+
+  const ativas = (lojas ?? []).filter(l => l.ativo)
+  return (
+    <section className="cartao p-4">
+      <h2 className="mb-3 flex items-center gap-2 font-semibold text-slate-900"><Monitor className="size-5 text-emerald-700" /> Caixas (PDV)</h2>
+      {erro && !editando && <Aviso tom="erro">{erro}</Aviso>}
+      {!caixas ? (
+        <Carregando />
+      ) : (
+        <div className="space-y-3">
+          {ativas.map(l => (
+            <div key={l.id}>
+              {ativas.length > 1 && <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{l.nome}</p>}
+              <ul className="divide-y divide-slate-100">
+                {caixas.filter(c => c.loja_id === l.id).map(c => (
+                  <li key={c.id} className={cx('flex items-center gap-3 py-2', !c.ativo && 'opacity-55')} data-caixa={c.nome}>
+                    <Monitor className="size-4.5 text-slate-400" />
+                    <span className="flex-1 text-sm font-medium text-slate-800">
+                      {c.nome} <span className="text-xs font-normal text-slate-500">nº {String(c.numero).padStart(2, '0')}</span>
+                      {!c.ativo && <span className="ml-1 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">inativo</span>}
+                    </span>
+                    {pode.gerenciarCaixas && (
+                      <button className="btn btn-fantasma p-1.5" onClick={() => setEditando({ id: c.id, loja_id: c.loja_id, nome: c.nome, ativo: c.ativo })} aria-label={`Editar ${c.nome}`}>
+                        <Pencil className="size-4" />
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              {pode.gerenciarCaixas && (
+                <button
+                  className="btn btn-fantasma mt-1 px-2 py-1 text-sm text-emerald-800"
+                  onClick={() => setEditando({ loja_id: l.id, nome: `Caixa ${String(caixas.filter(c => c.loja_id === l.id).length + 1).padStart(2, '0')}`, ativo: true })}
+                >
+                  <Plus className="size-4" /> Novo caixa{ativas.length > 1 ? ` em ${l.nome}` : ''}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      <Modal
+        aberto={!!editando}
+        aoFechar={() => setEditando(null)}
+        titulo={editando?.id ? 'Editar caixa' : 'Novo caixa'}
+        rodape={
+          <button form="form-caixa" className="btn btn-primario flex-1">Salvar</button>
+        }
+      >
+        <form id="form-caixa" onSubmit={salvar} className="space-y-3">
+          {erro && <Aviso tom="erro">{erro}</Aviso>}
+          <div>
+            <label className="rotulo" htmlFor="caixa-nome">Nome do caixa *</label>
+            <input id="caixa-nome" className="campo" value={editando?.nome ?? ''} onChange={e => setEditando(c => c && { ...c, nome: e.target.value })} autoFocus />
+          </div>
+          {editando?.id && (
+            <label className="flex items-center gap-2.5 text-sm font-medium text-slate-700">
+              <input type="checkbox" className="size-4.5 accent-emerald-700" checked={editando.ativo} onChange={e => setEditando(c => c && { ...c, ativo: e.target.checked })} />
+              Caixa ativo
+            </label>
+          )}
+        </form>
+      </Modal>
+    </section>
   )
 }

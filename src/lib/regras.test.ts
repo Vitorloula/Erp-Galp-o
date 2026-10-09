@@ -12,7 +12,8 @@ const lote = (saldo: number, validade: string | null, extra: Partial<Lote> = {})
 })
 const produto = (id: string, extra: Partial<Produto> = {}): Produto => ({
   id, codigo_interno: 'P' + id, nome: 'Produto ' + id, categoria_id: null, unidade: 'L', conteudo_embalagem: null, preco_venda: null,
-  custo_ultimo: null, rastreio: 'lote', fabricante: null, observacao: null, ativo: true, criado_em: '', codigos: [], ...extra,
+  custo_ultimo: null, rastreio: 'lote', pesavel: false, codigo_balanca: null, controla_estoque: true, fabricante: null, observacao: null, ativo: true,
+  criado_em: '', codigos: [], ...extra,
 })
 
 describe('formato', () => {

@@ -9,6 +9,7 @@ import { EmpresaProvider, useEmpresa } from './contexto/Empresa'
 import { configurado } from './lib/dados'
 import { BoasVindas } from './pages/BoasVindas'
 import { EmpresaConfig } from './pages/EmpresaConfig'
+import { Divergencias } from './pages/Divergencias'
 import { Equipe } from './pages/Equipe'
 import { Estoque } from './pages/Estoque'
 import { Historico } from './pages/Historico'
@@ -19,7 +20,9 @@ import { Movimentar } from './pages/Movimentar'
 import { Painel } from './pages/Painel'
 import { ProdutoDetalhe } from './pages/ProdutoDetalhe'
 import { Produtos } from './pages/Produtos'
+import { Pdv } from './pages/pdv/Pdv'
 import { Relatorios } from './pages/Relatorios'
+import { Vendas } from './pages/Vendas'
 
 // Link de convite (/convite#token): guarda o token antes de qualquer tela, inclusive o login.
 guardarConviteDaUrl()
@@ -38,7 +41,17 @@ function Sistema() {
       </TelaCheia>
     )
   return (
-    <DadosProvider key={`${empresa.empresa_id}:${loja.id}`}>
+    <Routes>
+      {/* Caixa: tela cheia, funciona sem internet (não depende dos dados da retaguarda) */}
+      <Route path="/pdv" element={<Pdv key={`${empresa.empresa_id}:${loja.id}`} />} />
+      <Route path="*" element={<Retaguarda chave={`${empresa.empresa_id}:${loja.id}`} />} />
+    </Routes>
+  )
+}
+
+function Retaguarda({ chave }: { chave: string }) {
+  return (
+    <DadosProvider key={chave}>
       <Routes>
         <Route element={<Layout />}>
           <Route path="/painel" element={<Painel />} />
@@ -52,6 +65,8 @@ function Sistema() {
           <Route path="/equipe" element={<Equipe />} />
           <Route path="/empresa" element={<EmpresaConfig />} />
           <Route path="/empresas/nova" element={<BoasVindas dentroDoSistema />} />
+          <Route path="/vendas" element={<Vendas />} />
+          <Route path="/divergencias" element={<Divergencias />} />
           <Route path="*" element={<Navigate to="/painel" replace />} />
         </Route>
       </Routes>

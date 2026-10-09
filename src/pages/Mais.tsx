@@ -1,4 +1,4 @@
-import { Building2, ChevronRight, FileSpreadsheet, LogOut, Package, Pencil, Smartphone, Users, type LucideIcon } from 'lucide-react'
+import { AlertOctagon, Banknote, Building2, ChevronRight, FileSpreadsheet, LogOut, Package, Pencil, ShoppingCart, Smartphone, Users, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useToast } from '../components/Toast'
@@ -46,7 +46,15 @@ export function Mais() {
         </button>
       </div>
 
+      {pode.vender && (
+        <Link to="/pdv" className="btn btn-primario btn-grande w-full">
+          <ShoppingCart className="size-5" /> Abrir o caixa (PDV)
+        </Link>
+      )}
+
       <div className="cartao divide-y divide-slate-100 overflow-hidden">
+        <Item para="/vendas" icone={Banknote} titulo="Vendas" texto="Vendas dos caixas e fechamentos" />
+        {pode.verDivergencias && <Item para="/divergencias" icone={AlertOctagon} titulo="Divergências" texto="O que os caixas registraram sem internet e precisa de conferência" />}
         <Item para="/produtos" icone={Package} titulo="Produtos" texto="Cadastro, códigos de barras, preços e lotes" />
         <Item para="/relatorios" icone={FileSpreadsheet} titulo="Relatórios" texto="Semanais e mensais em Excel ou PDF" />
         {(pode.convidar || pode.gerenciarEquipe) && <Item para="/equipe" icone={Users} titulo="Equipe" texto="Convidar pessoas e definir o que cada uma faz" />}

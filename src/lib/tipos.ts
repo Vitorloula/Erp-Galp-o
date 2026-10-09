@@ -26,7 +26,14 @@ export interface Vinculo {
   empresa_id: string
   nome: string
   segmento: Segmento
-  config: { dias_alerta?: number; exemplo?: boolean; [chave: string]: unknown }
+  config: {
+    dias_alerta?: number
+    exemplo?: boolean
+    /** Venda de item sem saldo no caixa: permitir, avisar ou bloquear. */
+    venda_sem_estoque?: 'permitir' | 'avisar' | 'bloquear'
+    balanca?: { prefixo: string; digitos_codigo: number; tipo: 'preco' | 'peso'; digitos_valor?: number }
+    [chave: string]: unknown
+  }
   fuso: string
   papel: Papel
   /** null = todas as lojas da empresa */
@@ -97,6 +104,12 @@ export interface Produto {
   preco_venda: number | null
   custo_ultimo: number | null
   rastreio: Rastreio
+  /** Vendido por peso (etiqueta de balança). */
+  pesavel: boolean
+  /** Código do produto na balança (PLU). */
+  codigo_balanca: string | null
+  /** false: serviços e "Diversos" — não entram no estoque. */
+  controla_estoque: boolean
   fabricante: string | null
   observacao: string | null
   ativo: boolean
@@ -113,6 +126,9 @@ export type ProdutoDados = Pick<
   | 'conteudo_embalagem'
   | 'preco_venda'
   | 'rastreio'
+  | 'pesavel'
+  | 'codigo_balanca'
+  | 'controla_estoque'
   | 'fabricante'
   | 'observacao'
   | 'ativo'

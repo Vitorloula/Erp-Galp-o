@@ -1,5 +1,7 @@
 import {
+  AlertOctagon,
   ArrowLeftRight,
+  Banknote,
   Boxes,
   Building2,
   Check,
@@ -13,12 +15,14 @@ import {
   Plus,
   RefreshCw,
   ScanBarcode,
+  ShoppingCart,
   Store,
   Users,
   WifiOff,
   type LucideIcon,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { vendas as dadosVendas } from '../lib/dados'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import { useAuth } from '../contexto/Auth'
 import { useDados } from '../contexto/Dados'
@@ -35,6 +39,7 @@ interface ItemMenu {
   para: string
   rotulo: string
   icone: LucideIcon
+  contador?: number
 }
 
 function useOnline() {
@@ -92,7 +97,8 @@ function AvisoAssinatura({ empresa }: { empresa: Vinculo }) {
 export function Layout() {
   const { usuario, sair } = useAuth()
   const { empresa, loja, lojas, vinculos, pode, trocarLoja } = useAtiva()
-  const { erro, recarregar } = useDados()
+  const { erro, recarregar, versao } = useDados()
+  const [divergencias, setDivergencias] = useState(0)
   const [tentando, setTentando] = useState(false)
   const [escolhendo, setEscolhendo] = useState(false)
   const online = useOnline()
@@ -102,12 +108,20 @@ export function Layout() {
     window.scrollTo(0, 0)
   }, [local.pathname])
 
+  // Quantas divergências dos caixas esperam conferência (dono e gerente).
+  useEffect(() => {
+    if (!pode.verDivergencias) return
+    dadosVendas.contarDivergenciasAbertas(empresa.empresa_id, loja.id).then(setDivergencias, () => {})
+  }, [pode.verDivergencias, empresa.empresa_id, loja.id, versao, local.pathname])
+
   const menu: ItemMenu[] = [
     { para: '/painel', rotulo: 'Painel', icone: LayoutDashboard },
     { para: '/estoque', rotulo: 'Estoque', icone: Boxes },
     ...(pode.movimentar ? [{ para: '/movimentar', rotulo: 'Movimentar', icone: ArrowLeftRight }] : []),
     { para: '/historico', rotulo: 'Histórico', icone: History },
     { para: '/produtos', rotulo: 'Produtos', icone: Package },
+    { para: '/vendas', rotulo: 'Vendas', icone: Banknote },
+    ...(pode.verDivergencias ? [{ para: '/divergencias', rotulo: 'Divergências', icone: AlertOctagon, contador: divergencias }] : []),
     { para: '/relatorios', rotulo: 'Relatórios', icone: FileSpreadsheet },
     ...(pode.convidar || pode.gerenciarEquipe ? [{ para: '/equipe', rotulo: 'Equipe', icone: Users }] : []),
     { para: '/empresa', rotulo: 'Empresa', icone: Building2 },
@@ -130,7 +144,12 @@ export function Layout() {
           </button>
           {variasLojas && <SeletorLoja />}
         </div>
-        <nav className="flex-1 space-y-1 px-3">
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3">
+          {pode.vender && (
+            <Link to="/pdv" className="mb-2 flex items-center gap-3 rounded-xl bg-emerald-700 px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-800">
+              <ShoppingCart className="size-5" /> Abrir o caixa (PDV)
+            </Link>
+          )}
           {menu.map(item => (
             <NavLink
               key={item.para}
@@ -143,7 +162,8 @@ export function Layout() {
               }
             >
               <item.icone className="size-5" />
-              {item.rotulo}
+              <span className="flex-1">{item.rotulo}</span>
+              {!!item.contador && <span className="rounded-full bg-red-600 px-1.5 text-xs font-bold text-white">{item.contador}</span>}
             </NavLink>
           ))}
         </nav>
@@ -232,7 +252,7 @@ export function Layout() {
             </NavLink>
           )}
           <ItemInferior para="/historico" rotulo="Histórico" icone={History} />
-          <ItemInferior para="/mais" rotulo="Mais" icone={Ellipsis} ativoEm={['/mais', '/produtos', '/relatorios', '/equipe', '/empresa']} />
+          <ItemInferior para="/mais" rotulo="Mais" icone={Ellipsis} ativoEm={['/mais', '/produtos', '/relatorios', '/equipe', '/empresa', '/vendas', '/divergencias']} />
         </div>
       </nav>
 

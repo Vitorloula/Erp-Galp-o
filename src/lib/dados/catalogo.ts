@@ -13,7 +13,7 @@ function paraProduto(r: Record<string, unknown>): Produto {
 }
 
 const COLUNAS_PRODUTO =
-  'id, codigo_interno, nome, categoria_id, unidade, conteudo_embalagem, preco_venda, custo_ultimo, rastreio, fabricante, observacao, ativo, criado_em'
+  'id, codigo_interno, nome, categoria_id, unidade, conteudo_embalagem, preco_venda, custo_ultimo, rastreio, pesavel, codigo_balanca, controla_estoque, fabricante, observacao, ativo, criado_em'
 
 /** Catálogo completo da empresa: produtos já com seus códigos de barras. */
 export async function listarProdutos(empresaId: string): Promise<Produto[]> {
@@ -40,6 +40,7 @@ export async function salvarProduto(empresaId: string, dados: ProdutoDados, codi
       ...dados,
       nome: dados.nome.trim(),
       codigo_interno: dados.codigo_interno.trim(),
+      codigo_balanca: dados.codigo_balanca?.trim() || null,
       fabricante: dados.fabricante?.trim() || null,
       observacao: dados.observacao?.trim() || null,
     },

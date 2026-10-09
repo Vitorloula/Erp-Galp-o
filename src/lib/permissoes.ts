@@ -15,6 +15,12 @@ export interface Permissoes {
   convidarGerente: boolean
   gerenciarEquipe: boolean
   gerenciarEmpresa: boolean
+  /** Usar o caixa (PDV). Vende até a assinatura ser suspensa (carência maior que a da retaguarda). */
+  vender: boolean
+  /** Cancelar venda concluída. */
+  cancelarVenda: boolean
+  gerenciarCaixas: boolean
+  verDivergencias: boolean
 }
 
 export const NOME_PAPEL: Record<Papel, string> = {
@@ -28,7 +34,7 @@ export const DESCRICAO_PAPEL: Record<Papel, string> = {
   dono: 'Tudo, inclusive equipe, lojas e dados da empresa',
   gerente: 'Estoque, cadastros, correções de lote e convites para a equipe',
   estoquista: 'Entradas, saídas, ajustes e cadastro de produtos',
-  caixa: 'Consulta estoque, histórico e relatórios',
+  caixa: 'Vende no caixa e consulta estoque, histórico e relatórios',
 }
 
 export function permissoes(papel: Papel, estado: EstadoEmpresa): Permissoes {
@@ -45,5 +51,9 @@ export function permissoes(papel: Papel, estado: EstadoEmpresa): Permissoes {
     convidarGerente: gravavel && papel === 'dono',
     gerenciarEquipe: papel === 'dono',
     gerenciarEmpresa: papel === 'dono',
+    vender: (papel === 'dono' || papel === 'gerente' || papel === 'caixa') && estado !== 'suspensa' && estado !== 'cancelada',
+    cancelarVenda: papel === 'dono' || papel === 'gerente',
+    gerenciarCaixas: gestao,
+    verDivergencias: papel === 'dono' || papel === 'gerente',
   }
 }

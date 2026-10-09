@@ -13,7 +13,7 @@ import { gerarPdf } from './pdf'
 const hoje = hojeISO()
 const produto = (id: string, nome: string, unidade: Produto['unidade'] = 'L'): Produto => ({
   id, codigo_interno: 'P000' + id.length, nome, categoria_id: 'cat', unidade, conteudo_embalagem: null, preco_venda: null, custo_ultimo: null,
-  rastreio: 'lote', fabricante: null, observacao: null, ativo: true, criado_em: '', codigos: [],
+  rastreio: 'lote', pesavel: false, codigo_balanca: null, controla_estoque: true, fabricante: null, observacao: null, ativo: true, criado_em: '', codigos: [],
 })
 const produtos = [produto('a', 'Glifosato 480 SL'), produto('bb', 'Atrazina 500 SC'), produto('ccc', 'Mancozebe 800 WP', 'kg')]
 const lote = (lote_id: string, produto_id: string, nome: string, validadeEmDias: number, saldo: number): Lote => ({

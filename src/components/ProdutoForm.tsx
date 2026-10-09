@@ -38,6 +38,9 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
     conteudo_embalagem: produto?.conteudo_embalagem ?? null,
     preco_venda: produto?.preco_venda ?? null,
     rastreio: produto?.rastreio ?? (empresa.segmento === 'galpao' ? 'lote' : 'nenhum'),
+    pesavel: produto?.pesavel ?? false,
+    codigo_balanca: produto?.codigo_balanca ?? null,
+    controla_estoque: produto?.controla_estoque ?? true,
     fabricante: produto?.fabricante ?? '',
     observacao: produto?.observacao ?? '',
     ativo: produto?.ativo ?? true,
@@ -240,6 +243,31 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
           <span>
             Controlar lote e validade
             <span className="block text-xs font-normal text-slate-500">Alertas de vencimento e saída pelo lote que vence primeiro.</span>
+          </span>
+        </label>
+        <label className="flex items-start gap-2.5 text-sm font-medium text-slate-700">
+          <input
+            type="checkbox"
+            className="mt-0.5 size-4.5 accent-emerald-700"
+            checked={dados.pesavel}
+            onChange={e => setDados(d => ({ ...d, pesavel: e.target.checked, unidade: e.target.checked && d.unidade === 'un' ? 'kg' : d.unidade }))}
+          />
+          <span>
+            Vendido por peso (balança)
+            <span className="block text-xs font-normal text-slate-500">O caixa lê a etiqueta impressa pela balança (preço ou peso).</span>
+          </span>
+        </label>
+        {dados.pesavel && (
+          <div>
+            <label className="rotulo" htmlFor="p-plu">Código na balança (PLU)</label>
+            <input id="p-plu" className="campo" inputMode="numeric" value={dados.codigo_balanca ?? ''} onChange={e => muda('codigo_balanca', e.target.value.replace(/\D/g, '') || null)} placeholder="Ex.: 42" />
+          </div>
+        )}
+        <label className="flex items-start gap-2.5 text-sm font-medium text-slate-700">
+          <input type="checkbox" className="mt-0.5 size-4.5 accent-emerald-700" checked={dados.controla_estoque} onChange={e => muda('controla_estoque', e.target.checked)} />
+          <span>
+            Controlar estoque
+            <span className="block text-xs font-normal text-slate-500">Desmarque para serviços e itens avulsos (não aparecem no estoque).</span>
           </span>
         </label>
         <div>
