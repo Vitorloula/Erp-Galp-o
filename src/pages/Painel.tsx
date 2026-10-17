@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpFromLine, Boxes, ChevronRight, Clock, OctagonAlert, PackageX, ScanBarcode } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, Boxes, ChevronRight, Clock, OctagonAlert, PackageX, ScanBarcode, ShoppingBasket } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { ListaMovimentacoes } from '../components/ListaMovimentacoes'
@@ -7,13 +7,32 @@ import { useAuth } from '../contexto/Auth'
 import { useDados } from '../contexto/Dados'
 import { useAtiva } from '../contexto/Empresa'
 import { movimentos } from '../lib/dados'
-import { PRIORIDADE, montarLinhasEstoque } from '../lib/estoque'
+import {
+  PRIORIDADE,
+  PRIORIDADE_ATENCAO,
+  montarLinhasEstoque,
+  precisaRepor,
+  saldosPorProduto,
+  situacaoReposicao,
+  type Situacao,
+} from '../lib/estoque'
 import { formatarQtd, formatarValidade, hojeISO } from '../lib/formato'
 import type { Movimentacao } from '../lib/tipos'
 
 function saudacao() {
   const h = new Date().getHours()
   return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'
+}
+
+/** Item de "Precisa de atenção": um lote com problema ou um produto no ponto de pedido. */
+interface ItemAtencao {
+  prioridade: number
+  chave: string
+  situacao: Situacao | 'abaixo'
+  nome: string
+  detalhe: string
+  validade: string | null
+  href: string
 }
 
 export function Painel() {
@@ -34,14 +53,63 @@ export function Painel() {
     return c
   }, [linhas])
   const comSaldo = new Set(linhas.filter(l => l.saldo > 0).map(l => l.produto.id)).size
-  const atencao = useMemo(
-    () =>
-      linhas
-        .filter(l => l.situacao !== 'ok')
-        .sort((a, b) => PRIORIDADE[a.situacao] - PRIORIDADE[b.situacao] || (a.validade ?? '9').localeCompare(b.validade ?? '9'))
-        .slice(0, 8),
-    [linhas],
-  )
+
+  // Produtos com ponto de pedido que já chegaram ao mínimo (abaixo ou exatamente no mínimo).
+  const paraRepor = useMemo(() => {
+    const saldos = saldosPorProduto(lotes)
+    return precisaRepor(
+      produtos
+        .filter(p => p.controla_estoque && (p.ativo || (saldos.get(p.id) ?? 0) > 0))
+        .map(p => {
+          const saldo = saldos.get(p.id) ?? 0
+          const minimo = p.estoque_minimo ?? null
+          const cobertura = minimo !== null && minimo > 0 ? Math.round((saldo / minimo) * 100) / 100 : null
+          return {
+            produto: p,
+            saldo,
+            minimo,
+            cobertura,
+            sugestaoCompra: 0,
+            situacao: situacaoReposicao(saldo, minimo),
+            situacaoLote: 'ok' as Situacao,
+          }
+        }),
+    ).sort((a, b) => (a.cobertura ?? a.saldo) - (b.cobertura ?? b.saldo) || a.produto.nome.localeCompare(b.produto.nome, 'pt-BR'))
+  }, [produtos, lotes])
+
+  const atencao = useMemo<ItemAtencao[]>(() => {
+    const dosLotes: ItemAtencao[] = linhas
+      .filter(l => l.situacao !== 'ok')
+      .map(l => ({
+        prioridade: PRIORIDADE[l.situacao],
+        chave: `lote-${l.chave}`,
+        situacao: l.situacao,
+        nome: l.produto.nome,
+        detalhe: l.lote
+          ? `${l.lote.lote ? `Lote ${l.lote.lote} · ` : ''}val. ${formatarValidade(l.validade)} · ${formatarQtd(l.saldo, l.produto.unidade)}`
+          : 'Nenhuma unidade em estoque',
+        validade: l.validade,
+        href: `/produtos/${l.produto.id}`,
+      }))
+    const daReposicao: ItemAtencao[] = paraRepor.map(item => ({
+      prioridade: PRIORIDADE_ATENCAO.abaixo,
+      chave: `repor-${item.produto.id}`,
+      situacao: 'abaixo',
+      nome: item.produto.nome,
+      detalhe: `Saldo ${formatarQtd(item.saldo, item.produto.unidade)} · mínimo ${formatarQtd(item.minimo ?? 0, item.produto.unidade)}`,
+      validade: null,
+      href: `/produtos/${item.produto.id}`,
+    }))
+    return [...dosLotes, ...daReposicao]
+      .sort(
+        (a, b) =>
+          a.prioridade - b.prioridade ||
+          (a.validade ?? '9').localeCompare(b.validade ?? '9') ||
+          a.nome.localeCompare(b.nome, 'pt-BR'),
+      )
+      .slice(0, 8)
+  }, [linhas, paraRepor])
+
   const hoje = hojeISO()
   const movHoje = (recentes ?? []).filter(m => hojeISO(new Date(m.ocorrido_em)) === hoje)
 
@@ -75,8 +143,16 @@ export function Painel() {
       </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Kpi titulo="Produtos com saldo" valor={comSaldo} icone={Boxes} tom="verde" detalhe={`${produtos.filter(p => p.ativo).length} cadastrados`} onClick={() => navegar('/estoque')} />
+        <Kpi
+          titulo="Para repor"
+          valor={paraRepor.length}
+          icone={ShoppingBasket}
+          tom={paraRepor.length ? 'amarelo' : 'neutro'}
+          detalhe="saldo no mínimo"
+          onClick={() => navegar('/estoque?filtro=abaixo')}
+        />
         <Kpi titulo="Vencidos" valor={contagem.vencido} icone={OctagonAlert} tom={contagem.vencido ? 'vermelho' : 'neutro'} detalhe="lotes com saldo" onClick={() => navegar('/estoque?filtro=vencido')} />
         <Kpi titulo="Vencem em 30 dias" valor={contagem.vencendo} icone={Clock} tom={contagem.vencendo ? 'amarelo' : 'neutro'} detalhe="alerta preventivo" onClick={() => navegar('/estoque?filtro=vencendo')} />
         <Kpi titulo="Estoque zerado" valor={contagem.zerado} icone={PackageX} tom={contagem.zerado ? 'vermelho' : 'neutro'} detalhe="produtos sem saldo" onClick={() => navegar('/estoque?filtro=zerado')} />
@@ -91,18 +167,29 @@ export function Painel() {
             </Link>
           </div>
           {atencao.length === 0 ? (
-            <div className="cartao p-6 text-center text-sm text-slate-500">Tudo em dia: nenhum item vencido, vencendo ou zerado. 🎉</div>
+            <div className="cartao p-6 text-center text-sm text-slate-500">Tudo em dia: nenhum item vencido, vencendo, zerado ou no mínimo. 🎉</div>
           ) : (
             <div className="cartao divide-y divide-slate-100 overflow-hidden">
-              {atencao.map(l => (
-                <Link key={l.chave} data-atencao data-situacao={l.situacao} to={`/produtos/${l.produto.id}`} className={cx('flex items-center gap-3 px-4 py-3 transition hover:brightness-[.98]', `linha-${l.situacao}`)}>
+              {atencao.map(item => (
+                <Link
+                  key={item.chave}
+                  data-atencao
+                  data-situacao={item.situacao}
+                  to={item.href}
+                  className={cx('flex items-center gap-3 px-4 py-3 transition hover:brightness-[.98]', `linha-${item.situacao === 'abaixo' ? 'vencendo' : item.situacao}`)}
+                >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold">{l.produto.nome}</p>
-                    <p className="text-xs opacity-75">
-                      {l.lote ? `${l.lote.lote ? `Lote ${l.lote.lote} · ` : ''}val. ${formatarValidade(l.validade)} · ${formatarQtd(l.saldo, l.produto.unidade)}` : 'Nenhuma unidade em estoque'}
-                    </p>
+                    <p className="truncate font-semibold">{item.nome}</p>
+                    <p className="text-xs opacity-75">{item.detalhe}</p>
                   </div>
-                  <BadgeSituacao situacao={l.situacao} validade={l.validade} />
+                  {item.situacao === 'abaixo' ? (
+                    <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 ring-1 ring-inset ring-amber-200">
+                      <ShoppingBasket className="size-3.5" />
+                      Repor
+                    </span>
+                  ) : (
+                    <BadgeSituacao situacao={item.situacao} validade={item.validade} />
+                  )}
                 </Link>
               ))}
             </div>

@@ -4,10 +4,21 @@ import { Link, useNavigate, useSearchParams } from 'react-router'
 import { BadgeSituacao, Cabecalho, Carregando, Vazio, cx } from '../components/ui'
 import { useDados } from '../contexto/Dados'
 import { useEmpresa } from '../contexto/Empresa'
-import { DIAS_ALERTA, PRIORIDADE, montarLinhasEstoque, produtoCombina, type LinhaEstoque, type Situacao } from '../lib/estoque'
+import {
+  DIAS_ALERTA,
+  PRIORIDADE,
+  montarLinhasEstoque,
+  precisaRepor,
+  produtoCombina,
+  saldosPorProduto,
+  situacaoReposicao,
+  type LinhaEstoque,
+  type Situacao,
+  type SituacaoReposicao,
+} from '../lib/estoque'
 import { formatarData, formatarEmbalagens, formatarNumero, formatarValidade } from '../lib/formato'
 
-type Filtro = 'todos' | Situacao
+type Filtro = 'todos' | Situacao | 'abaixo'
 type Ordem = 'nome' | 'validade' | 'situacao'
 
 const FILTROS: { valor: Filtro; nome: string; ponto?: string }[] = [
@@ -15,6 +26,7 @@ const FILTROS: { valor: Filtro; nome: string; ponto?: string }[] = [
   { valor: 'vencido', nome: 'Vencidos', ponto: 'bg-red-500' },
   { valor: 'zerado', nome: 'Zerados', ponto: 'bg-red-500' },
   { valor: 'vencendo', nome: `Vencem em ${DIAS_ALERTA} dias`, ponto: 'bg-amber-400' },
+  { valor: 'abaixo', nome: 'Repor', ponto: 'bg-amber-400' },
   { valor: 'ok', nome: 'Em dia', ponto: 'bg-emerald-500' },
 ]
 
@@ -22,9 +34,11 @@ function ordenar(linhas: LinhaEstoque[], ordem: Ordem) {
   const porNome = (a: LinhaEstoque, b: LinhaEstoque) => a.produto.nome.localeCompare(b.produto.nome, 'pt-BR')
   const porValidade = (a: LinhaEstoque, b: LinhaEstoque) => (a.validade ?? '9999').localeCompare(b.validade ?? '9999')
   return [...linhas].sort((a, b) =>
-    ordem === 'validade' ? porValidade(a, b) || porNome(a, b)
-    : ordem === 'situacao' ? PRIORIDADE[a.situacao] - PRIORIDADE[b.situacao] || porValidade(a, b)
-    : porNome(a, b) || porValidade(a, b),
+    ordem === 'validade'
+      ? porValidade(a, b) || porNome(a, b)
+      : ordem === 'situacao'
+        ? PRIORIDADE[a.situacao] - PRIORIDADE[b.situacao] || porValidade(a, b)
+        : porNome(a, b) || porValidade(a, b),
   )
 }
 
@@ -39,13 +53,47 @@ export function Estoque() {
   const [ordem, setOrdem] = useState<Ordem>('nome')
 
   const todas = useMemo(() => montarLinhasEstoque(produtos, lotes), [produtos, lotes])
-  const base = useMemo(() => todas.filter(l => (!categoria || l.produto.categoria_id === categoria) && produtoCombina(l.produto, termo)), [todas, categoria, termo])
+  const saldos = useMemo(() => saldosPorProduto(lotes), [lotes])
+  const reposicaoPorProduto = useMemo(() => {
+    const mapa = new Map<string, SituacaoReposicao>()
+    for (const p of produtos) if (p.estoque_minimo !== null) mapa.set(p.id, situacaoReposicao(saldos.get(p.id) ?? 0, p.estoque_minimo))
+    return mapa
+  }, [produtos, saldos])
+  const precisaReporPorLinha = useCallbackMap(reposicaoPorProduto)
+
+  const base = useMemo(
+    () => todas.filter(l => (!categoria || l.produto.categoria_id === categoria) && produtoCombina(l.produto, termo)),
+    [todas, categoria, termo],
+  )
   const contagem = useMemo(() => {
-    const c: Record<Filtro, number> = { todos: base.length, vencido: 0, zerado: 0, vencendo: 0, ok: 0 }
+    const c: Record<Filtro, number> = { todos: base.length, vencido: 0, zerado: 0, vencendo: 0, abaixo: 0, ok: 0 }
     base.forEach(l => c[l.situacao]++)
+    c.abaixo = precisaRepor(
+      produtos
+        .filter(p => !categoria || p.categoria_id === categoria)
+        .filter(p => produtoCombina(p, termo))
+        .map(p => ({
+          produto: p,
+          saldo: saldos.get(p.id) ?? 0,
+          minimo: p.estoque_minimo,
+          cobertura: null,
+          sugestaoCompra: 0,
+          situacao: reposicaoPorProduto.get(p.id) ?? 'sem_minimo',
+          situacaoLote: 'ok' as Situacao,
+        })),
+    ).length
     return c
-  }, [base])
-  const linhas = useMemo(() => ordenar(filtro === 'todos' ? base : base.filter(l => l.situacao === filtro), ordem), [base, filtro, ordem])
+  }, [base, produtos, categoria, termo, saldos, reposicaoPorProduto])
+
+  const linhas = useMemo(() => {
+    const filtradas =
+      filtro === 'todos'
+        ? base
+        : filtro === 'abaixo'
+          ? base.filter(l => precisaReporPorLinha(l.produto.id) === 'abaixo' || precisaReporPorLinha(l.produto.id) === 'no_minimo')
+          : base.filter(l => l.situacao === filtro)
+    return ordenar(filtradas, ordem)
+  }, [base, filtro, ordem, precisaReporPorLinha])
 
   function mudarFiltro(f: Filtro) {
     const p = new URLSearchParams(params)
@@ -86,9 +134,15 @@ export function Estoque() {
             </select>
           </div>
         </div>
-        <div className="-mx-4 flex gap-2 rolagem-x overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
+        <div role="group" aria-label="Filtrar estoque" className="-mx-4 flex gap-2 rolagem-x overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
           {FILTROS.map(f => (
-            <button key={f.valor} onClick={() => mudarFiltro(f.valor)} className={cx('chip', filtro === f.valor ? 'chip-ativo' : 'chip-inativo')}>
+            <button
+              key={f.valor}
+              type="button"
+              aria-pressed={filtro === f.valor}
+              onClick={() => mudarFiltro(f.valor)}
+              className={cx('chip', filtro === f.valor ? 'chip-ativo' : 'chip-inativo')}
+            >
               {f.ponto && <span className={cx('size-2 rounded-full', f.ponto)} />}
               {f.nome}
               <span className={cx('rounded-full px-1.5 text-xs', filtro === f.valor ? 'bg-white/20' : 'bg-slate-100')}>{contagem[f.valor]}</span>
@@ -132,6 +186,7 @@ export function Estoque() {
                       {formatarEmbalagens(l.saldo, l.produto.conteudo_embalagem) && (
                         <p className="text-xs opacity-60">{formatarEmbalagens(l.saldo, l.produto.conteudo_embalagem)}</p>
                       )}
+                      {l.produto.estoque_minimo !== null && <p className="text-xs opacity-60">mín. {formatarNumero(l.produto.estoque_minimo)}</p>}
                     </td>
                     <td className="px-3 py-3"><BadgeSituacao situacao={l.situacao} validade={l.validade} /></td>
                     <td className="px-3 py-3 text-right">
@@ -167,6 +222,7 @@ export function Estoque() {
                   <div className="shrink-0 text-right">
                     <p className="font-bold tabular-nums">{formatarNumero(l.saldo)} {l.produto.unidade}</p>
                     {formatarEmbalagens(l.saldo, l.produto.conteudo_embalagem) && <p className="text-xs opacity-60">{formatarEmbalagens(l.saldo, l.produto.conteudo_embalagem)}</p>}
+                    {l.produto.estoque_minimo !== null && <p className="text-xs opacity-60">mín. {formatarNumero(l.produto.estoque_minimo)}</p>}
                   </div>
                 </div>
                 <div className="mt-2 flex items-center justify-between gap-2">
@@ -180,10 +236,16 @@ export function Estoque() {
           </div>
           <p className="mt-3 text-xs text-slate-500">
             <span className="mr-1 inline-block size-2.5 rounded-sm bg-red-500 align-middle" /> Vermelho: vencido ou sem estoque ·{' '}
-            <span className="mx-1 inline-block size-2.5 rounded-sm bg-amber-400 align-middle" /> Amarelo: vence em até {DIAS_ALERTA} dias
+            <span className="mx-1 inline-block size-2.5 rounded-sm bg-amber-400 align-middle" /> Amarelo: vence em até {DIAS_ALERTA} dias ·{' '}
+            <strong className="font-semibold text-slate-600">Repor</strong>: saldo no estoque mínimo
           </p>
         </>
       )}
     </div>
   )
+}
+
+/** Memoriza a consulta de situação de reposição por produto (usada nos filtros). */
+function useCallbackMap(mapa: Map<string, SituacaoReposicao>) {
+  return useMemo(() => (produtoId: string): SituacaoReposicao => mapa.get(produtoId) ?? 'sem_minimo', [mapa])
 }

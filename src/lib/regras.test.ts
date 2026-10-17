@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { encontrarPorCodigo, montarLinhasEstoque, resumirProduto, situacaoLote } from './estoque'
+import {
+  abaixoDoMinimo,
+  calcularCobertura,
+  encontrarPorCodigo,
+  montarLinhasEstoque,
+  montarReposicao,
+  precisaRepor,
+  resumirProduto,
+  situacaoLote,
+  situacaoReposicao,
+  sugerirCompra,
+} from './estoque'
 import { canonizarCodigo, exibirCodigo, formatarValidade, grupoDoTipo, lerNumero } from './formato'
 import { permissoes } from './permissoes'
 import { lerCodigo } from './gs1'
@@ -11,9 +22,9 @@ const lote = (saldo: number, validade: string | null, extra: Partial<Lote> = {})
   lote_id: Math.random().toString(), produto_id: 'p1', lote: '', validade, saldo, ultima_movimentacao: null, ...extra,
 })
 const produto = (id: string, extra: Partial<Produto> = {}): Produto => ({
-  id, codigo_interno: 'P' + id, nome: 'Produto ' + id, categoria_id: null, unidade: 'L', conteudo_embalagem: null, preco_venda: null,
-  custo_ultimo: null, rastreio: 'lote', pesavel: false, codigo_balanca: null, controla_estoque: true, fabricante: null, observacao: null, ativo: true,
-  criado_em: '', codigos: [], ...extra,
+  id, codigo_interno: 'P' + id, nome: 'Produto ' + id, categoria_id: null, unidade: 'L', conteudo_embalagem: null, estoque_minimo: null,
+  preco_venda: null, custo_ultimo: null, rastreio: 'lote', pesavel: false, codigo_balanca: null, controla_estoque: true, fabricante: null,
+  observacao: null, ativo: true, criado_em: '', codigos: [], ...extra,
 })
 
 describe('formato', () => {
@@ -70,6 +81,64 @@ describe('alertas de estoque', () => {
     expect(canonizarCodigo('abc-1')).toBe('ABC-1')
     expect(exibirCodigo('07891000000014')).toBe('7891000000014')
     expect(exibirCodigo('17891000000011')).toBe('17891000000011')
+  })
+})
+
+describe('reposição (ponto de pedido)', () => {
+  it('classifica o saldo contra o mínimo; sem mínimo nunca alerta', () => {
+    expect(situacaoReposicao(3, 10)).toBe('abaixo')
+    expect(situacaoReposicao(10, 10)).toBe('no_minimo')
+    expect(situacaoReposicao(11, 10)).toBe('acima')
+    expect(situacaoReposicao(0, null)).toBe('sem_minimo')
+    expect(situacaoReposicao(0, 0)).toBe('sem_minimo')
+    expect(situacaoReposicao(0, Number.NaN)).toBe('sem_minimo')
+  })
+  it('abaixoDoMinimo responde o alerta do painel e do filtro "Repor"', () => {
+    expect(abaixoDoMinimo(3, 10)).toBe(true)
+    expect(abaixoDoMinimo(10, 10)).toBe(true) // no mínimo já é hora de comprar
+    expect(abaixoDoMinimo(11, 10)).toBe(false)
+    expect(abaixoDoMinimo(0, null)).toBe(false) // null = sem alerta (registros antigos)
+    expect(abaixoDoMinimo(0, undefined)).toBe(false)
+    expect(abaixoDoMinimo(0, 0)).toBe(false)
+  })
+  it('sugere compra completando o mínimo, arredondando pela embalagem', () => {
+    expect(sugerirCompra(3, 10, null)).toBe(7)
+    expect(sugerirCompra(3, 10, 4)).toBe(8) // 7 → 2 embalagens de 4
+    expect(sugerirCompra(12, 10, 4)).toBe(0)
+    expect(sugerirCompra(0, null, 4)).toBe(0)
+    expect(sugerirCompra(0, 10, 0)).toBe(10)
+  })
+  it('calcula a cobertura (saldo / mínimo)', () => {
+    expect(calcularCobertura(15, 10)).toBe(1.5)
+    expect(calcularCobertura(5, 10)).toBe(0.5)
+    expect(calcularCobertura(5, null)).toBeNull()
+  })
+  it('monta a lista de reposição por produto, do mais crítico para o menos crítico', () => {
+    const produtos = [
+      produto('1', { estoque_minimo: 10 }),
+      produto('2', { estoque_minimo: 5 }),
+      produto('3'), // sem mínimo: fica fora da lista
+      produto('4', { estoque_minimo: 20, controla_estoque: false }), // serviço: fora
+    ]
+    const lotes = [
+      lote(2, null, { produto_id: '1' }),
+      lote(3, null, { produto_id: '1' }),
+      lote(10, null, { produto_id: '2' }),
+      lote(0, null, { produto_id: '3' }),
+    ]
+    const itens = montarReposicao(produtos, lotes, HOJE)
+    expect(itens.map(i => [i.produto.id, i.saldo, i.minimo, i.situacao])).toEqual([
+      ['1', 5, 10, 'abaixo'],
+    ])
+    const comSemMinimo = montarReposicao(produtos, lotes, HOJE, { incluirSemMinimo: true })
+    expect(comSemMinimo.map(i => i.produto.id)).toEqual(['1', '3'])
+    // Produto '2' está acima do mínimo: não precisa comprar.
+    expect(precisaRepor(montarReposicao([produtos[1]], lotes, HOJE))).toEqual([])
+  })
+  it('produto exatamente no mínimo aparece para repor', () => {
+    const itens = montarReposicao([produto('1', { estoque_minimo: 4 })], [lote(4, null, { produto_id: '1' })], HOJE)
+    expect(itens.map(i => i.situacao)).toEqual(['no_minimo'])
+    expect(precisaRepor(itens)).toHaveLength(1)
   })
 })
 
