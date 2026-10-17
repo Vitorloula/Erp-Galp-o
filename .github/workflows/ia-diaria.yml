@@ -1,0 +1,97 @@
+name: 🤖 Fábrica Autônoma Full-Stack
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # Meia-noite de Brasília
+  workflow_dispatch: 
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  evoluir-erp:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Baixar o código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🐍 Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 🟩 Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 📦 Instalar Dependências do Projeto
+        run: |
+          npm ci
+          pip install -r agents/requirements.txt
+
+      - name: 🎥 Instalar FFmpeg (necessário para a câmera falsa do E2E)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: 🪪 Configurar o Git (para o robô commitar)
+        run: |
+          git config --global user.name "Robô ERP Galpão"
+          git config --global user.email "robo@erpgalpao.com"
+
+      # --- A IA TRABALHA AQUI ---
+      - name: 🏗️ Executar a Fábrica Autônoma
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          MAX_CICLOS: '2' 
+        run: python agents/main.py
+
+      # --- TESTES E2E DA IA (Playwright) ---
+      - name: 🎭 Instalar Navegadores do Playwright
+        if: success()
+        run: npx playwright install --with-deps chromium
+
+      - name: 🧪 Rodar Testes E2E
+        if: success()
+        env:
+          CI: 'true'
+        run: npx playwright test
+
+      # --- SE TUDO PASSAR, CRIA O PR ---
+      - name: 🚀 Criar Pull Request
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH=$(git branch -r --sort=-committerdate | grep 'ia-autonoma/' | head -n 1 | sed 's/origin\///' | xargs)
+          if [ -n "$BRANCH" ]; then
+            gh pr create \
+              --title "🤖 Evolução IA: $(date +'%d/%m/%Y')" \
+              --body "PR gerado automaticamente. Cobertura de testes e E2E (Playwright) aprovados na nuvem." \
+              --base saas \
+              --head "$BRANCH"
+          else
+            echo "⚠️ Nenhuma branch nova encontrada."
+          fi
+
+      # --- SE FALHAR, ENVIA E-MAIL ---
+      - name: 📧 Enviar E-mail de Alerta
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "🚨 ERRO: Fábrica Autônoma falhou hoje"
+          to: ${{ secrets.MAIL_TO }}
+          from: "Robô ERP Galpão"
+          body: |
+            A execução da fábrica autônoma falhou. 
+            Pode ser que os testes (tsc, vitest, coverage, build ou playwright) tenham reprovado o ciclo.
+            
+            Acesse os logs completos aqui:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

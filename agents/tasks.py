@@ -2,38 +2,66 @@
 from crewai import Task
 
 class TarefasERP:
-    def ciclo_autonomo_completo(self, arquiteto, designer_ui_ux, programador, qa_tester):
+    def ciclo_autonomo_completo(self, arquiteto, designer, programador, qa):
         return [
             Task(
                 description=(
-                    "Analise o 'memoria_projeto.md' e o estado atual do repositório. "
-                    "Decida autonomamente a próxima prioridade para o ERP GALPÃO (backend ou frontend/telas)."
+                    "PASSO 1 — Estude 'ler_estado_projeto'. Se o backlog estiver vazio, INSPECIONE o código. "
+                    "Use 'atualizar_backlog' para registrar itens com id, titulo, prioridade e tipo.\n"
+                    "PASSO 2 — Escolha o PRÓXIMO item e produza um PLANO: item_id, objetivo, arquivos alvo, critérios de aceite."
                 ),
-                expected_output="Definição técnica da prioridade do ciclo.",
-                agent=arquiteto
+                expected_output="Plano com: ITEM_ID=<id>, OBJETIVO, ARQUIVOS_ALVO, CRITERIOS_DE_ACEITE (lista).",
+                agent=arquiteto,
             ),
             Task(
                 description=(
-                    "Com base na tarefa definida, especifique a experiência do usuário (UX), a responsividade, "
-                    "o layout mobile-first, o uso de componentes Tailwind CSS e as boas práticas de acessibilidade e design system."
+                    "Defina: estrutura de componentes, props TS, Tailwind, breakpoints, a11y. "
+                    "IMPORTANTE: Verifique se o componente já tem testes E2E (Playwright) na pasta 'e2e/'. "
+                    "Não altere IDs ou datas-testid que os testes E2E dependem."
                 ),
-                expected_output="Diretrizes de UI/UX, layout e responsividade detalhadas.",
-                agent=designer_ui_ux
+                expected_output="Diretrizes de UI/UX acionáveis.",
+                agent=designer,
             ),
             Task(
                 description=(
-                    "Implemente o código funcional em ../src/ integrando a lógica de backend/frontend "
-                    "e aplicando rigorosamente as diretrizes visuais e responsivas propostas pelo designer."
+                    "Implemente o PLANO salvando CADA arquivo com 'escrever_arquivo'. "
+                    "Respeite 'regras_projeto.md'. NUNCA exponha segredos. "
+                    "ATENÇÃO: Se a tarefa exigir mudar algo na tela, leia o teste E2E correspondente em 'e2e/' "
+                    "e mantenha os seletores (data-testid, labels) intactos. "
+                    "Ao final, rode 'npx tsc --noEmit'."
                 ),
-                expected_output="Código implementado e salvo na pasta ../src/.",
-                agent=programador
+                expected_output="Lista de arquivos criados/modificados + status do tsc.",
+                agent=programador,
             ),
             Task(
                 description=(
-                    "Valide o código, crie o 'GUIA_DE_TESTES.md', atualize a 'DOCUMENTACAO_ERP.md' "
-                    "e registre as evoluções no 'memoria_projeto.md'."
+                    "Valide rodando 'npx tsc --noEmit' e 'npx vitest run --coverage'. "
+                    "Se a cobertura for menor que 80%, escreva mais testes unitários. "
+                    "Atualize GUIA_DE_TESTES.md e DOCUMENTACAO_ERP.md. "
+                    "FINALIZE com uma linha exata: 'VEREDITO: APROVADO' ou 'VEREDITO: REPROVADO — <motivo>'."
                 ),
-                expected_output="Documentação, guias de teste e relatórios atualizados com sucesso.",
-                agent=qa_tester
-            )
+                expected_output="Docs atualizados + veredito explícito.",
+                agent=qa,
+            ),
         ]
+
+    def tarefa_correcao(self, programador, motivo: str, log: str = ""):
+        return Task(
+            description=(
+                f"O QA REPROVOU o ciclo. Motivo: {motivo}\n"
+                "Corrija APENAS o necessário usando 'escrever_arquivo' (sobrescrever). "
+                f"=== LOG DE TESTES ===\n{log[-5000:]}"
+            ),
+            expected_output="Arquivos corrigidos + confirmação de tsc OK.",
+            agent=programador,
+        )
+
+    def tarefa_fechamento(self, qa, sucesso: bool, resumo: str):
+        return Task(
+            description=(
+                f"Ciclo terminou com {'SUCESSO' if sucesso else 'FALHA'}. "
+                f"Resumo: {resumo}\nUse 'registrar_ciclo' e 'atualizar_backlog'."
+            ),
+            expected_output="Histórico atualizado.",
+            agent=qa,
+        )
