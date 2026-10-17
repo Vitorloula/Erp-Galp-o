@@ -6,9 +6,11 @@ type RGB = [number, number, number]
 const VERDE: RGB = [4, 120, 87]
 const VERMELHO: RGB = [253, 226, 226]
 const AMARELO: RGB = [254, 243, 199]
+const CINZA: RGB = [100, 116, 139]
 
-// As fontes padrão do PDF não têm o sinal "−" (U+2212); usamos o hífen comum.
+// As fontes padrão do PDF usam WinAnsi: "×" e "−" não existem; usamos "x" e o hífen comum.
 const num = (n: number, sinal = false) => (sinal && n > 0 ? '+' : '') + formatarNumero(n)
+const cobertura = (c: number | null) => (c === null ? '—' : `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(c)}x`)
 
 export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): Promise<Blob> {
   const [{ jsPDF }, { autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')])
@@ -31,11 +33,8 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
   doc.setFontSize(9)
   doc.setTextColor(71, 85, 105)
   doc.text(`Período: ${formatarData(r.intervalo.de)} a ${formatarData(r.intervalo.ate)}   ·   Gerado em ${formatarDataHora(r.geradoEm.toISOString())}`, margem, 29)
-  doc.text(
-    `Lançamentos no período: ${r.totais.entradas} entrada(s), ${r.totais.saidas} saída(s), ${r.totais.ajustes} ajuste(s)/correção(ões)`,
-    margem,
-    34,
-  )
+  const lancamentos = `Lançamentos no período: ${r.totais.entradas} entrada(s), ${r.totais.saidas} saída(s), ${r.totais.ajustes} ajuste(s)/correção(ões)`
+  doc.text(secoes.compras ? `${lancamentos}   ·   Lista de compras: ${r.compras.length} produto(s)` : lancamentos, margem, 34)
   let y = 40
 
   const titulo = (texto: string) => {
@@ -48,6 +47,14 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
     doc.setTextColor(15, 23, 42)
     doc.text(texto, margem, y)
     y += 3
+  }
+
+  const legenda = (texto: string) => {
+    if (y > altura - 12) return
+    doc.setFont('helvetica', 'italic')
+    doc.setFontSize(8)
+    doc.setTextColor(...CINZA)
+    doc.text(texto, margem, y)
   }
 
   const estilo = {
@@ -88,7 +95,7 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
             m.usuario,
             m.observacao,
           ])
-        : [[{ content: 'Nenhuma movimentação no período.', colSpan: 10, styles: { halign: 'center', textColor: [100, 116, 139] } }]],
+        : [[{ content: 'Nenhuma movimentação no período.', colSpan: 10, styles: { halign: 'center', textColor: CINZA } }]],
       columnStyles: { 1: { halign: 'right' }, 6: { halign: 'right', fontStyle: 'bold' }, 9: { cellWidth: 55 } },
       didParseCell: d => {
         if (d.section === 'body' && d.column.index === 6 && r.movimentacoes[d.row.index])
@@ -119,10 +126,37 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
       },
     })
     y = finalY() + 5
-    doc.setFont('helvetica', 'italic')
-    doc.setFontSize(8)
-    doc.setTextColor(100, 116, 139)
-    if (y < altura - 12) doc.text('Vermelho: vencido ou sem estoque  ·  Amarelo: vence nos próximos 30 dias', margem, y)
+    legenda('Vermelho: vencido ou sem estoque  ·  Amarelo: vence nos próximos 30 dias')
+    y += 10
+  }
+
+  if (secoes.compras) {
+    titulo('Compras (reposição)')
+    autoTable(doc, {
+      ...estilo,
+      startY: y,
+      head: [['Código', 'Produto', 'Categoria', 'Unid.', 'Saldo', 'Mínimo', 'Cobertura', 'Comprar']],
+      body: r.compras.length
+        ? r.compras.map(c => [
+            c.codigo,
+            c.produto,
+            c.categoria,
+            c.unidade,
+            num(c.saldo),
+            c.minimo === null ? '—' : num(c.minimo),
+            cobertura(c.cobertura),
+            `${num(c.sugestaoCompra)} ${c.unidade}`,
+          ])
+        : [[{ content: 'Nenhum produto no ponto de pedido.', colSpan: 8, styles: { halign: 'center', textColor: CINZA } }]],
+      columnStyles: {
+        4: { halign: 'right' },
+        5: { halign: 'right' },
+        6: { halign: 'right' },
+        7: { halign: 'right', fontStyle: 'bold', textColor: VERDE },
+      },
+    })
+    y = finalY() + 5
+    legenda('Quantidade já arredondada pelo conteúdo da embalagem  ·  do mais crítico ao menos crítico')
   }
 
   // Rodapé com numeração

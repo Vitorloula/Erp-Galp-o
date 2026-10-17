@@ -6,9 +6,12 @@ export interface Secoes {
   resumo: boolean
   movimentacoes: boolean
   posicao: boolean
+  /** Lista de compras (reposição): o que comprar e quanto, por produto. */
+  compras: boolean
 }
 
 const VERDE = 'FF047857'
+const CINZA = 'FF64748B'
 const FUNDO = {
   vermelho: { fundo: 'FFFDE2E2', fonte: 'FF991B1B' },
   amarelo: { fundo: 'FFFEF3C7', fonte: 'FF92400E' },
@@ -43,7 +46,7 @@ function montarCabecalho(ws: Worksheet, titulo: string, r: Relatorio, empresa: s
     value: `${titulo} — período de ${formatarData(r.intervalo.de)} a ${formatarData(r.intervalo.ate)}`,
     font: { bold: true, size: 11 },
   })
-  Object.assign(ws.getCell(3, 1), { value: `Gerado em ${formatarDataHora(r.geradoEm.toISOString())}`, font: { size: 9, color: { argb: 'FF64748B' } } })
+  Object.assign(ws.getCell(3, 1), { value: `Gerado em ${formatarDataHora(r.geradoEm.toISOString())}`, font: { size: 9, color: { argb: CINZA } } })
 
   const cab = ws.getRow(5)
   cab.values = colunas.map(c => c.titulo)
@@ -152,7 +155,40 @@ export async function gerarExcel(r: Relatorio, empresa: string, secoes: Secoes):
     bordas(ws)
     const leg = ws.addRow([])
     leg.getCell(1).value = 'Vermelho: vencido ou sem estoque · Amarelo: vence nos próximos 30 dias'
-    leg.getCell(1).font = { italic: true, size: 9, color: { argb: 'FF64748B' } }
+    leg.getCell(1).font = { italic: true, size: 9, color: { argb: CINZA } }
+  }
+
+  if (secoes.compras) {
+    const ws = wb.addWorksheet('Lista de compras')
+    montarCabecalho(ws, 'Lista de compras (reposição)', r, empresa, [
+      { titulo: 'Código', largura: 10 },
+      { titulo: 'Produto', largura: 38 },
+      { titulo: 'Categoria', largura: 18 },
+      { titulo: 'Unid.', largura: 7 },
+      { titulo: 'Saldo', largura: 12 },
+      { titulo: 'Mínimo', largura: 12 },
+      { titulo: 'Cobertura', largura: 11 },
+      { titulo: 'Comprar', largura: 13 },
+    ])
+    if (r.compras.length === 0) {
+      const vazio = ws.addRow(['Nenhum produto no ponto de pedido.'])
+      vazio.getCell(1).font = { italic: true, size: 9, color: { argb: CINZA } }
+    }
+    for (const c of r.compras) {
+      const row = ws.addRow([c.codigo, c.produto, c.categoria, c.unidade])
+      formatoNumero(row.getCell(5), c.saldo)
+      if (c.minimo !== null) formatoNumero(row.getCell(6), c.minimo)
+      if (c.cobertura !== null) {
+        row.getCell(7).value = c.cobertura
+        row.getCell(7).numFmt = '0.00"×"'
+      }
+      formatoNumero(row.getCell(8), c.sugestaoCompra)
+      row.getCell(8).font = { bold: true, color: { argb: VERDE } }
+    }
+    bordas(ws)
+    const leg = ws.addRow([])
+    leg.getCell(1).value = 'Quantidade de compra já arredondada pelo conteúdo da embalagem · do mais crítico ao menos crítico'
+    leg.getCell(1).font = { italic: true, size: 9, color: { argb: CINZA } }
   }
 
   const buffer = await wb.xlsx.writeBuffer()

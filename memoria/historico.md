@@ -64,3 +64,32 @@ Causa raiz em src/lib/periodos.ts → juntarFiltros: `if (valor)` tratava `' '` 
 - DOCUMENTACAO_ERP.md: seção de períodos/URL como fonte de verdade e nota sobre juntarFiltros.
 
 **Veredito:** tsc 0, vitest 70/70, build 0 → VEREDITO: APROVADO
+
+## [2026-10-17 13:53] Ciclo
+Ciclo T-001 (lista de compras/reposição em Excel/PDF + aba Relatórios) — APROVADO. Verificação executada pelo QA: `npx tsc --noEmit` exit 0 (sem erros); `npx vitest run` exit 0 com 6 arquivos e 77/77 testes passando (9,07 s) — venda 13, relatorio.test.ts 3 (novo), regras 27, exportar 6 (era 2), sincronizador 6, supabase-local 22; `npm run build` exit 0 (2299 módulos, 894 ms, PWA emitido). Nenhuma falha em nenhuma rodada. Conferido no código, não só no relato do DEV: (a) `relatorio.ts` — `compras` vem de `montarReposicao(..., { incluirSemMinimo: false })` com flatMap filtrando 'abaixo'|'no_minimo'; nenhuma reimplementação de saldo/mínimo; (b) `excel.ts` — `Secoes.compras` obrigatório, aba 'Lista de compras' criada só sob `if (secoes.compras)`, cabeçalho em A5 via montarCabecalho, coluna Comprar bold verde, legenda ao final, `bordas(ws)` aplicado; (c) `pdf.ts` — tabela 'Compras (reposição)' depois de 'Posição de estoque atual', subtítulo condicional, '×' substituído por 'x' (WinAnsi), colSpan 8 no vazio; (d) `Relatorios.tsx` — 4 abas com rótulo curto 'Compras', checkbox 'Lista de compras (reposição)' iniciando true, role=group/aria-labelledby='r-secoes', guarda `if (!algumaSecao) return toast.erro('Escolha pelo menos uma seção do relatório.')` ANTES de setGerando, TabelaCompras local com th scope=col, BadgeReposicao, Cobertura e Vazio+ShoppingCart; reposição não usa classes linha-*; (e) testes: relatorio.test.ts compara sugestaoCompra/cobertura com sugerirCompra/calcularCobertura, exportar.test.ts cobre 4 abas na ordem, ausência da aba com compras:false, aba vazia com aviso, PDF maior com a seção. Risco residual não bloqueante: CA-7 (checkbox padrão-marcado + toast de validação) e a ordem visual das seções no PDF têm verificação apenas por revisão de código — o projeto não possui nenhum *.test.tsx nem @testing-library instalado; registrado no checklist do GUIA_DE_TESTES.md. Docs atualizados via escrever_arquivo: GUIA_DE_TESTES.md (tabela de verificação com 77 testes/6 arquivos/build 894 ms, §3.3 nova cobrindo T-001, regra 'helper puro novo ⇒ teste no mesmo commit', 2 pendências no checklist) e DOCUMENTACAO_ERP.md (status 77/77, seção T-001 com contratos LinhaCompraRel/Secoes.compras e decisões, T-002/T-006 recompactados, modelo de domínio, backlog com T-001 concluído e T-002/T-003/T-004/T-005/T-006 abertos). Backlog: T-001 marcado como concluído. VEREDITO: APROVADO
+
+## [2026-10-17 13:54] Ciclo
+## Ciclo T-001 — QA (veredito: APROVADO)
+
+**Verificação executada (fatos)**
+
+| Comando | Exit | Resultado |
+|---|---|---|
+| `npx tsc --noEmit` | **0** | sem erros de tipo |
+| `npx vitest run` | **0** | 6 arquivos, **77/77 testes** (9,07 s) |
+| `npm run build` | **0** | 2299 módulos, PWA emitido, 894 ms |
+
+Distribuição: `venda` 13 · `relatorio.test.ts` 3 (novo) · `regras` 27 · `exportar` 6 (era 2) · `sincronizador` 6 · `supabase-local` 22. Nenhuma falha em nenhuma rodada.
+
+**Conferido no código (não só no relato do DEV)**
+- `relatorio.ts`: `compras` vem de `montarReposicao(..., { incluirSemMinimo: false })`, filtrando `'abaixo'|'no_minimo'`; nenhuma regra de saldo/mínimo reimplementada.
+- `excel.ts`: `Secoes.compras` obrigatório; aba "Lista de compras" só sob `if (secoes.compras)`; cabeçalho verde em A5; `Comprar` em negrito; legenda; `bordas(ws)`.
+- `pdf.ts`: tabela "Compras (reposição)" após "Posição de estoque atual"; subtítulo condicional; `×` → `x` (WinAnsi); vazio com `colSpan: 8`.
+- `Relatorios.tsx`: 4 abas (rótulo curto "Compras"), checkbox "Lista de compras (reposição)" iniciando `true`, `role="group" aria-labelledby="r-secoes"`, guarda `toast.erro('Escolha pelo menos uma seção do relatório.')` **antes** de `setGerando`; `TabelaCompras` com `<th scope="col">`, `BadgeReposicao`, `Cobertura`, `Vazio`+`ShoppingCart`; reposição não usa classes `linha-*`.
+- Testes: `relatorio.test.ts` compara com `sugerirCompra`/`calcularCobertura` (trava anti-reimplementação); `exportar.test.ts` cobre 4 abas na ordem, ausência da aba com `compras:false`, aba vazia e PDF maior com a seção.
+
+**Risco residual (não bloqueante):** CA-7 (checkbox padrão + toast de validação) e a ordem visual do PDF têm verificação apenas por revisão de código — o projeto não tem `*.test.tsx` nem `@testing-library`. Registrado no checklist do guia.
+
+**Docs atualizados:** `GUIA_DE_TESTES.md` (77/77, build, §3.3 nova de T-001, regra "helper puro ⇒ teste no mesmo commit", 2 pendências no checklist) e `DOCUMENTACAO_ERP.md` (seção Lista de compras no Relatórios).
+
+VEREDITO: APROVADO

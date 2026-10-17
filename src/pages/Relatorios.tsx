@@ -1,18 +1,93 @@
-import { ArrowDownToLine, ArrowUpFromLine, FileSpreadsheet, FileText, LoaderCircle, RotateCcw } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, FileSpreadsheet, FileText, LoaderCircle, RotateCcw, ShoppingCart } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { useToast } from '../components/Toast'
-import { Aviso, BadgeSituacao, BadgeTipo, Cabecalho, Carregando, Kpi, Segmentado, cx } from '../components/ui'
+import { Aviso, BadgeReposicao, BadgeSituacao, BadgeTipo, Cabecalho, Carregando, Cobertura, Kpi, Segmentado, Vazio, cx } from '../components/ui'
 import { useDados } from '../contexto/Dados'
 import { useAtiva } from '../contexto/Empresa'
 import { movimentos } from '../lib/dados'
 import type { Secoes } from '../lib/exportar/excel'
-import { formatarDataHora, formatarNumero, formatarValidade, hojeISO } from '../lib/formato'
+import { formatarDataHora, formatarEmbalagens, formatarNumero, formatarValidade, hojeISO } from '../lib/formato'
 import { PERIODOS, intervaloParaInstantes, intervaloRapido, periodoDaUrl, type Intervalo, type PeriodoRapido } from '../lib/periodos'
-import { baixarArquivo, montarRelatorio, nomeArquivo, tituloEmpresa } from '../lib/relatorio'
+import { baixarArquivo, montarRelatorio, nomeArquivo, tituloEmpresa, type LinhaCompraRel } from '../lib/relatorio'
 import type { Movimentacao } from '../lib/tipos'
 
-type Aba = 'resumo' | 'movimentacoes' | 'posicao'
+type Aba = 'resumo' | 'movimentacoes' | 'posicao' | 'compras'
+
+/** Rótulos ≤ 12 caracteres: 4 abas cabem no Segmentado até em 320 px. */
+const OPCOES_ABA: { valor: Aba; rotulo: string }[] = [
+  { valor: 'resumo', rotulo: 'Resumo' },
+  { valor: 'movimentacoes', rotulo: 'Movimentações' },
+  { valor: 'posicao', rotulo: 'Posição' },
+  { valor: 'compras', rotulo: 'Compras' },
+]
+
+const SECOES: readonly [keyof Secoes, string][] = [
+  ['resumo', 'Resumo por produto'],
+  ['movimentacoes', 'Movimentações'],
+  ['posicao', 'Posição de estoque (com alertas)'],
+  ['compras', 'Lista de compras (reposição)'],
+]
+
+interface TabelaComprasProps {
+  /** Já vem montada por montarRelatorio (montarReposicao): só 'abaixo'|'no_minimo', ordenada por cobertura. */
+  linhas: LinhaCompraRel[]
+  /** Conteúdo por embalagem do produto (multiplica a apresentação "x emb."). */
+  conteudos: Map<string, number | null>
+}
+
+function TabelaCompras({ linhas, conteudos }: TabelaComprasProps) {
+  if (linhas.length === 0)
+    return (
+      <Vazio
+        icone={ShoppingCart}
+        titulo="Nada para comprar"
+        texto="Nenhum produto está no estoque mínimo. Defina o mínimo em Produtos para receber a sugestão de compra."
+      />
+    )
+  return (
+    <>
+      <p className="border-b border-slate-100 bg-white px-4 py-2 text-xs text-slate-500">
+        {linhas.length} produto(s) para comprar · do mais crítico ao menos crítico
+      </p>
+      <table className="w-full min-w-[720px] text-sm">
+        <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <tr>
+            <th scope="col" className="px-4 py-2.5">Produto</th>
+            <th scope="col" className="px-3 py-2.5">Categoria</th>
+            <th scope="col" className="px-3 py-2.5 text-right">Saldo</th>
+            <th scope="col" className="px-3 py-2.5 text-right">Mínimo</th>
+            <th scope="col" className="px-3 py-2.5 text-right">Cobertura</th>
+            <th scope="col" className="px-3 py-2.5 text-right">Comprar</th>
+            <th scope="col" className="px-3 py-2.5">Situação</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100 tabular-nums">
+          {linhas.map(l => {
+            const embalagens = formatarEmbalagens(l.sugestaoCompra, conteudos.get(l.codigo) ?? null)
+            return (
+              <tr key={l.codigo}>
+                <td className="px-4 py-2">
+                  <span className="font-medium">{l.produto}</span> <span className="text-xs text-slate-500">({l.unidade})</span>
+                  <span className="block font-mono text-xs text-slate-500">{l.codigo}</span>
+                </td>
+                <td className="px-3 py-2 text-slate-600">{l.categoria}</td>
+                <td className="px-3 py-2 text-right">{formatarNumero(l.saldo)}</td>
+                <td className="px-3 py-2 text-right text-slate-600">{formatarNumero(l.minimo)}</td>
+                <td className="px-3 py-2 text-right"><Cobertura saldo={l.saldo} minimo={l.minimo} unidade={l.unidade} /></td>
+                <td className="px-3 py-2 text-right font-bold text-emerald-800">
+                  {formatarNumero(l.sugestaoCompra)} {l.unidade}
+                  {embalagens && <span className="block text-xs font-normal text-slate-500">{embalagens}</span>}
+                </td>
+                <td className="px-3 py-2"><BadgeReposicao situacao={l.situacao} minimo={l.minimo} unidade={l.unidade} /></td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </>
+  )
+}
 
 export function Relatorios() {
   const { produtos, lotes, versao, carregando, nomeCategoria } = useDados()
@@ -28,7 +103,7 @@ export function Relatorios() {
   const [movs, setMovs] = useState<Movimentacao[] | null>(null)
   const [erro, setErro] = useState('')
   const [aba, setAba] = useState<Aba>('resumo')
-  const [secoes, setSecoes] = useState<Secoes>({ resumo: true, movimentacoes: true, posicao: true })
+  const [secoes, setSecoes] = useState<Secoes>({ resumo: true, movimentacoes: true, posicao: true, compras: true })
   const [gerando, setGerando] = useState<'xlsx' | 'pdf' | null>(null)
 
   const intervalo = periodo === 'personalizado' ? personalizado : intervaloRapido(periodo)
@@ -69,9 +144,14 @@ export function Relatorios() {
     [movs, produtos, lotes, produtoId, intervalo.de, intervalo.ate, nomeCategoria],
   )
 
+  // Conteúdo por embalagem só para exibir "x emb." na aba Compras (a conta vem de lib/estoque.ts).
+  const conteudos = useMemo(() => new Map(produtos.map(p => [p.codigo_interno, p.conteudo_embalagem ?? null])), [produtos])
+
+  const algumaSecao = secoes.resumo || secoes.movimentacoes || secoes.posicao || secoes.compras
+
   async function exportar(formato: 'xlsx' | 'pdf') {
     if (!relatorio) return
-    if (!secoes.resumo && !secoes.movimentacoes && !secoes.posicao) return toast.erro('Escolha pelo menos uma seção do relatório.')
+    if (!algumaSecao) return toast.erro('Escolha pelo menos uma seção do relatório.')
     setGerando(formato)
     try {
       const blob =
@@ -91,7 +171,10 @@ export function Relatorios() {
 
   return (
     <div>
-      <Cabecalho titulo="Relatórios" subtitulo="Escolha o período e baixe em Excel ou PDF, prontos para auditoria ou envio." />
+      <Cabecalho
+        titulo="Relatórios"
+        subtitulo="Escolha o período e baixe em Excel ou PDF — inclui a lista de compras (reposição) para levar ao fornecedor."
+      />
 
       <div className="cartao mb-5 space-y-4 p-4">
         <div>
@@ -154,13 +237,18 @@ export function Relatorios() {
             </select>
           </div>
         </div>
-        <div>
-          <p className="rotulo">Incluir no arquivo</p>
-          <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-700">
-            {([['resumo', 'Resumo por produto'], ['movimentacoes', 'Movimentações'], ['posicao', 'Posição de estoque (com alertas)']] as const).map(([k, nome]) => (
+        <div role="group" aria-labelledby="r-secoes">
+          <p className="rotulo" id="r-secoes">Incluir no arquivo</p>
+          <div className="flex flex-wrap gap-x-5 gap-y-2.5 text-sm text-slate-700">
+            {SECOES.map(([k, nome]) => (
               <label key={k} className="flex items-center gap-2">
-                <input type="checkbox" className="size-4 accent-emerald-700" checked={secoes[k]} onChange={e => setSecoes(s => ({ ...s, [k]: e.target.checked }))} />
-                {nome}
+                <input
+                  type="checkbox"
+                  className="size-4 shrink-0 accent-emerald-700"
+                  checked={secoes[k]}
+                  onChange={e => setSecoes(s => ({ ...s, [k]: e.target.checked }))}
+                />
+                <span className="leading-snug">{nome}</span>
               </label>
             ))}
           </div>
@@ -187,16 +275,7 @@ export function Relatorios() {
             <Kpi titulo="Ajustes e correções" valor={relatorio.totais.ajustes} icone={RotateCcw} />
           </div>
 
-          <Segmentado
-            className="mb-3"
-            valor={aba}
-            aoMudar={setAba}
-            opcoes={[
-              { valor: 'resumo', rotulo: 'Resumo' },
-              { valor: 'movimentacoes', rotulo: 'Movimentações' },
-              { valor: 'posicao', rotulo: 'Posição' },
-            ]}
-          />
+          <Segmentado className="mb-3" valor={aba} aoMudar={setAba} opcoes={OPCOES_ABA} />
 
           <div className="cartao overflow-x-auto">
             {aba === 'resumo' && (
@@ -285,6 +364,7 @@ export function Relatorios() {
                 </tbody>
               </table>
             )}
+            {aba === 'compras' && <TabelaCompras linhas={relatorio.compras} conteudos={conteudos} />}
           </div>
         </>
       )}
