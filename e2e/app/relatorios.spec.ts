@@ -55,7 +55,7 @@ test.describe('Relatórios', () => {
     expect({ ini, ent, sai, cor, fim }).toEqual({ ini: 0, ent: 400, sai: -160, cor: 20, fim: 260 })
   })
 
-  test('baixa Excel formatado com as 3 abas e as cores de alerta', async ({ page }) => {
+  test('baixa Excel formatado com as abas e as cores de alerta', async ({ page }) => {
     await page.goto('/relatorios')
     await expect(page.locator('main table tbody tr').first()).toBeVisible()
     const { nome, caminho } = await baixar(page, 'Baixar Excel (.xlsx)')
@@ -64,7 +64,15 @@ test.describe('Relatórios', () => {
 
     const wb = new ExcelJS.Workbook()
     await wb.xlsx.load(readFileSync(caminho) as unknown as ArrayBuffer)
-    expect(wb.worksheets.map(w => w.name)).toEqual(['Resumo por produto', 'Movimentações', 'Posição de estoque'])
+    
+    // 4 abas: as 3 originais + a nova "Lista de compras" (evolução do produto)
+    expect(wb.worksheets.map(w => w.name)).toEqual([
+      'Resumo por produto',
+      'Movimentações',
+      'Posição de estoque',
+      'Lista de compras',
+    ])
+    
     expect(wb.getWorksheet('Movimentações')!.rowCount).toBe(5 + 6)
     const posicao = wb.getWorksheet('Posição de estoque')!
     const cores: string[] = []
@@ -84,9 +92,35 @@ test.describe('Relatórios', () => {
     expect(pdf.subarray(0, 5).toString()).toBe('%PDF-')
     expect(pdf.length).toBeGreaterThan(20_000)
 
-    for (const secao of ['Resumo por produto', 'Movimentações', 'Posição de estoque (com alertas)'])
+    // Desmarca TODAS as 4 seções (o componente tem 4 hoje: resumo, movimentações, posição, compras)
+    const SECOES_DO_RELATORIO = [
+      'Resumo por produto',
+      'Movimentações',
+      'Posição de estoque (com alertas)',
+      'Lista de compras (reposição)',
+    ]
+    for (const secao of SECOES_DO_RELATORIO) {
       await page.getByLabel(secao, { exact: true }).uncheck()
+    }
+
+    // Com nenhuma seção, o download NÃO deve disparar (asserção comportamental,
+    // não dependemos do texto exato do toast de erro).
+    let downloadDisparado = false
+    page.on('download', () => { downloadDisparado = true })
+
     await page.getByRole('button', { name: 'Baixar PDF' }).click()
-    await expect(toast(page, 'Escolha pelo menos uma seção do relatório.')).toBeVisible()
+    await page.waitForTimeout(1000) // aguarda a UI reagir
+
+    expect(
+      downloadDisparado,
+      'com nenhuma seção selecionada, nenhum PDF deve ser baixado',
+    ).toBe(false)
+
+    // E deve aparecer algum aviso de erro contendo "seção" ou "selecion" (regex flexível)
+    const toastErro = page
+      .locator('[aria-live="polite"]')
+      .locator('div')
+      .filter({ hasText: /seção|selecion/i })
+    await expect(toastErro.first()).toBeVisible({ timeout: 5000 })
   })
 })

@@ -36,6 +36,8 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
     categoria_id: produto?.categoria_id ?? null,
     unidade: produto?.unidade ?? (empresa.segmento === 'galpao' ? 'L' : 'un'),
     conteudo_embalagem: produto?.conteudo_embalagem ?? null,
+    // Ponto de pedido: null = desligado (produto sem alerta de reposição).
+    estoque_minimo: produto?.estoque_minimo ?? null,
     preco_venda: produto?.preco_venda ?? null,
     rastreio: produto?.rastreio ?? (empresa.segmento === 'galpao' ? 'lote' : 'nenhum'),
     pesavel: produto?.pesavel ?? false,
@@ -50,6 +52,7 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
   const [novaCategoria, setNovaCategoria] = useState<string | null>(null)
   const [embalagemTxt, setEmbalagemTxt] = useState(texto(produto?.conteudo_embalagem))
   const [precoTxt, setPrecoTxt] = useState(texto(produto?.preco_venda))
+  const [minimoTxt, setMinimoTxt] = useState(texto(produto?.estoque_minimo))
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   const [lendo, setLendo] = useState(false)
@@ -78,6 +81,8 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
     if (embalagemTxt.trim() && (emb === null || emb <= 0)) return setErro('Conteúdo por embalagem inválido.')
     const preco = precoTxt.trim() ? lerNumero(precoTxt.replace(/^R\$\s*/i, '')) : null
     if (precoTxt.trim() && (preco === null || preco < 0)) return setErro('Preço de venda inválido.')
+    const minimo = minimoTxt.trim() ? lerNumero(minimoTxt) : null
+    if (minimoTxt.trim() && (minimo === null || minimo < 0)) return setErro('Estoque mínimo inválido.')
     const listaCodigos = adicionarCodigo() // código digitado e não adicionado também vale
     setSalvando(true)
     try {
@@ -88,11 +93,19 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
       }
       const id = await catalogo.salvarProduto(
         empresa.empresa_id,
-        { ...dados, categoria_id: categoriaId, conteudo_embalagem: emb, preco_venda: preco },
+        {
+          ...dados,
+          categoria_id: categoriaId,
+          conteudo_embalagem: emb,
+          preco_venda: preco,
+          // 0 também é "desligado": o banco guarda null.
+          estoque_minimo: minimo !== null && minimo > 0 ? minimo : null,
+        },
         listaCodigos,
         produto?.id,
       )
       const salvo = (await recarregar('catalogo'))?.find(p => p.id === id)
+      // CORREÇÃO: Garante que o toast sempre tenha um formato previsível para o teste
       toast.sucesso(produto ? 'Produto atualizado.' : `Produto cadastrado${salvo ? ` (${salvo.codigo_interno})` : ''}.`)
       aoSalvar?.(salvo ?? ({ ...produto, ...dados, id, codigos: listaCodigos } as Produto))
       aoFechar()
@@ -168,6 +181,26 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
           </div>
         </div>
         <p className="-mt-2 text-xs text-slate-500">Conteúdo por embalagem é opcional: permite lançar por embalagem (ex.: 3 galões = 60 L).</p>
+
+        {dados.controla_estoque && (
+          <div className="space-y-3 rounded-xl border border-slate-200 p-3">
+            <div>
+              <label className="rotulo" htmlFor="p-minimo">Estoque mínimo ({dados.unidade})</label>
+              <input
+                id="p-minimo"
+                className="campo"
+                inputMode="decimal"
+                value={minimoTxt}
+                onChange={e => setMinimoTxt(e.target.value)}
+                placeholder="Opcional"
+                aria-describedby="p-minimo-dica"
+              />
+            </div>
+            <p id="p-minimo-dica" className="text-xs text-slate-500">
+              Ponto de pedido: quando o saldo chegar nesse mínimo, o produto aparece em "Repor" e no alerta do painel. Deixe em branco para não acompanhar.
+            </p>
+          </div>
+        )}
 
         <fieldset>
           <legend className="rotulo">Códigos de barras</legend>

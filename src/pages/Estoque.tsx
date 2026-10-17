@@ -1,13 +1,31 @@
-import { ArrowUpFromLine, Boxes, FileSpreadsheet, Search } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { ArrowUpFromLine, Boxes, FileSpreadsheet, FileText, LoaderCircle, Search, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { BadgeSituacao, Cabecalho, Carregando, Vazio, cx } from '../components/ui'
+import { ListaReposicao } from '../components/ListaReposicao'
+import { ReposicaoForm } from '../components/ReposicaoForm'
+import { useToast } from '../components/Toast'
+import { Aviso, BadgeSituacao, Cabecalho, Carregando, Vazio, cx } from '../components/ui'
 import { useDados } from '../contexto/Dados'
-import { useEmpresa } from '../contexto/Empresa'
-import { DIAS_ALERTA, PRIORIDADE, montarLinhasEstoque, produtoCombina, type LinhaEstoque, type Situacao } from '../lib/estoque'
+import { useAtiva } from '../contexto/Empresa'
+import {
+  DIAS_ALERTA,
+  PRIORIDADE,
+  filtrarItensCompra,
+  montarLinhasEstoque,
+  montarReposicao,
+  precisaRepor,
+  produtoCombina,
+  saldosPorProduto,
+  situacaoReposicao,
+  type LinhaEstoque,
+  type Situacao,
+  type SituacaoReposicao,
+} from '../lib/estoque'
 import { formatarData, formatarEmbalagens, formatarNumero, formatarValidade } from '../lib/formato'
+import { baixarArquivo, tituloEmpresa } from '../lib/relatorio'
+import type { Produto } from '../lib/tipos'
 
-type Filtro = 'todos' | Situacao
+type Filtro = 'todos' | Situacao | 'abaixo'
 type Ordem = 'nome' | 'validade' | 'situacao'
 
 const FILTROS: { valor: Filtro; nome: string; ponto?: string }[] = [
@@ -15,37 +33,111 @@ const FILTROS: { valor: Filtro; nome: string; ponto?: string }[] = [
   { valor: 'vencido', nome: 'Vencidos', ponto: 'bg-red-500' },
   { valor: 'zerado', nome: 'Zerados', ponto: 'bg-red-500' },
   { valor: 'vencendo', nome: `Vencem em ${DIAS_ALERTA} dias`, ponto: 'bg-amber-400' },
+  { valor: 'abaixo', nome: 'Repor', ponto: 'bg-amber-400' },
   { valor: 'ok', nome: 'Em dia', ponto: 'bg-emerald-500' },
 ]
+
+/** Chave do aviso "como usar" — aparece só na primeira visita à lista de compras. */
+const DICA_LISTA_COMPRAS = 'dica-lista-compras'
 
 function ordenar(linhas: LinhaEstoque[], ordem: Ordem) {
   const porNome = (a: LinhaEstoque, b: LinhaEstoque) => a.produto.nome.localeCompare(b.produto.nome, 'pt-BR')
   const porValidade = (a: LinhaEstoque, b: LinhaEstoque) => (a.validade ?? '9999').localeCompare(b.validade ?? '9999')
   return [...linhas].sort((a, b) =>
-    ordem === 'validade' ? porValidade(a, b) || porNome(a, b)
-    : ordem === 'situacao' ? PRIORIDADE[a.situacao] - PRIORIDADE[b.situacao] || porValidade(a, b)
-    : porNome(a, b) || porValidade(a, b),
+    ordem === 'validade'
+      ? porValidade(a, b) || porNome(a, b)
+      : ordem === 'situacao'
+        ? PRIORIDADE[a.situacao] - PRIORIDADE[b.situacao] || porValidade(a, b)
+        : porNome(a, b) || porValidade(a, b),
   )
 }
 
 export function Estoque() {
   const { produtos, lotes, categorias, nomeCategoria, carregando } = useDados()
-  const { pode } = useEmpresa()
+  const { pode, empresa, loja, lojas } = useAtiva()
+  const toast = useToast()
   const [params, setParams] = useSearchParams()
   const navegar = useNavigate()
   const filtro = (FILTROS.find(f => f.valor === params.get('filtro'))?.valor ?? 'todos') as Filtro
   const [termo, setTermo] = useState('')
   const [categoria, setCategoria] = useState('')
   const [ordem, setOrdem] = useState<Ordem>('nome')
+  const [editando, setEditando] = useState<Produto | null>(null)
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
+  const [gerando, setGerando] = useState<'xlsx' | 'pdf' | null>(null)
+  const [dicaVisivel, setDicaVisivel] = useState(false)
 
   const todas = useMemo(() => montarLinhasEstoque(produtos, lotes), [produtos, lotes])
-  const base = useMemo(() => todas.filter(l => (!categoria || l.produto.categoria_id === categoria) && produtoCombina(l.produto, termo)), [todas, categoria, termo])
+  const saldos = useMemo(() => saldosPorProduto(lotes), [lotes])
+  const reposicaoPorProduto = useMemo(() => {
+    const mapa = new Map<string, SituacaoReposicao>()
+    for (const p of produtos) if (p.estoque_minimo !== null) mapa.set(p.id, situacaoReposicao(saldos.get(p.id) ?? 0, p.estoque_minimo))
+    return mapa
+  }, [produtos, saldos])
+  const precisaReporPorLinha = useCallbackMap(reposicaoPorProduto)
+
+  const base = useMemo(
+    () => todas.filter(l => (!categoria || l.produto.categoria_id === categoria) && produtoCombina(l.produto, termo)),
+    [todas, categoria, termo],
+  )
   const contagem = useMemo(() => {
-    const c: Record<Filtro, number> = { todos: base.length, vencido: 0, zerado: 0, vencendo: 0, ok: 0 }
+    const c: Record<Filtro, number> = { todos: base.length, vencido: 0, zerado: 0, vencendo: 0, abaixo: 0, ok: 0 }
     base.forEach(l => c[l.situacao]++)
+    // Conta PRODUTOS no ponto de pedido (o filtro Repor é por produto, não por lote).
+    c.abaixo = precisaRepor(
+      montarReposicao(
+        produtos.filter(p => (!categoria || p.categoria_id === categoria) && produtoCombina(p, termo)),
+        lotes,
+      ),
+    ).length
     return c
-  }, [base])
-  const linhas = useMemo(() => ordenar(filtro === 'todos' ? base : base.filter(l => l.situacao === filtro), ordem), [base, filtro, ordem])
+  }, [base, produtos, lotes, categoria, termo])
+
+  // Lista de compras: a decisão de compra vem inteira de lib/estoque.ts.
+  const reposicao = useMemo(() => montarReposicao(produtos, lotes), [produtos, lotes])
+  const visiveisReposicao = useMemo(
+    () => precisaRepor(reposicao).filter(i => (!categoria || i.produto.categoria_id === categoria) && produtoCombina(i.produto, termo)),
+    [reposicao, categoria, termo],
+  )
+  const itensSelecionados = useMemo(
+    () => filtrarItensCompra(visiveisReposicao, selecionados, nomeCategoria),
+    [visiveisReposicao, selecionados, nomeCategoria],
+  )
+  const marcadosVisiveis = useMemo(() => visiveisReposicao.filter(i => selecionados.has(i.produto.id)).length, [visiveisReposicao, selecionados])
+
+  const linhas = useMemo(() => {
+    const filtradas =
+      filtro === 'todos'
+        ? base
+        : filtro === 'abaixo'
+          ? base.filter(l => precisaReporPorLinha(l.produto.id) === 'abaixo' || precisaReporPorLinha(l.produto.id) === 'no_minimo')
+          : base.filter(l => l.situacao === filtro)
+    return ordenar(filtradas, ordem)
+  }, [base, filtro, ordem, precisaReporPorLinha])
+
+  // Seleção só faz sentido dentro da lista de compras.
+  useEffect(() => {
+    if (filtro !== 'abaixo') setSelecionados(new Set())
+  }, [filtro])
+
+  // Dica de uso na primeira visita (não insiste depois que o operador já viu).
+  useEffect(() => {
+    if (filtro !== 'abaixo') return
+    try {
+      if (!localStorage.getItem(DICA_LISTA_COMPRAS)) setDicaVisivel(true)
+    } catch {
+      // navegador sem localStorage: simplesmente não mostra a dica
+    }
+  }, [filtro])
+
+  const dispensarDica = useCallback(() => {
+    setDicaVisivel(false)
+    try {
+      localStorage.setItem(DICA_LISTA_COMPRAS, '1')
+    } catch {
+      // sem localStorage: a dica volta na próxima visita, sem erro
+    }
+  }, [])
 
   function mudarFiltro(f: Filtro) {
     const p = new URLSearchParams(params)
@@ -54,7 +146,48 @@ export function Estoque() {
     setParams(p, { replace: true })
   }
 
+  const alternar = useCallback((id: string) => {
+    setSelecionados(s => {
+      const n = new Set(s)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
+      return n
+    })
+  }, [])
+
+  const marcarTodos = useCallback(() => {
+    setSelecionados(s => {
+      const todos = visiveisReposicao.length > 0 && visiveisReposicao.every(i => s.has(i.produto.id))
+      return todos ? new Set() : new Set(visiveisReposicao.map(i => i.produto.id))
+    })
+  }, [visiveisReposicao])
+
+  async function exportarCompra(formato: 'xlsx' | 'pdf') {
+    if (itensSelecionados.length === 0) {
+      toast.erro('Selecione ao menos um produto')
+      return
+    }
+    setGerando(formato)
+    try {
+      const { gerarListaCompraExcel, gerarListaCompraPdf, nomeArquivoListaCompra } = await import('../lib/exportar/lista-compra')
+      const titulo = tituloEmpresa(empresa.nome, loja.nome, (lojas?.length ?? 0) > 1)
+      const blob =
+        formato === 'xlsx'
+          ? await gerarListaCompraExcel(itensSelecionados, titulo)
+          : await gerarListaCompraPdf(itensSelecionados, titulo)
+      baixarArquivo(blob, nomeArquivoListaCompra(formato))
+      toast.sucesso(`Lista com ${itensSelecionados.length} ${itensSelecionados.length === 1 ? 'produto' : 'produtos'} gerada.`)
+    } catch (e) {
+      toast.erro('Não foi possível gerar o arquivo: ' + (e as Error).message)
+    } finally {
+      setGerando(null)
+    }
+  }
+
   if (carregando) return <Carregando />
+
+  const todosMarcados = visiveisReposicao.length > 0 && marcadosVisiveis === visiveisReposicao.length
+  const semFiltro = !termo && !categoria
 
   return (
     <div>
@@ -86,9 +219,15 @@ export function Estoque() {
             </select>
           </div>
         </div>
-        <div className="-mx-4 flex gap-2 rolagem-x overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
+        <div role="group" aria-label="Filtrar estoque" className="-mx-4 flex gap-2 rolagem-x overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
           {FILTROS.map(f => (
-            <button key={f.valor} onClick={() => mudarFiltro(f.valor)} className={cx('chip', filtro === f.valor ? 'chip-ativo' : 'chip-inativo')}>
+            <button
+              key={f.valor}
+              type="button"
+              aria-pressed={filtro === f.valor}
+              onClick={() => mudarFiltro(f.valor)}
+              className={cx('chip', filtro === f.valor ? 'chip-ativo' : 'chip-inativo')}
+            >
               {f.ponto && <span className={cx('size-2 rounded-full', f.ponto)} />}
               {f.nome}
               <span className={cx('rounded-full px-1.5 text-xs', filtro === f.valor ? 'bg-white/20' : 'bg-slate-100')}>{contagem[f.valor]}</span>
@@ -97,7 +236,112 @@ export function Estoque() {
         </div>
       </div>
 
-      {linhas.length === 0 ? (
+      {filtro === 'abaixo' ? (
+        <div className="space-y-3">
+          {dicaVisivel && (
+            <Aviso tom="info">
+              <span className="flex items-start justify-between gap-3">
+                <span>Marque os produtos que vai comprar e baixe a lista em Excel ou PDF para levar ao fornecedor.</span>
+                <button type="button" className="btn btn-fantasma -m-1 shrink-0 p-1" onClick={dispensarDica} aria-label="Fechar dica">
+                  <X className="size-4" />
+                </button>
+              </span>
+            </Aviso>
+          )}
+
+          <ListaReposicao
+            itens={visiveisReposicao}
+            aoEditar={pode.movimentar ? setEditando : undefined}
+            selecionados={selecionados}
+            aoAlternar={alternar}
+            aoMarcarTodosToggle={marcarTodos}
+            vazio={
+              semFiltro
+                ? {
+                    icone: Boxes,
+                    titulo: 'Nada para repor',
+                    texto: 'Nenhum produto está no estoque mínimo. Defina o mínimo em Produtos para receber a sugestão de compra.',
+                  }
+                : {
+                    icone: Search,
+                    titulo: 'Nada encontrado',
+                    texto: 'Ajuste a busca ou a categoria.',
+                    children: (
+                      <button
+                        type="button"
+                        className="btn btn-secundario"
+                        onClick={() => {
+                          setTermo('')
+                          setCategoria('')
+                        }}
+                      >
+                        Limpar filtros
+                      </button>
+                    ),
+                  }
+            }
+          />
+
+          {visiveisReposicao.length > 0 && (
+            <div role="region" aria-label="Ações da lista de compras" className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 lg:bottom-0">
+              <div className="cartao flex flex-wrap items-center gap-x-3 gap-y-2 border-emerald-200 bg-white/95 p-3 shadow-lg backdrop-blur">
+                <p className="text-sm font-semibold text-slate-700" aria-live="polite" aria-atomic="true" data-selecao>
+                  {marcadosVisiveis === 0 ? (
+                    <>Selecione produtos para baixar a lista</>
+                  ) : (
+                    <>
+                      {marcadosVisiveis} de {visiveisReposicao.length} selecionado{marcadosVisiveis === 1 ? '' : 's'}
+                    </>
+                  )}
+                </p>
+
+                <div className="flex gap-2">
+                  <button type="button" className="btn btn-fantasma px-2.5 py-1.5 text-xs" onClick={marcarTodos} disabled={visiveisReposicao.length === 0}>
+                    {todosMarcados ? 'Desmarcar todos' : 'Marcar todos'}
+                  </button>
+                  <button type="button" className="btn btn-fantasma px-2.5 py-1.5 text-xs" onClick={() => setSelecionados(new Set())} disabled={marcadosVisiveis === 0}>
+                    Limpar
+                  </button>
+                </div>
+
+                <div className="grid w-full grid-cols-2 gap-2 sm:ml-auto sm:flex sm:w-auto">
+                  <button
+                    type="button"
+                    className="btn btn-primario"
+                    onClick={() => exportarCompra('xlsx')}
+                    disabled={!!gerando || itensSelecionados.length === 0}
+                    title={itensSelecionados.length === 0 ? 'Marque ao menos um produto para baixar' : undefined}
+                  >
+                    {gerando === 'xlsx' ? <LoaderCircle className="size-4.5 animate-spin" /> : <FileSpreadsheet className="size-4.5" />}
+                    <span>Baixar Excel</span>
+                    {itensSelecionados.length === 0 && <span className="sr-only">Marque ao menos um produto para baixar</span>}
+                    {gerando === 'xlsx' && <span className="sr-only">Gerando arquivo…</span>}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secundario"
+                    onClick={() => exportarCompra('pdf')}
+                    disabled={!!gerando || itensSelecionados.length === 0}
+                    title={itensSelecionados.length === 0 ? 'Marque ao menos um produto para baixar' : undefined}
+                  >
+                    {gerando === 'pdf' ? <LoaderCircle className="size-4.5 animate-spin" /> : <FileText className="size-4.5 text-red-600" />}
+                    <span>Baixar PDF</span>
+                    {itensSelecionados.length === 0 && <span className="sr-only">Marque ao menos um produto para baixar</span>}
+                    {gerando === 'pdf' && <span className="sr-only">Gerando arquivo…</span>}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <p className="text-xs text-slate-500">
+            <span className="mr-1 inline-block size-2.5 rounded-sm bg-red-500 align-middle" /> Vermelho: vencido ou sem estoque ·{' '}
+            <span className="mx-1 inline-block size-2.5 rounded-sm bg-amber-400 align-middle" /> Amarelo: vence em até {DIAS_ALERTA} dias ·{' '}
+            <strong className="font-semibold text-slate-600">Repor</strong>: saldo no estoque mínimo ou abaixo dele. Marque os produtos e baixe a lista para
+            levar ao fornecedor.
+          </p>
+        </div>
+      ) : linhas.length === 0 ? (
         <div className="cartao">
           <Vazio icone={Boxes} titulo="Nada encontrado" texto="Ajuste a busca ou os filtros." />
         </div>
@@ -132,6 +376,7 @@ export function Estoque() {
                       {formatarEmbalagens(l.saldo, l.produto.conteudo_embalagem) && (
                         <p className="text-xs opacity-60">{formatarEmbalagens(l.saldo, l.produto.conteudo_embalagem)}</p>
                       )}
+                      {l.produto.estoque_minimo !== null && <p className="text-xs opacity-60">mín. {formatarNumero(l.produto.estoque_minimo)}</p>}
                     </td>
                     <td className="px-3 py-3"><BadgeSituacao situacao={l.situacao} validade={l.validade} /></td>
                     <td className="px-3 py-3 text-right">
@@ -167,6 +412,7 @@ export function Estoque() {
                   <div className="shrink-0 text-right">
                     <p className="font-bold tabular-nums">{formatarNumero(l.saldo)} {l.produto.unidade}</p>
                     {formatarEmbalagens(l.saldo, l.produto.conteudo_embalagem) && <p className="text-xs opacity-60">{formatarEmbalagens(l.saldo, l.produto.conteudo_embalagem)}</p>}
+                    {l.produto.estoque_minimo !== null && <p className="text-xs opacity-60">mín. {formatarNumero(l.produto.estoque_minimo)}</p>}
                   </div>
                 </div>
                 <div className="mt-2 flex items-center justify-between gap-2">
@@ -180,10 +426,18 @@ export function Estoque() {
           </div>
           <p className="mt-3 text-xs text-slate-500">
             <span className="mr-1 inline-block size-2.5 rounded-sm bg-red-500 align-middle" /> Vermelho: vencido ou sem estoque ·{' '}
-            <span className="mx-1 inline-block size-2.5 rounded-sm bg-amber-400 align-middle" /> Amarelo: vence em até {DIAS_ALERTA} dias
+            <span className="mx-1 inline-block size-2.5 rounded-sm bg-amber-400 align-middle" /> Amarelo: vence em até {DIAS_ALERTA} dias ·{' '}
+            <strong className="font-semibold text-slate-600">Repor</strong>: saldo no estoque mínimo ou abaixo dele
           </p>
         </>
       )}
+
+      <ReposicaoForm produto={editando} aoFechar={() => setEditando(null)} />
     </div>
   )
+}
+
+/** Memoriza a consulta de situação de reposição por produto (usada nos filtros). */
+function useCallbackMap(mapa: Map<string, SituacaoReposicao>) {
+  return useMemo(() => (produtoId: string): SituacaoReposicao => mapa.get(produtoId) ?? 'sem_minimo', [mapa])
 }

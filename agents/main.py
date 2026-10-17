@@ -20,7 +20,7 @@ from tasks import TarefasERP
 MAX_CICLOS = int(os.getenv("MAX_CICLOS", "5"))
 MAX_CORRECOES_POR_CICLO = int(os.getenv("MAX_CORRECOES", "2"))
 TIMEOUT_GLOBAL_S = int(os.getenv("TIMEOUT_GLOBAL_S", str(60 * 90)))
-TIMEOUT_TESTES_S = 600
+TIMEOUT_TESTES_S = 900
 MAX_CICLOS_SEM_PROGRESSO = 2
 
 VEREDITO_RE = re.compile(r"VEREDITO:\s*(APROVADO|REPROVADO)\s*[—\-:]?\s*(.*)", re.IGNORECASE)
@@ -45,6 +45,7 @@ def validar_ambiente(raiz: Path):
 
 # ---------------- Git ---------------- #
 def detectar_branch(repo: git.Repo) -> str:
+    """Detecta a branch atual (ou primeira disponível: main, master, saas)."""
     try:
         return repo.active_branch.name
     except TypeError:
@@ -140,6 +141,13 @@ def rodar_testes(raiz: Path) -> tuple[bool, str]:
     if not ok:
         return False, "\n".join(logs)
 
+    # 4. Testes E2E (garante que a UI não quebrou)
+    # Rodando apenas app-computador para economizar tempo e focar no essencial
+    ok, _ = _r("npx playwright test --project=app-computador --reporter=line", "playwright E2E")
+    if not ok:
+        log("❌ E2E quebrou! O Programador precisa corrigir a UI ou atualizar o .spec.ts.")
+        return False, "\n".join(logs)
+
     return True, "\n".join(logs)
 
 def extrair_veredito(texto: str) -> tuple[bool, str]:
@@ -181,7 +189,7 @@ def executar_ciclo(equipe, tarefas, repo, num_ciclo, raiz) -> tuple[bool, str]:
     if testes_ok:
         aprovado = True
         motivo = ""
-        log("✅ Testes externos (tsc + vitest + build) passaram. Ciclo aprovado.")
+        log("✅ Testes externos (tsc + vitest + build + E2E) passaram. Ciclo aprovado.")
     else:
         aprovado = False
         motivo = f"Testes falharam. QA LLM disse: {motivo_llm}"

@@ -4,20 +4,23 @@ import {
   ArrowUpFromLine,
   CircleCheck,
   Clock,
+  Equal,
   LoaderCircle,
+  Minus,
   OctagonAlert,
   PackageX,
   RotateCcw,
   ShoppingCart,
   SlidersHorizontal,
+  TrendingDown,
   Undo2,
   X,
   type LucideIcon,
 } from 'lucide-react'
 import { useEffect, useId, type ReactNode } from 'react'
-import { descreverSituacao, type Situacao } from '../lib/estoque'
-import { NOME_TIPO } from '../lib/formato'
-import type { TipoMov } from '../lib/tipos'
+import { descreverSituacao, type Situacao, type SituacaoReposicao } from '../lib/estoque'
+import { NOME_TIPO, formatarNumero } from '../lib/formato'
+import type { TipoMov, Unidade } from '../lib/tipos'
 
 export function cx(...classes: (string | false | null | undefined)[]) {
   return classes.filter(Boolean).join(' ')
@@ -61,6 +64,52 @@ export function BadgeSituacao({ situacao, validade, curto }: { situacao: Situaca
     <span className={cx('inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset', classe)}>
       <Icone className="size-3.5" />
       {texto}
+    </span>
+  )
+}
+
+const ESTILO_REPOSICAO: Record<SituacaoReposicao, { classe: string; icone: LucideIcon; texto: string }> = {
+  abaixo: { classe: 'bg-amber-100 text-amber-900 ring-amber-200', icone: TrendingDown, texto: 'Repor' },
+  no_minimo: { classe: 'bg-amber-50 text-amber-800 ring-amber-200', icone: Equal, texto: 'No mínimo' },
+  acima: { classe: 'bg-emerald-50 text-emerald-800 ring-emerald-200', icone: CircleCheck, texto: 'OK' },
+  sem_minimo: { classe: 'bg-slate-100 text-slate-600 ring-slate-200', icone: Minus, texto: 'Sem mínimo' },
+}
+
+export interface BadgeReposicaoProps {
+  situacao: SituacaoReposicao
+  minimo: number | null
+  unidade: Unidade
+}
+
+/** Mesmo padrão visual de BadgeSituacao: ícone + texto, nunca só cor. */
+export function BadgeReposicao({ situacao, minimo, unidade }: BadgeReposicaoProps) {
+  const { classe, icone: Icone, texto } = ESTILO_REPOSICAO[situacao]
+  const titulo = situacao === 'sem_minimo' ? 'Estoque mínimo não definido' : `Estoque mínimo: ${formatarNumero(minimo)} ${unidade}`
+  return (
+    <span
+      title={titulo}
+      className={cx('inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset', classe)}
+    >
+      <Icone className="size-3.5" />
+      {texto}
+    </span>
+  )
+}
+
+export interface CoberturaProps {
+  saldo: number
+  minimo: number | null
+  unidade: Unidade
+}
+
+/** "1,6×" = quantas vezes o saldo cobre o estoque mínimo. */
+export function Cobertura({ saldo, minimo, unidade }: CoberturaProps) {
+  if (minimo === null || minimo <= 0) return <span className="text-xs text-slate-400">—</span>
+  const vezes = Math.round((saldo / minimo) * 100) / 100
+  const texto = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(vezes)
+  return (
+    <span className="tabular-nums" title={`${formatarNumero(saldo)} ${unidade} de ${formatarNumero(minimo)} ${unidade} de mínimo`}>
+      {texto}×
     </span>
   )
 }

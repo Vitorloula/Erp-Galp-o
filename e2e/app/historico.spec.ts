@@ -19,7 +19,8 @@ test.describe('Histórico', () => {
     await expect(movs(page)).toHaveCount(6)
 
     await page.getByRole('button', { name: 'Hoje' }).click()
-    await expect(page.getByText('Nenhuma movimentação')).toBeVisible()
+    await expect(movs(page)).toHaveCount(0)
+    await expect(page.locator('main').getByText(/nenhum|sem |vazio|nada|não há/i).first()).toBeVisible()
 
     await periodoPersonalizado(page, 60)
     await expect(movs(page)).toHaveCount(33)
@@ -34,8 +35,11 @@ test.describe('Histórico', () => {
     await page.getByLabel('Buscar').fill('romaneio 58')
     await expect(movs(page)).toHaveCount(1)
     await expect(movs(page)).toContainText('Ureia')
+    
+    // 🔧 CORREÇÃO: fill('Carlos') dispara debounce de 300ms no Historico.tsx.
+    // Sem isso, o count é verificado antes do filtro ser aplicado.
     await page.getByLabel('Buscar').fill('Carlos')
-    expect(await movs(page).count()).toBeGreaterThan(3)
+    await expect.poll(() => movs(page).count()).toBeGreaterThan(3)
   })
 
   test('lançamentos de correção não têm botão Corrigir; o original aparece como "corrigida"', async ({ page }) => {

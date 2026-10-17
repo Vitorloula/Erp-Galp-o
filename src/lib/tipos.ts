@@ -101,6 +101,8 @@ export interface Produto {
   categoria_id: string | null
   unidade: Unidade
   conteudo_embalagem: number | null
+  /** Ponto de pedido: quando o saldo total chegar aqui, o produto aparece em "Repor". null = desligado. */
+  estoque_minimo: number | null
   preco_venda: number | null
   custo_ultimo: number | null
   rastreio: Rastreio
@@ -124,6 +126,7 @@ export type ProdutoDados = Pick<
   | 'categoria_id'
   | 'unidade'
   | 'conteudo_embalagem'
+  | 'estoque_minimo'
   | 'preco_venda'
   | 'rastreio'
   | 'pesavel'

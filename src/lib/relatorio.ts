@@ -1,8 +1,8 @@
-import { descreverSituacao, montarLinhasEstoque, type Situacao } from './estoque'
+import { descreverSituacao, montarLinhasEstoque, montarReposicao, type Situacao, type SituacaoReposicao } from './estoque'
 import { NOME_TIPO, arred, grupoDoTipo } from './formato'
 import type { Intervalo } from './periodos'
 import { intervaloParaInstantes } from './periodos'
-import type { Lote, Movimentacao, Produto, TipoMov } from './tipos'
+import type { Lote, Movimentacao, Produto, TipoMov, Unidade } from './tipos'
 
 export interface LinhaMovRel {
   id: number
@@ -45,12 +45,33 @@ export interface LinhaPosicaoRel {
   situacaoTexto: string
 }
 
+/**
+ * Uma linha da "Lista de compras (reposição)": a decisão de compra de UM produto
+ * (não do lote), já calculada por `lib/estoque.ts`.
+ */
+export interface LinhaCompraRel {
+  codigo: string
+  produto: string
+  categoria: string
+  unidade: Unidade
+  saldo: number
+  minimo: number | null
+  /** saldo / mínimo, 2 casas — de `calcularCobertura()`. */
+  cobertura: number | null
+  /** De `sugerirCompra()`: já arredondada pelo conteúdo da embalagem. */
+  sugestaoCompra: number
+  /** 'abaixo' | 'no_minimo' — de `situacaoReposicao()` via `montarReposicao()`. */
+  situacao: Extract<SituacaoReposicao, 'abaixo' | 'no_minimo'>
+}
+
 export interface Relatorio {
   intervalo: Intervalo
   geradoEm: Date
   movimentacoes: LinhaMovRel[]
   resumo: LinhaResumoRel[]
   posicao: LinhaPosicaoRel[]
+  /** Só os produtos no ponto de pedido (saldo <= mínimo), do mais crítico ao menos crítico. */
+  compras: LinhaCompraRel[]
   totais: { entradas: number; saidas: number; ajustes: number }
 }
 
@@ -139,12 +160,39 @@ export function montarRelatorio(
     situacaoTexto: descreverSituacao(l.situacao, l.validade),
   }))
 
+  // A decisão de "o que comprar" vem inteira de lib/estoque.ts (sem mínimo próprio).
+  // Sem `incluirSemMinimo`: só quem está no ponto de pedido (abaixo/no mínimo), já ordenado
+  // do mais crítico (menor cobertura) para o menos crítico.
+  const compras: LinhaCompraRel[] = montarReposicao(
+    produtos.filter(p => doFiltro(p.id)),
+    lotes,
+    undefined,
+    { incluirSemMinimo: false },
+  ).flatMap(i =>
+    i.situacao === 'abaixo' || i.situacao === 'no_minimo'
+      ? [
+          {
+            codigo: i.produto.codigo_interno,
+            produto: i.produto.nome,
+            categoria: nomeCategoria(i.produto.categoria_id),
+            unidade: i.produto.unidade,
+            saldo: i.saldo,
+            minimo: i.minimo,
+            cobertura: i.cobertura,
+            sugestaoCompra: i.sugestaoCompra,
+            situacao: i.situacao,
+          },
+        ]
+      : [],
+  )
+
   return {
     intervalo,
     geradoEm: new Date(),
     movimentacoes,
     resumo,
     posicao,
+    compras,
     totais: {
       entradas: noPeriodo.filter(m => grupoDoTipo(m.tipo) === 'entrada').length,
       saidas: noPeriodo.filter(m => grupoDoTipo(m.tipo) === 'saida').length,

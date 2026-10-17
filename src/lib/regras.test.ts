@@ -1,19 +1,35 @@
 import { describe, expect, it } from 'vitest'
-import { encontrarPorCodigo, montarLinhasEstoque, resumirProduto, situacaoLote } from './estoque'
-import { canonizarCodigo, exibirCodigo, formatarValidade, grupoDoTipo, lerNumero } from './formato'
+import {
+  abaixoDoMinimo,
+  calcularCobertura,
+  encontrarPorCodigo,
+  montarLinhasEstoque,
+  montarReposicao,
+  precisaRepor,
+  resumirProduto,
+  situacaoLote,
+  situacaoReposicao,
+  sugerirCompra,
+} from './estoque'
+import { canonizarCodigo, exibirCodigo, formatarValidade, grupoDoTipo, lerNumero, totaisPorGrupo } from './formato'
 import { permissoes } from './permissoes'
 import { lerCodigo } from './gs1'
-import { intervaloRapido } from './periodos'
-import type { Lote, Produto } from './tipos'
+import { chaveIntervalo, intervaloRapido, juntarFiltros, periodoDaUrl } from './periodos'
+import type { Lote, Movimentacao, Produto } from './tipos'
 
 const HOJE = '2026-10-03'
 const lote = (saldo: number, validade: string | null, extra: Partial<Lote> = {}): Lote => ({
   lote_id: Math.random().toString(), produto_id: 'p1', lote: '', validade, saldo, ultima_movimentacao: null, ...extra,
 })
 const produto = (id: string, extra: Partial<Produto> = {}): Produto => ({
-  id, codigo_interno: 'P' + id, nome: 'Produto ' + id, categoria_id: null, unidade: 'L', conteudo_embalagem: null, preco_venda: null,
-  custo_ultimo: null, rastreio: 'lote', pesavel: false, codigo_balanca: null, controla_estoque: true, fabricante: null, observacao: null, ativo: true,
-  criado_em: '', codigos: [], ...extra,
+  id, codigo_interno: 'P' + id, nome: 'Produto ' + id, categoria_id: null, unidade: 'L', conteudo_embalagem: null, estoque_minimo: null,
+  preco_venda: null, custo_ultimo: null, rastreio: 'lote', pesavel: false, codigo_balanca: null, controla_estoque: true, fabricante: null,
+  observacao: null, ativo: true, criado_em: '', codigos: [], ...extra,
+})
+const mov = (tipo: Movimentacao['tipo'], delta: number, id = 1): Movimentacao => ({
+  id, ocorrido_em: '2026-10-03T10:00:00.000Z', registrado_em: '2026-10-03T10:00:00.000Z', tipo, loja_id: 'l1', lote_id: 'lot',
+  produto_id: 'p1', quantidade: Math.abs(delta), delta, documento: null, observacao: null, referencia_id: null, origem: 'manual',
+  usuario_id: null, usuario_nome: null,
 })
 
 describe('formato', () => {
@@ -73,6 +89,64 @@ describe('alertas de estoque', () => {
   })
 })
 
+describe('reposição (ponto de pedido)', () => {
+  it('classifica o saldo contra o mínimo; sem mínimo nunca alerta', () => {
+    expect(situacaoReposicao(3, 10)).toBe('abaixo')
+    expect(situacaoReposicao(10, 10)).toBe('no_minimo')
+    expect(situacaoReposicao(11, 10)).toBe('acima')
+    expect(situacaoReposicao(0, null)).toBe('sem_minimo')
+    expect(situacaoReposicao(0, 0)).toBe('sem_minimo')
+    expect(situacaoReposicao(0, Number.NaN)).toBe('sem_minimo')
+  })
+  it('abaixoDoMinimo responde o alerta do painel e do filtro "Repor"', () => {
+    expect(abaixoDoMinimo(3, 10)).toBe(true)
+    expect(abaixoDoMinimo(10, 10)).toBe(true) // no mínimo já é hora de comprar
+    expect(abaixoDoMinimo(11, 10)).toBe(false)
+    expect(abaixoDoMinimo(0, null)).toBe(false) // null = sem alerta (registros antigos)
+    expect(abaixoDoMinimo(0, undefined)).toBe(false)
+    expect(abaixoDoMinimo(0, 0)).toBe(false)
+  })
+  it('sugere compra completando o mínimo, arredondando pela embalagem', () => {
+    expect(sugerirCompra(3, 10, null)).toBe(7)
+    expect(sugerirCompra(3, 10, 4)).toBe(8) // 7 → 2 embalagens de 4
+    expect(sugerirCompra(12, 10, 4)).toBe(0)
+    expect(sugerirCompra(0, null, 4)).toBe(0)
+    expect(sugerirCompra(0, 10, 0)).toBe(10)
+  })
+  it('calcula a cobertura (saldo / mínimo)', () => {
+    expect(calcularCobertura(15, 10)).toBe(1.5)
+    expect(calcularCobertura(5, 10)).toBe(0.5)
+    expect(calcularCobertura(5, null)).toBeNull()
+  })
+  it('monta a lista de reposição por produto, do mais crítico para o menos crítico', () => {
+    const produtos = [
+      produto('1', { estoque_minimo: 10 }),
+      produto('2', { estoque_minimo: 5 }),
+      produto('3'), // sem mínimo: fica fora da lista
+      produto('4', { estoque_minimo: 20, controla_estoque: false }), // serviço: fora
+    ]
+    const lotes = [
+      lote(2, null, { produto_id: '1' }),
+      lote(3, null, { produto_id: '1' }),
+      lote(10, null, { produto_id: '2' }),
+      lote(0, null, { produto_id: '3' }),
+    ]
+    const itens = montarReposicao(produtos, lotes, HOJE)
+    expect(itens.map(i => [i.produto.id, i.saldo, i.minimo, i.situacao])).toEqual([
+      ['1', 5, 10, 'abaixo'],
+    ])
+    const comSemMinimo = montarReposicao(produtos, lotes, HOJE, { incluirSemMinimo: true })
+    expect(comSemMinimo.map(i => i.produto.id)).toEqual(['1', '3'])
+    // Produto '2' está acima do mínimo: não precisa comprar.
+    expect(precisaRepor(montarReposicao([produtos[1]], lotes, HOJE))).toEqual([])
+  })
+  it('produto exatamente no mínimo aparece para repor', () => {
+    const itens = montarReposicao([produto('1', { estoque_minimo: 4 })], [lote(4, null, { produto_id: '1' })], HOJE)
+    expect(itens.map(i => i.situacao)).toEqual(['no_minimo'])
+    expect(precisaRepor(itens)).toHaveLength(1)
+  })
+})
+
 describe('leitura GS1', () => {
   it('lê formato com parênteses', () => {
     expect(lerCodigo('(01)07891000000014(17)260630(10)ab12')).toEqual({ codigo: '07891000000014', validade: '2026-06-30', lote: 'ab12', gs1: true })
@@ -90,6 +164,80 @@ describe('períodos', () => {
     expect(intervaloRapido('7dias', HOJE)).toEqual({ de: '2026-09-27', ate: HOJE })
     expect(intervaloRapido('mes', HOJE)).toEqual({ de: '2026-10-01', ate: HOJE })
     expect(intervaloRapido('mesAnterior', HOJE)).toEqual({ de: '2026-09-01', ate: '2026-09-30' })
+  })
+  it('periodoDaUrl: sem params cai nos últimos 7 dias', () => {
+    expect(periodoDaUrl(new URLSearchParams(), HOJE)).toEqual({
+      periodo: '7dias',
+      intervalo: { de: '2026-09-27', ate: HOJE },
+      personalizado: false,
+    })
+    expect(periodoDaUrl({}, HOJE)).toEqual({ periodo: '7dias', intervalo: intervaloRapido('7dias', HOJE), personalizado: false })
+    expect(periodoDaUrl({ de: null, ate: null }, HOJE).periodo).toBe('7dias')
+  })
+  it('periodoDaUrl: de/ate válidos viram período personalizado', () => {
+    const esperado = { periodo: 'personalizado', intervalo: { de: '2026-10-01', ate: '2026-10-03' }, personalizado: true }
+    expect(periodoDaUrl(new URLSearchParams('de=2026-10-01&ate=2026-10-03'), HOJE)).toEqual(esperado)
+    expect(periodoDaUrl({ de: '2026-10-01', ate: '2026-10-03' }, HOJE)).toEqual(esperado)
+    // mesmo dia é válido
+    expect(periodoDaUrl({ de: '2026-09-15', ate: '2026-09-15' }, HOJE)).toEqual({
+      periodo: 'personalizado',
+      intervalo: { de: '2026-09-15', ate: '2026-09-15' },
+      personalizado: true,
+    })
+    // a data de "hoje" (injetada) entra no intervalo
+    expect(periodoDaUrl({ de: '2026-10-01', ate: HOJE }, HOJE).intervalo).toEqual({ de: '2026-10-01', ate: '2026-10-03' })
+  })
+  it('periodoDaUrl: um lado só, data inexistente, invertida ou no futuro cai no padrão sem lançar', () => {
+    const padrao = { periodo: '7dias', intervalo: intervaloRapido('7dias', HOJE), personalizado: false }
+    expect(() => periodoDaUrl({ de: 'ontem', ate: 'hoje' }, HOJE)).not.toThrow()
+    expect(periodoDaUrl({ de: 'ontem', ate: 'hoje' }, HOJE)).toEqual(padrao)
+    expect(periodoDaUrl({ de: '2026-02-31', ate: '2026-03-05' }, HOJE)).toEqual(padrao) // dia que não existe
+    expect(periodoDaUrl(new URLSearchParams('de=2026-10-02&ate=2026-10-01'), HOJE)).toEqual(padrao) // invertido
+    expect(periodoDaUrl({ de: '2026-09-01', ate: '2026-10-04' }, HOJE)).toEqual(padrao) // ate no futuro
+    expect(periodoDaUrl({ de: '2026-10-01' }, HOJE)).toEqual(padrao) // só um lado
+    expect(periodoDaUrl({ ate: '2026-09-30' }, HOJE)).toEqual(padrao)
+  })
+  it('chaveIntervalo e juntarFiltros alimentam o link compartilhável', () => {
+    expect(chaveIntervalo({ de: '2026-10-01', ate: '2026-10-03' })).toBe('2026-10-01|2026-10-03')
+    const base = new URLSearchParams('de=2026-10-01&ate=2026-10-03&tipo=SAIDA&q=coca')
+    expect(juntarFiltros(base, { tipo: null, q: ' ' }).toString()).toBe('de=2026-10-01&ate=2026-10-03')
+    expect(juntarFiltros(base, { de: null, ate: null, tipo: 'ENTRADA' }).toString()).toBe('tipo=ENTRADA&q=coca')
+    expect(juntarFiltros(base, { q: 'guaraná' }).get('q')).toBe('guaraná')
+  })
+})
+
+describe('totais das movimentações na tela', () => {
+  it('lista vazia zera tudo', () => {
+    expect(totaisPorGrupo([])).toEqual({
+      lancamentos: 0,
+      entradas: { qtd: 0, soma: 0 },
+      saidas: { qtd: 0, soma: 0 },
+      ajustes: { qtd: 0, soma: 0 },
+    })
+  })
+  it('soma o delta por grupo: VENDA conta em saídas, CORRECAO em ajustes', () => {
+    const movs = [
+      mov('ENTRADA', 10, 1),
+      mov('DEVOLUCAO', 2, 2),
+      mov('SAIDA', -3, 3),
+      mov('VENDA', -4, 4),
+      mov('AJUSTE', 1, 5),
+      mov('CORRECAO', -2, 6),
+    ]
+    expect(totaisPorGrupo(movs)).toEqual({
+      lancamentos: 6,
+      entradas: { qtd: 2, soma: 12 },
+      saidas: { qtd: 2, soma: -7 },
+      ajustes: { qtd: 2, soma: -1 },
+    })
+  })
+  it('só ajustes: entradas e saídas ficam zeradas', () => {
+    expect(totaisPorGrupo([mov('CORRECAO', 3)])).toEqual({
+      lancamentos: 1,
+      entradas: { qtd: 0, soma: 0 },
+      saidas: { qtd: 0, soma: 0 },
+      ajustes: { qtd: 1, soma: 3 },
+    })
   })
 })
 
