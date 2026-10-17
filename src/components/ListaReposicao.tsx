@@ -1,7 +1,7 @@
 import { Pencil, Target, type LucideIcon } from 'lucide-react'
 import { useEffect, useRef, type ReactNode } from 'react'
 import type { ReposicaoProduto } from '../lib/estoque'
-import { formatarNumero } from '../lib/formato'
+import { formatarEmbalagens, formatarNumero } from '../lib/formato'
 import type { Produto } from '../lib/tipos'
 import { BadgeReposicao, Cobertura, Vazio, cx } from './ui'
 
@@ -22,12 +22,28 @@ export interface ListaReposicaoProps {
 }
 
 /**
+ * Texto das embalagens da sugestão de compra ("2 emb."), idêntico ao do PDF exportado.
+ *
+ * Não recalcula nada: delega a `formatarEmbalagens` (a mesma função usada por
+ * `embalagens()` em `lib/exportar/lista-compra.ts`), com a sugestão já arredondada por
+ * `sugerirCompra()` e o conteúdo da embalagem que vem do próprio produto.
+ * Devolve `null` quando o produto não tem embalagem (ou a sugestão é zero).
+ */
+export function textoEmbalagensSugestao(produto: Pick<Produto, 'conteudo_embalagem'>, sugestaoCompra: number): string | null {
+  return formatarEmbalagens(sugestaoCompra, produto.conteudo_embalagem)
+}
+
+/**
  * Lista de reposição: uma linha por produto (a compra é decidida por produto, não por lote).
  * A cor de fundo segue apenas a pior situação de LOTE — reposição não colore linha,
  * aparece no badge (ícone + texto), que não depende só de cor.
  *
  * Com `selecionados` + `aoAlternar` cada linha ganha um checkbox para a lista de compras;
  * a linha marcada recebe apenas um fundo suave (a cor de alerta continua sendo a do lote).
+ *
+ * Na sugestão de compra aparece a quantidade E o nº de embalagens ("Comprar 8 kg (2 emb.)"),
+ * com a mesma contagem que o PDF leva ao fornecedor. Produto sem conteúdo por embalagem
+ * continua vendo só a quantidade.
  */
 export function ListaReposicao({ itens, aoEditar, vazio, selecionados, aoAlternar, aoMarcarTodosToggle }: ListaReposicaoProps) {
   const selecionavel = !!selecionados && !!aoAlternar
@@ -79,12 +95,15 @@ export function ListaReposicao({ itens, aoEditar, vazio, selecionados, aoAlterna
         {itens.map(item => {
           const { produto, saldo, minimo, situacao, situacaoLote } = item
           const marcado = selecionados?.has(produto.id) ?? false
+          // Só aparece quando a sugestão é positiva; "2 emb." é exatamente o texto do PDF.
+          const embalagens = item.sugestaoCompra > 0 ? textoEmbalagensSugestao(produto, item.sugestaoCompra) : null
           return (
             <li
               key={produto.id}
               data-reposicao={produto.id}
               data-situacao={situacao}
               data-selecionado={selecionavel ? marcado : undefined}
+              data-embalagens={embalagens ?? undefined}
               className={cx('px-4 py-3 transition', `linha-${situacaoLote}`, marcado && 'bg-emerald-50/60')}
             >
               <div className={grade}>
@@ -147,7 +166,14 @@ export function ListaReposicao({ itens, aoEditar, vazio, selecionados, aoAlterna
                   Comprar{' '}
                   <strong className="tabular-nums">
                     {formatarNumero(item.sugestaoCompra)} {produto.unidade}
-                  </strong>{' '}
+                  </strong>
+                  {embalagens && (
+                    <>
+                      {' ('}
+                      <strong className="tabular-nums">{embalagens}</strong>
+                      {')'}
+                    </>
+                  )}{' '}
                   para voltar ao mínimo
                 </p>
               )}

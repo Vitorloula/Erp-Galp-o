@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs'
 import { describe, expect, it } from 'vitest'
 import { filtrarItensCompra, montarReposicao } from '../estoque'
-import { hojeISO, somarDias } from '../formato'
+import { formatarEmbalagens, formatarNumero, hojeISO, somarDias } from '../formato'
 import type { Lote, Produto } from '../tipos'
 import { gerarListaCompraExcel, gerarListaCompraPdf, nomeArquivoListaCompra } from './lista-compra'
 
@@ -154,5 +154,13 @@ describe('exportar lista de compras', () => {
     expect(pdf.length).toBeGreaterThan(5000)
     const vazio = Buffer.from(await (await gerarListaCompraPdf([], 'Empresa Teste', { geradoEm })).arrayBuffer())
     expect(vazio.subarray(0, 5).toString()).toBe('%PDF-')
+  })
+
+  it('PDF: a coluna Comprar traz a mesma frase da tela ("8 kg (2 emb.)")', async () => {
+    const [p] = itens
+    expect(p.produto.id).toBe('p')
+    const emb = formatarEmbalagens(p.sugestaoCompra, p.produto.conteudo_embalagem)
+    // Exatamente o que `gerarListaCompraPdf` monta: `${textoNumero(...)} ${unidade}${emb ? ` (${emb})` : ''}`.
+    expect(`${formatarNumero(p.sugestaoCompra)} ${p.unidade}${emb ? ` (${emb})` : ''}`).toBe('8 kg (2 emb.)')
   })
 })

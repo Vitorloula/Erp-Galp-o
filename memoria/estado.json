@@ -1,15 +1,53 @@
 {
   "backlog": [
     {
-      "titulo": "ListaReposicao.tsx nunca é usada: tela de reposição em /estoque?filtro=abaixo não tem cobertura/sugestão de compra",
-      "prioridade": 1,
-      "tipo": "bug",
-      "detalhe": "buscar_no_codigo('ListaReposicao') só acha o próprio arquivo; Estoque.tsx e Painel.tsx não importam o componente. O filtro 'abaixo' reusa a tabela de lotes, sem Cobertura nem 'Comprar N para voltar ao mínimo', que é exatamente a informação que o comprador precisa.",
-      "criterios": "aoEditar ligado; Cobertura, badge de reposição e sugestão aparecem; sem regressão em montarReposicao.",
-      "id": "T-007",
-      "criado_em": "2026-10-17T13:55:00.884114"
+      "titulo": "Estoque.tsx calcula 'precisa repor' por três caminhos diferentes (chip, lista e tabela)",
+      "prioridade": 2,
+      "tipo": "refatoracao",
+      "detalhe": "Estoque.tsx: contagem.abaixo recalcula montarReposicao() sobre os produtos filtrados; visiveisReposicao usa montarReposicao() sem filtro de categoria/busca; o filtro por linha usa useCallbackMap(situacaoReposicao por produto). Três derivações da mesma regra de lib/estoque.ts dentro da mesma tela — risco do chip mostrar N e a lista mostrar M.",
+      "criterios": "Um único useMemo derivado de montarReposicao(produtos, lotes) alimenta chip, lista e contagem, com os filtros aplicados depois (precisaRepor + produtoCombina/categoria); teste em regras.test.ts prova contagem === itens.length com e sem filtro.",
+      "id": "T-009",
+      "criado_em": "2026-10-17T14:04:16.177284"
+    },
+    {
+      "titulo": "Modal 'Estoque mínimo' fecha sem devolver o foco e sem sinal do que mudou na lista",
+      "prioridade": 2,
+      "tipo": "acessibilidade",
+      "detalhe": "src/components/ReposicaoForm.tsx abre via setEditando(produto) a partir do botão 'Mínimo' em ListaReposicao; ao salvar, aoFechar() desmonta o modal sem restaurar foco ao botão de origem (WCAG 2.4.3). Como o recarregar('catalogo') atualiza a lista por baixo, o operador não consegue perceber se o item saiu ou não da lista de compras.",
+      "criterios": "Após salvar ou cancelar, o foco volta ao botão 'Mínimo' do mesmo produto quando ele continua na lista; se o produto saiu da lista (mínimo desligado), o foco vai para o campo de busca; toast já existente continua.",
+      "id": "T-008",
+      "criado_em": "2026-10-17T14:04:19.546716"
+    },
+    {
+      "titulo": "Sem sugestão de estoque mínimo: produto sem mínimo nunca entra em 'Repor'",
+      "prioridade": 3,
+      "tipo": "feature",
+      "detalhe": "montarReposicao() filtra sem_minimo por padrão, então no primeiro uso (catálogo sem mínimo) a tela Repor aparece vazia e o operador precisa abrir produto por produto. movimentos já estão disponíveis via lib/dados/movimentos.ts para estimar consumo médio.",
+      "criterios": "ReposicaoForm sugere um mínimo (ex.: consumo dos últimos 30 dias) como texto com botão 'Usar'; sem mínimo não há bloqueio da tela Repor; teste puro da função de sugestão.",
+      "id": "T-010",
+      "criado_em": "2026-10-17T14:04:22.598673"
+    },
+    {
+      "titulo": "Lista de compras não leva à entrada de estoque do que foi comprado",
+      "prioridade": 3,
+      "tipo": "feature",
+      "detalhe": "Depois de baixar Excel/PDF o operador precisa reencontrar o produto em /movimentar. ListaReposicao já tem produto, sugestaoCompra e pode saber se pode.movimentar: dá para pré-preencher a entrada com a quantidade sugerida.",
+      "criterios": "Item da lista com link 'Entrada' para /movimentar?tipo=entrada&produto=<id>, visível apenas com pode.movimentar, sem interferir no checkbox da lista de compras.",
+      "id": "T-012",
+      "criado_em": "2026-10-17T14:04:25.136148"
     }
   ],
-  "concluidos": [],
+  "concluidos": [
+    {
+      "titulo": "Lista de compras mostra 'Comprar 8 kg' sem dizer quantas embalagens comprar",
+      "prioridade": 1,
+      "tipo": "ux",
+      "detalhe": "src/components/ListaReposicao.tsx (~linha 158) renderiza item.sugestaoCompra cru. O export (lib/exportar/lista-compra.ts, função embalagens()) já usa formatarEmbalagens() e o PDF mostra '8 kg (2 emb.)'. Na tela o operador precisa dividir de cabeça pelo conteudo_embalagem. formatarEmbalagens() em lib/formato.ts:163 retorna '2 emb.'.",
+      "criterios": "Linha com sugestaoCompra>0 e conteudo_embalagem>0 exibe 'Comprar 8 kg (2 emb.) para voltar ao mínimo'; sem conteúdo por embalagem o texto atual fica idêntico; data-embalagens no <li> para teste; novo teste em regras.test.ts/lista-compra.test.ts garante mesma contagem de embalagens da tela e do PDF.",
+      "id": "T-011",
+      "criado_em": "2026-10-17T14:04:12.957040",
+      "concluido_em": "2026-10-17T14:08:26.990796"
+    }
+  ],
   "ciclos": 0
 }
