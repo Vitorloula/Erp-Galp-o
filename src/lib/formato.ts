@@ -1,4 +1,4 @@
-import type { TipoMov, Unidade } from './tipos'
+import type { Movimentacao, TipoMov, Unidade } from './tipos'
 
 export const UNIDADES: { valor: Unidade; nome: string }[] = [
   { valor: 'L', nome: 'Litros (L)' },
@@ -33,6 +33,39 @@ export function grupoDoTipo(tipo: TipoMov): 'entrada' | 'saida' | 'ajuste' {
   if (tipo === 'AJUSTE' || tipo === 'CORRECAO') return 'ajuste'
   if (tipo === 'SAIDA' || tipo === 'VENDA' || tipo === 'TRANSF_SAIDA') return 'saida'
   return 'entrada'
+}
+
+/** Quantas movimentações de um grupo e a soma do efeito no saldo (saídas somam negativo). */
+export interface TotalGrupo {
+  qtd: number
+  soma: number
+}
+
+export interface TotaisMov {
+  lancamentos: number
+  entradas: TotalGrupo
+  saidas: TotalGrupo
+  ajustes: TotalGrupo
+}
+
+/**
+ * Total do que está na tela: nº de lançamentos e soma de `delta` por grupo.
+ * Puro (sem Dados/Produto) para rodar no rodapé da lista sem consulta extra.
+ */
+export function totaisPorGrupo(movs: readonly Movimentacao[]): TotaisMov {
+  const totais: TotaisMov = {
+    lancamentos: movs.length,
+    entradas: { qtd: 0, soma: 0 },
+    saidas: { qtd: 0, soma: 0 },
+    ajustes: { qtd: 0, soma: 0 },
+  }
+  for (const m of movs) {
+    const grupo = grupoDoTipo(m.tipo)
+    const alvo = grupo === 'entrada' ? totais.entradas : grupo === 'saida' ? totais.saidas : totais.ajustes
+    alvo.qtd += 1
+    alvo.soma += m.delta
+  }
+  return totais
 }
 
 /**

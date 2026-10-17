@@ -1,15 +1,19 @@
 import { RotateCcw } from 'lucide-react'
 import { Link } from 'react-router'
 import { useDados } from '../contexto/Dados'
-import { NOME_TIPO, diferencaDias, formatarData, formatarDelta, formatarHora, formatarValidade, hojeISO } from '../lib/formato'
-import type { Movimentacao } from '../lib/tipos'
+import { NOME_TIPO, diferencaDias, formatarData, formatarDelta, formatarHora, formatarValidade, hojeISO, totaisPorGrupo } from '../lib/formato'
+import type { Movimentacao, Unidade } from '../lib/tipos'
 import { IconeTipo, cx } from './ui'
 
-interface Props {
+export interface ListaMovimentacoesProps {
   movimentacoes: Movimentacao[]
   aoCorrigir?: (m: Movimentacao) => void
   mostrarProduto?: boolean
   agruparPorDia?: boolean
+  /** Rodapé com o total do que está na tela (nº de lançamentos e soma por grupo). */
+  resumo?: boolean
+  /** Unidade por produto, para os totais quando a lista mistura unidades. Default: useDados. */
+  unidadeDoProduto?: (produtoId: string) => Unidade | ''
 }
 
 function rotuloDia(iso: string): string {
@@ -20,9 +24,21 @@ function rotuloDia(iso: string): string {
   return formatarData(dia)
 }
 
-export function ListaMovimentacoes({ movimentacoes, aoCorrigir, mostrarProduto = true, agruparPorDia = true }: Props) {
+export function ListaMovimentacoes({
+  movimentacoes,
+  aoCorrigir,
+  mostrarProduto = true,
+  agruparPorDia = true,
+  resumo = false,
+  unidadeDoProduto,
+}: ListaMovimentacoesProps) {
   const { produtoPorId, lotePorId } = useDados()
   const corrigidas = new Set(movimentacoes.filter(m => m.referencia_id).map(m => m.referencia_id))
+  const unidadeDe = unidadeDoProduto ?? ((produtoId: string) => produtoPorId.get(produtoId)?.unidade ?? '')
+  const totais = resumo && movimentacoes.length > 0 ? totaisPorGrupo(movimentacoes) : null
+  // Só mostra a unidade no total quando a lista inteira é do mesmo produto (ex.: histórico dentro do produto).
+  const unidades = new Set(movimentacoes.map(m => unidadeDe(m.produto_id)))
+  const unidadeTotal = unidades.size === 1 ? ([...unidades][0] ?? '') : ''
 
   let diaAnterior = ''
   return (
@@ -79,6 +95,27 @@ export function ListaMovimentacoes({ movimentacoes, aoCorrigir, mostrarProduto =
           )
         })}
       </ul>
+      {totais && (
+        <div
+          className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-600"
+          aria-live="polite"
+          aria-atomic="true"
+          data-resumo-movimentacoes
+        >
+          <span className="font-semibold text-slate-700 tabular-nums">
+            {totais.lancamentos} lançamento{totais.lancamentos === 1 ? '' : 's'}
+          </span>
+          <span className="tabular-nums">
+            Entradas <strong className="font-bold text-emerald-700">{formatarDelta(totais.entradas.soma, unidadeTotal)}</strong>
+          </span>
+          <span className="tabular-nums">
+            Saídas <strong className="font-bold text-red-700">{formatarDelta(totais.saidas.soma, unidadeTotal)}</strong>
+          </span>
+          <span className="tabular-nums">
+            Ajustes <strong className="font-bold text-violet-700">{formatarDelta(totais.ajustes.soma, unidadeTotal)}</strong>
+          </span>
+        </div>
+      )}
     </div>
   )
 }

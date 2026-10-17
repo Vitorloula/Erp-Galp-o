@@ -1,5 +1,6 @@
 import { ArrowDownToLine, ArrowUpFromLine, FileSpreadsheet, FileText, LoaderCircle, RotateCcw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { useToast } from '../components/Toast'
 import { Aviso, BadgeSituacao, BadgeTipo, Cabecalho, Carregando, Kpi, Segmentado, cx } from '../components/ui'
 import { useDados } from '../contexto/Dados'
@@ -7,7 +8,7 @@ import { useAtiva } from '../contexto/Empresa'
 import { movimentos } from '../lib/dados'
 import type { Secoes } from '../lib/exportar/excel'
 import { formatarDataHora, formatarNumero, formatarValidade, hojeISO } from '../lib/formato'
-import { PERIODOS, intervaloParaInstantes, intervaloRapido, type Intervalo, type PeriodoRapido } from '../lib/periodos'
+import { PERIODOS, intervaloParaInstantes, intervaloRapido, periodoDaUrl, type Intervalo, type PeriodoRapido } from '../lib/periodos'
 import { baixarArquivo, montarRelatorio, nomeArquivo, tituloEmpresa } from '../lib/relatorio'
 import type { Movimentacao } from '../lib/tipos'
 
@@ -18,8 +19,11 @@ export function Relatorios() {
   const { empresa, loja, lojas } = useAtiva()
   const titulo = tituloEmpresa(empresa.nome, loja.nome, (lojas?.length ?? 0) > 1)
   const toast = useToast()
-  const [periodo, setPeriodo] = useState<PeriodoRapido>('7dias')
-  const [personalizado, setPersonalizado] = useState<Intervalo>(() => intervaloRapido('mes'))
+  const [params, setParams] = useSearchParams()
+  // Abrir /relatorios?de=2026-10-01&ate=2026-10-15 já mostra o período do link (link salvo ou compartilhado).
+  const [inicial] = useState(() => periodoDaUrl(params, hojeISO()))
+  const [periodo, setPeriodo] = useState<PeriodoRapido>(inicial.periodo)
+  const [personalizado, setPersonalizado] = useState<Intervalo>(inicial.intervalo)
   const [produtoId, setProdutoId] = useState('')
   const [movs, setMovs] = useState<Movimentacao[] | null>(null)
   const [erro, setErro] = useState('')
@@ -28,6 +32,23 @@ export function Relatorios() {
   const [gerando, setGerando] = useState<'xlsx' | 'pdf' | null>(null)
 
   const intervalo = periodo === 'personalizado' ? personalizado : intervaloRapido(periodo)
+
+  function refletirNaUrl(p: PeriodoRapido, i: Intervalo) {
+    const proximo = new URLSearchParams(params)
+    if (p === 'personalizado') {
+      proximo.set('de', i.de)
+      proximo.set('ate', i.ate)
+    } else {
+      proximo.delete('de')
+      proximo.delete('ate')
+    }
+    setParams(proximo, { replace: true })
+  }
+
+  function escolherPeriodo(p: PeriodoRapido) {
+    setPeriodo(p)
+    refletirNaUrl(p, p === 'personalizado' ? personalizado : intervaloRapido(p))
+  }
 
   useEffect(() => {
     let ativo = true
@@ -75,9 +96,15 @@ export function Relatorios() {
       <div className="cartao mb-5 space-y-4 p-4">
         <div>
           <p className="rotulo">Período</p>
-          <div className="flex flex-wrap gap-2">
+          <div role="group" aria-label="Período" className="flex flex-wrap gap-2">
             {PERIODOS.map(p => (
-              <button key={p.valor} onClick={() => setPeriodo(p.valor)} className={cx('chip', periodo === p.valor ? 'chip-ativo' : 'chip-inativo')}>
+              <button
+                key={p.valor}
+                type="button"
+                aria-pressed={periodo === p.valor}
+                onClick={() => escolherPeriodo(p.valor)}
+                className={cx('chip', periodo === p.valor ? 'chip-ativo' : 'chip-inativo')}
+              >
                 {p.nome}
               </button>
             ))}
@@ -94,8 +121,10 @@ export function Relatorios() {
               max={intervalo.ate}
               onChange={e => {
                 if (!e.target.value) return
-                setPersonalizado({ de: e.target.value, ate: intervalo.ate })
+                const novo = { de: e.target.value, ate: intervalo.ate }
+                setPersonalizado(novo)
                 setPeriodo('personalizado')
+                refletirNaUrl('personalizado', novo)
               }}
             />
           </div>
@@ -110,8 +139,10 @@ export function Relatorios() {
               max={hojeISO()}
               onChange={e => {
                 if (!e.target.value) return
-                setPersonalizado({ de: intervalo.de, ate: e.target.value })
+                const novo = { de: intervalo.de, ate: e.target.value }
+                setPersonalizado(novo)
                 setPeriodo('personalizado')
+                refletirNaUrl('personalizado', novo)
               }}
             />
           </div>
