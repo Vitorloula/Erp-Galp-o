@@ -2,20 +2,16 @@ import { defineConfig } from '@playwright/test'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-// O Playwright usa "taskkill" para encerrar os servidores no Windows; alguns terminais
-// (ex.: Git Bash) não têm o System32 no PATH, e o encerramento ficaria travado.
+// O Playwright usa "taskkill" para encerrar os servidores no Windows...
 if (process.platform === 'win32') {
   const system32 = join(process.env.SystemRoot ?? 'C:\\Windows', 'System32')
   const caminhos = (process.env.PATH ?? '').split(';')
   if (!caminhos.some(c => c.toLowerCase() === system32.toLowerCase())) process.env.PATH = [...caminhos, system32].join(';')
 }
 
-// Datas dos testes (Node), do navegador e das empresas (America/Sao_Paulo) no mesmo fuso,
-// para "hoje" ser o mesmo dia em todos — inclusive no CI, que roda em UTC.
 const FUSO = 'America/Sao_Paulo'
 process.env.TZ = FUSO
 
-/** Vídeo da câmera falsa (um código EAN-13 na frente da "câmera"), gerado em e2e/preparar.ts. */
 export const VIDEO_CAMERA = join(tmpdir(), 'galpao-e2e-camera.y4m')
 export const VIDEO_SEM_CODIGO = join(tmpdir(), 'galpao-e2e-camera-sem-codigo.y4m')
 
@@ -26,11 +22,11 @@ const cameraFalsa = (video: string) => ({
 
 const APP = 'http://localhost:5180'
 const SERVIDOR_LOCAL = 'http://localhost:5182'
-// Banco novo a cada execução, para não tocar no banco local de verdade.
 const BANCO_SERVIDOR_LOCAL = join(tmpdir(), `galpao-e2e-banco-${process.pid}`)
 
-// Usa o Microsoft Edge já instalado no Windows (não precisa baixar navegador).
-const navegador = { channel: 'msedge' as const }
+// INTELIGÊNCIA HÍBRIDA: Usa Edge no Windows (seu PC) e Chromium no CI (Linux)
+const navegador = { channel: process.env.CI ? undefined : ('msedge' as const) }
+
 const computador = { viewport: { width: 1366, height: 900 } }
 const celular = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }
 
@@ -42,25 +38,18 @@ export default defineConfig({
   timeout: 45_000,
   expect: { timeout: 8_000 },
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
-  // O aplicativo instalável (service worker) fica desligado, exceto no projeto "pwa".
   use: { locale: 'pt-BR', timezoneId: FUSO, trace: 'retain-on-failure', screenshot: 'only-on-failure', acceptDownloads: true, serviceWorkers: 'block' },
   projects: [
-    // Telas do sistema, cada teste com a própria empresa de exemplo no banco real (PGlite).
     { name: 'app-computador', testMatch: 'app/**/*.spec.ts', use: { ...navegador, ...computador, baseURL: APP } },
     { name: 'app-celular', testMatch: 'app/**/*.spec.ts', use: { ...navegador, ...celular, baseURL: APP } },
     { name: 'camera', testMatch: 'camera/leitor.spec.ts', use: { ...navegador, ...celular, baseURL: APP, ...cameraFalsa(VIDEO_CAMERA) } },
     { name: 'camera-sem-codigo', testMatch: 'camera/sem-codigo.spec.ts', use: { ...navegador, ...celular, baseURL: APP, ...cameraFalsa(VIDEO_SEM_CODIGO) } },
-    // Caixa (PDV): venda sem internet, dois caixas, relógio errado, balança.
     { name: 'pdv', testMatch: 'pdv/**/*.spec.ts', use: { ...navegador, ...computador, baseURL: APP } },
-    // Aplicativo instalado: o caixa recarrega e vende sem internet.
     { name: 'pwa', testMatch: 'pwa/**/*.spec.ts', use: { ...navegador, ...computador, baseURL: APP, serviceWorkers: 'allow' } },
-    // Login, cadastro, convites, papéis, assinatura e o que o app envia ao Supabase.
     { name: 'acesso', testMatch: 'acesso/**/*.spec.ts', use: { ...navegador, ...computador, baseURL: APP } },
-    // Servidor de desenvolvimento de verdade (npm run dev), com WebSocket real.
     { name: 'servidor-local', testMatch: 'servidor-local/**/*.spec.ts', use: { ...navegador, baseURL: SERVIDOR_LOCAL } },
   ],
   webServer: [
-    // Build de produção (o mesmo que vai para o ar), apontando para o Supabase dos testes.
     { command: 'node e2e/servidor.mjs 5180', url: APP, timeout: 180_000, reuseExistingServer: false },
     {
       command: 'node node_modules/vite/bin/vite.js --mode servidor --port 5182 --strictPort',

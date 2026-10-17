@@ -126,14 +126,19 @@ def rodar_testes(raiz: Path) -> tuple[bool, str]:
         print(f"✅ {nome} OK")
         return True, out
 
+    # 1. Tipagem
     ok, _ = _r("npx tsc --noEmit -p tsconfig.json", "tsc")
     if not ok:
         return False, "\n".join(logs)
 
-    ok, saida = _r("npx vitest run --reporter=dot", "vitest")
-    if not ok and "No test files found" in saida:
-        log("⚠️ Sem testes — não bloqueia.")
-    elif not ok:
+    # 2. Testes Unitários + Cobertura
+    ok, saida = _r("npx vitest run --coverage --reporter=dot", "vitest + coverage")
+    if not ok:
+        return False, "\n".join(logs)
+
+    # 3. Build de Produção
+    ok, _ = _r("npm run build", "vite build")
+    if not ok:
         return False, "\n".join(logs)
 
     return True, "\n".join(logs)
@@ -177,7 +182,7 @@ def executar_ciclo(equipe, tarefas, repo, num_ciclo, raiz) -> tuple[bool, str]:
     if testes_ok:
         aprovado = True
         motivo = ""
-        log("✅ Testes externos (tsc + vitest) passaram. Ciclo aprovado.")
+        log("✅ Testes externos (tsc + vitest + build) passaram. Ciclo aprovado.")
     else:
         aprovado = False
         motivo = f"Testes falharam. QA LLM disse: {motivo_llm}"

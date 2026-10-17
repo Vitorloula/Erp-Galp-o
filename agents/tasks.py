@@ -23,35 +23,32 @@ class TarefasERP:
             ),
             Task(
                 description=(
-                    "Com base no PLANO, defina: estrutura de componentes, props "
-                    "TypeScript, uso de Tailwind (classes concretas), breakpoints, "
-                    "estados loading/erro/vazio, a11y (aria-labels, foco, contraste). "
-                    "Cite componentes existentes a reutilizar (use buscar_no_codigo)."
+                    "Defina: estrutura de componentes, props TS, Tailwind, breakpoints, a11y. "
+                    "IMPORTANTE: Verifique se o componente já tem testes E2E (Playwright) na pasta 'e2e/'. "
+                    "Não altere IDs ou data-testid que os testes E2E dependem."
                 ),
-                expected_output="Diretrizes de UI/UX acionáveis (lista objetiva).",
+                expected_output="Diretrizes de UI/UX acionáveis.",
                 agent=designer,
             ),
             Task(
                 description=(
                     "Implemente o PLANO salvando CADA arquivo com 'escrever_arquivo'. "
-                    "Respeite 'regras_projeto.md' (alias '@/', Tailwind, lucide-react, "
-                    "Zustand). NUNCA exponha segredos. Ao final, rode "
-                    "'npx tsc --noEmit' e corrija erros de tipo antes de entregar."
+                    "Respeite 'regras_projeto.md'. NUNCA exponha segredos. "
+                    "ATENÇÃO: Se a tarefa exigir mudar algo na tela, leia o teste E2E correspondente em 'e2e/' "
+                    "e mantenha os seletores (data-testid, labels) intactos. "
+                    "Ao final, rode 'npx tsc --noEmit'."
                 ),
                 expected_output="Lista de arquivos criados/modificados + status do tsc.",
                 agent=programador,
             ),
             Task(
                 description=(
-                    "Valide: rode 'npx tsc --noEmit' e 'npx vitest run'. "
-                    "Atualize GUIA_DE_TESTES.md e DOCUMENTACAO_ERP.md via "
-                    "'escrever_arquivo'. Registre o ciclo com 'registrar_ciclo'. "
-                    "Se aprovado, marque o item do backlog como concluído "
-                    "('atualizar_backlog' acao='concluir'). "
-                    "FINALIZE com uma linha exata: 'VEREDITO: APROVADO' "
-                    "ou 'VEREDITO: REPROVADO — <motivo curto>'."
+                    "Valide rodando 'npx tsc --noEmit' e 'npx vitest run --coverage'. "
+                    "Se a cobertura for menor que 80%, escreva mais testes unitários. "
+                    "Atualize GUIA_DE_TESTES.md e DOCUMENTACAO_ERP.md. "
+                    "FINALIZE com uma linha exata: 'VEREDITO: APROVADO' ou 'VEREDITO: REPROVADO — <motivo>'."
                 ),
-                expected_output="Docs atualizados + linha 'VEREDITO: APROVADO|REPROVADO — motivo'.",
+                expected_output="Docs atualizados + veredito explícito.",
                 agent=qa,
             ),
         ]
