@@ -54,6 +54,7 @@ class TarefasERP:
                 description=(
                     "Implemente o PLANO salvando CADA arquivo com 'escrever_arquivo'.\n"
                     "Respeite 'regras_projeto.md'. NUNCA exponha segredos.\n\n"
+
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                     "🚨 REGRA 1 — ATUALIZAR TESTES E2E QUE VOCÊ QUEBROU\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -71,6 +72,7 @@ class TarefasERP:
                     "em vez de texto exato.\n"
                     "  - Se mudou um empty state, use asserção comportamental "
                     "(ex: `toHaveCount(0)` na lista) em vez de verificar texto.\n\n"
+
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                     "🚨 REGRA 2 — NUNCA USE count() EM ASSERÇÕES (NÃO AUTO-ESPERA)\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -85,6 +87,7 @@ class TarefasERP:
                     "Motivo: campos de busca no app têm debounce de ~300ms. Se você "
                     "usa `expect(await count())`, o teste lê o valor ANTES do debounce "
                     "disparar, e falha. `toHaveCount()` e `expect.poll()` retentam.\n\n"
+
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                     "🚨 REGRA 3 — COBRIR OPÇÕES DINÂMICAS COMPLETAMENTE\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -94,6 +97,7 @@ class TarefasERP:
                     "Exemplo: se adicionou uma 5ª seção ao PDF, inclua o nome dela "
                     "no loop `for (const secao of [...])` no relatorios.spec.ts.\n"
                     "Se adicionou uma 5ª aba ao Excel, inclua em `.toEqual([...])`.\n\n"
+
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                     "🚨 REGRA 4 — NUNCA REVERTER UI PARA TESTE PASSAR\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -102,6 +106,7 @@ class TarefasERP:
                     "não ser que a quebra seja um bug real introduzido por você.\n\n"
                     "❌ NUNCA comente ou pule um teste para fazer o ciclo passar.\n"
                     "❌ NUNCA use `.skip()` sem justificativa documentada no commit.\n\n"
+
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                     "🚨 REGRA 5 — REGEX FLEXÍVEL EM TOASTS E NOTIFICAÇÕES\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -121,6 +126,34 @@ class TarefasERP:
                     "Motivo: o toast pode sair SEM o código se o cache ainda não "
                     "propagou do banco. O produto É criado — o resto do teste já "
                     "valida isso. Exigir o código no toast torna o teste flaky.\n\n"
+                    "⚠️ VARREDURA OBRIGATÓRIA: procure em TODO o 'e2e/' por padrões "
+                    "como `\\(P\\d+\\)`, `#\\d+`, `\\d{4}-\\d{2}-\\d{2}` em toasts. "
+                    "Relaxe TODOS, não só o que quebrou.\n\n"
+
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    "🚨 REGRA 6 — BUSCA COM DEBOUNCE: ESPERAR OU CLICAR\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    "Campos de busca do app têm debounce de ~300ms. Se você faz:\n"
+                    "   `await fill('termo'); await press('Enter');`\n"
+                    "o Enter dispara ANTES dos resultados aparecerem → nada acontece.\n\n"
+                    "❌ ERRADO (fill seguido IMEDIATAMENTE de Enter):\n"
+                    "   `await page.getByLabel('Buscar').fill('oleo')`\n"
+                    "   `await page.getByLabel('Buscar').press('Enter')`\n"
+                    "   `await expect(item).toBeVisible()`  // falha, item não foi adicionado\n\n"
+                    "✅ CORRETO (espera o resultado aparecer, depois clica ou Enter):\n"
+                    "   `await page.getByLabel('Buscar').fill('oleo')`\n"
+                    "   `await expect(page.getByRole('button', { name: /Óleo/ })).toBeVisible()`\n"
+                    "   `await page.getByRole('button', { name: /Óleo/ }).click()`  // ← MAIS ROBUSTO\n\n"
+                    "OU (se o Enter for obrigatório):\n"
+                    "   `await page.getByLabel('Buscar').fill('oleo')`\n"
+                    "   `await expect(page.getByRole('button', { name: /Óleo/ })).toBeVisible()`\n"
+                    "   `await page.getByLabel('Buscar').press('Enter')`\n"
+                    "   `await expect.poll(() => item.count()).toBe(1)`\n\n"
+                    "Motivo: o `fill()` só preenche o input. Os resultados de busca "
+                    "só aparecem ~300ms depois (debounce). Se o Enter for disparado "
+                    "antes, o app não tem resultado pra adicionar. PREfira clicar no "
+                    "botão do produto (mais determinístico que Enter).\n\n"
+
                     "Ao final, rode 'npx tsc --noEmit' e "
                     "'npx playwright test --project=app-computador'."
                 ),
@@ -138,6 +171,7 @@ class TarefasERP:
                 description=(
                     "Valide rodando 'npx tsc --noEmit', 'npx vitest run --coverage' "
                     "e 'npx playwright test --project=app-computador'.\n\n"
+
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                     "🚨 REGRA CRÍTICA — TESTES DE ESTADO VAZIO E TOASTS\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -152,6 +186,7 @@ class TarefasERP:
                     "- Se um teste E2E falhar por causa de texto volátil, ATUALIZE o .spec.ts "
                     "para usar asserções comportamentais — NÃO mude o texto da UI só para "
                     "o teste passar.\n\n"
+
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                     "🚨 REGRA CRÍTICA — BUG REAL vs TESTE DESATUALIZADO\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -170,6 +205,7 @@ class TarefasERP:
                     "  - Texto mudou mas o comportamento ainda é correto.\n"
                     "  - Nova aba/seção foi adicionada mas o loop não cobre ela.\n"
                     "  - `expect(await count())` sem auto-espera (timing bug).\n\n"
+
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                     "🚨 REGRA CRÍTICA — TIMING / DEBOUNCE\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -179,6 +215,7 @@ class TarefasERP:
                     "  - `expect(await count())` lê ANTES do debounce disparar.\n"
                     "  - Solução: usar `await expect.poll(() => count()).toBeGreaterThan(3)`\n"
                     "    ou `await expect(locator).toHaveCount(N)`.\n\n"
+
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                     "🚨 REGRA CRÍTICA — TOASTS COM DADOS DINÂMICOS (FLAKY)\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -193,6 +230,24 @@ class TarefasERP:
                     "Solução: relaxar o regex do toast para `/Produto cadastrado/` "
                     "(sem o código), e validar o RESULTADO em outra asserção "
                     "(navegação, contagem, texto no detalhe).\n\n"
+
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    "🚨 REGRA CRÍTICA — BUSCA COM DEBOUNCE (ENTER CEDO DEMAIS)\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    "Se o teste falhar porque um item não apareceu após busca por nome:\n\n"
+                    "Sintoma: `Locator: [data-item=\"Óleo mineral adjuvante\"]` → not found, "
+                    "mesmo após `fill('oleo') + press('Enter')`.\n\n"
+                    "Causa: o `fill()` NÃO carrega os resultados da busca. Eles só aparecem "
+                    "~300ms depois (debounce). Se o `press('Enter')` dispara antes, o app "
+                    "não tem resultado pra adicionar.\n\n"
+                    "Solução no teste:\n"
+                    "  1) APÓS o `fill()`, espere o botão do produto aparecer:\n"
+                    "     `await expect(page.getByRole('button', { name: /Óleo/ })).toBeVisible()`\n"
+                    "  2) DEPOIS clique no botão (mais determinístico que Enter):\n"
+                    "     `await page.getByRole('button', { name: /Óleo/ }).click()`\n"
+                    "  3) OU use `expect.poll()` se precisar validar a adição:\n"
+                    "     `await expect.poll(() => item.count()).toBe(1)`\n\n"
+
                     "Se a cobertura for menor que 80%, escreva mais testes unitários.\n\n"
                     "Atualize GUIA_DE_TESTES.md e DOCUMENTACAO_ERP.md.\n\n"
                     "FINALIZE com uma linha exata: 'VEREDITO: APROVADO' ou "
@@ -226,7 +281,12 @@ class TarefasERP:
                 "  6) Se o teste falha por regex muito específico em toast "
                 "(ex: `/Produto cadastrado \\(P\\d+\\)\\./`): é FLAKY. "
                 "Relaxe o regex para `/Produto cadastrado/` e valide o resultado "
-                "em outra asserção.\n\n"
+                "em outra asserção.\n"
+                "  7) Se o teste falha porque um item não apareceu após busca por "
+                "nome (com `fill() + press('Enter')`), suspeite de DEBOUNCE: "
+                "o Enter disparou antes dos resultados carregarem. "
+                "Espere o botão do produto aparecer (getByRole().toBeVisible()) "
+                "e CLIQUE nele em vez de usar Enter.\n\n"
                 "❌ NUNCA comente ou pule um teste para fazer o ciclo passar.\n"
                 "❌ NUNCA reverta uma melhoria de UI só para um teste antigo passar.\n"
                 "❌ NUNCA use `expect(await locator.count()).toBeX()` — não auto-espera.\n\n"
@@ -237,7 +297,7 @@ class TarefasERP:
             ),
             expected_output=(
                 "Arquivos corrigidos + explicação do que era bug real vs teste "
-                "desatualizado vs flaky + confirmação de que o E2E passou."
+                "desatualizado vs flaky vs debounce + confirmação de que o E2E passou."
             ),
             agent=programador,
         )

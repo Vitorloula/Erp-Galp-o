@@ -64,8 +64,13 @@ test.describe('Caixa (PDV)', () => {
     await ler(page, '7899999999999')
     await expect(page.getByText('Código 7899999999999 não cadastrado.')).toBeVisible()
     await page.getByLabel('Código do produto').press('F2')
+    
+    // 🔧 CORREÇÃO: a busca tem debounce de ~300ms. NÃO usar `press('Enter')` 
+    // imediatamente após `fill()`, porque os resultados ainda não carregaram.
+    // Solução: esperar o botão do produto aparecer e CLICAR nele (mais determinístico).
     await page.getByLabel('Buscar no caixa').fill('oleo')
-    await page.getByLabel('Buscar no caixa').press('Enter')
+    await page.getByRole('button', { name: /Óleo mineral adjuvante/ }).click()
+    
     await expect(page.locator('[data-item="Óleo mineral adjuvante"]')).toBeVisible()
   })
 
