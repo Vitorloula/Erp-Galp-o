@@ -1,16 +1,19 @@
-import { formatarData, formatarDataHora, formatarNumero, formatarValidade } from '../formato'
+import { formatarData, formatarDataHora, formatarValidade } from '../formato'
 import type { Relatorio } from '../relatorio'
+import { CINZA_RGB, ESTILO_TABELA_PDF, VERDE_RGB, textoCobertura, textoGeradoEm, textoNumero } from './comum'
 import type { Secoes } from './excel'
 
-type RGB = [number, number, number]
-const VERDE: RGB = [4, 120, 87]
-const VERMELHO: RGB = [253, 226, 226]
-const AMARELO: RGB = [254, 243, 199]
-const CINZA: RGB = [100, 116, 139]
+/**
+ * Peças reaproveitadas pela lista de compras avulsa (`lista-compra.ts`):
+ * monta o documento com margens, rodapé numerado e as funções `titulo`/`legenda`.
+ */
+export const ESTILO = ESTILO_TABELA_PDF
+export const VERDE = VERDE_RGB
+export const CINZA = CINZA_RGB
 
-// As fontes padrão do PDF usam WinAnsi: "×" e "−" não existem; usamos "x" e o hífen comum.
-const num = (n: number, sinal = false) => (sinal && n > 0 ? '+' : '') + formatarNumero(n)
-const cobertura = (c: number | null) => (c === null ? '—' : `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(c)}x`)
+/** Mesma saída de antes (`pdf.ts`): `num` e `cobertura` locais agora vêm de `comum.ts`. */
+const num = textoNumero
+const cobertura = textoCobertura
 
 export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): Promise<Blob> {
   const [{ jsPDF }, { autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')])
@@ -19,6 +22,7 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
   const altura = doc.internal.pageSize.getHeight()
   const margem = 12
   const finalY = () => (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY
+  const estilo = { ...ESTILO, margin: { left: margem, right: margem } }
 
   // Cabeçalho
   doc.setFillColor(...VERDE)
@@ -32,7 +36,7 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   doc.setTextColor(71, 85, 105)
-  doc.text(`Período: ${formatarData(r.intervalo.de)} a ${formatarData(r.intervalo.ate)}   ·   Gerado em ${formatarDataHora(r.geradoEm.toISOString())}`, margem, 29)
+  doc.text(`Período: ${formatarData(r.intervalo.de)} a ${formatarData(r.intervalo.ate)}   ·   Gerado em ${textoGeradoEm(r.geradoEm)}`, margem, 29)
   const lancamentos = `Lançamentos no período: ${r.totais.entradas} entrada(s), ${r.totais.saidas} saída(s), ${r.totais.ajustes} ajuste(s)/correção(ões)`
   doc.text(secoes.compras ? `${lancamentos}   ·   Lista de compras: ${r.compras.length} produto(s)` : lancamentos, margem, 34)
   let y = 40
@@ -55,13 +59,6 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
     doc.setFontSize(8)
     doc.setTextColor(...CINZA)
     doc.text(texto, margem, y)
-  }
-
-  const estilo = {
-    styles: { fontSize: 7.5, cellPadding: 1.4, lineColor: [226, 232, 240] as RGB, lineWidth: 0.1 },
-    headStyles: { fillColor: VERDE, textColor: 255, fontStyle: 'bold' as const },
-    alternateRowStyles: { fillColor: [248, 250, 252] as RGB },
-    margin: { left: margem, right: margem },
   }
 
   if (secoes.resumo) {
@@ -117,10 +114,10 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
         if (d.section !== 'body') return
         const s = r.posicao[d.row.index]?.situacao
         if (s === 'vencido' || s === 'zerado') {
-          d.cell.styles.fillColor = VERMELHO
+          d.cell.styles.fillColor = [253, 226, 226]
           d.cell.styles.textColor = [153, 27, 27]
         } else if (s === 'vencendo') {
-          d.cell.styles.fillColor = AMARELO
+          d.cell.styles.fillColor = [254, 243, 199]
           d.cell.styles.textColor = [146, 64, 14]
         }
       },

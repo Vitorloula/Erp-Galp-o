@@ -1,5 +1,5 @@
 import { arred, canonizarCodigo, diferencaDias, exibirCodigo, hojeISO, normalizarBusca } from './formato'
-import type { Lote, Produto } from './tipos'
+import type { Lote, Produto, Unidade } from './tipos'
 
 /** Janela do alerta amarelo (vencimento próximo). */
 export const DIAS_ALERTA = 30
@@ -194,8 +194,16 @@ export function abaixoDoMinimo(saldo: number, minimo: number | null | undefined)
   return saldo <= minimo
 }
 
+/** Situação efetiva de compra: 'acima' e 'sem_minimo' nunca entram na lista de compras. */
+type SituacaoPedido = Extract<SituacaoReposicao, 'abaixo' | 'no_minimo'>
+
+/** Reduz a situação de reposição ao subconjunto que precisa de compra. */
+function comoSituacaoPedido(situacao: SituacaoReposicao): SituacaoPedido {
+  return situacao === 'no_minimo' ? 'no_minimo' : 'abaixo'
+}
+
 /** Produto já está no ponto de pedido (abaixo ou no mínimo): precisa de compra. */
-function noPontoDePedido(situacao: SituacaoReposicao): boolean {
+function noPontoDePedido(situacao: SituacaoReposicao): situacao is SituacaoPedido {
   return situacao === 'abaixo' || situacao === 'no_minimo'
 }
 
@@ -288,4 +296,59 @@ export function saldosPorProduto(lotes: Lote[]): Map<string, number> {
   const mapa = new Map<string, number>()
   for (const l of lotes) mapa.set(l.produto_id, Math.round(((mapa.get(l.produto_id) ?? 0) + l.saldo) * 1000) / 1000)
   return mapa
+}
+
+// ───────────────────────────── Lista de compras (seleção) ─────────────────────────────
+
+/**
+ * Uma linha da "Lista de compras" exportada: o produto já decidido por `montarReposicao()`
+ * (saldo, mínimo, cobertura e sugestão de compra) mais o texto de categoria/unidade.
+ */
+export interface ItemCompra {
+  produto: Produto
+  codigo: string
+  categoria: string
+  unidade: Unidade
+  saldo: number
+  minimo: number | null
+  cobertura: number | null
+  /** Já arredondada pelo conteúdo da embalagem (de `sugerirCompra()`). */
+  sugestaoCompra: number
+  situacao: SituacaoPedido
+}
+
+/**
+ * Recorte da lista de compras: mantém apenas os produtos marcados, NA ORDEM RECEBIDA
+ * (a de `montarReposicao()`: do mais crítico ao menos crítico).
+ *
+ * Nada é recalculado aqui: saldo/mínimo/cobertura/sugestão vêm de `ReposicaoProduto` — a
+ * decisão de "o que comprar e quanto" continua sendo só de `lib/estoque.ts`.
+ * - `selecionados` vazio ⇒ lista vazia;
+ * - id que não está na lista é ignorado (não quebra);
+ * - item no mínimo (`sugestaoCompra === 0`) é preservado: o operador pode querer comprar antes de zerar.
+ */
+export function filtrarItensCompra(
+  itens: readonly ReposicaoProduto[],
+  selecionados: ReadonlySet<string>,
+  nomeCategoria: (id: string | null) => string = () => '',
+): ItemCompra[] {
+  if (selecionados.size === 0) return []
+  const escolhidos: ItemCompra[] = []
+  for (const item of itens) {
+    if (!selecionados.has(item.produto.id)) continue
+    // Só entram produtos no ponto de pedido (é o que `montarReposicao` devolve por padrão).
+    if (!noPontoDePedido(item.situacao)) continue
+    escolhidos.push({
+      produto: item.produto,
+      codigo: item.produto.codigo_interno,
+      categoria: nomeCategoria(item.produto.categoria_id),
+      unidade: item.produto.unidade,
+      saldo: item.saldo,
+      minimo: item.minimo,
+      cobertura: item.cobertura,
+      sugestaoCompra: item.sugestaoCompra,
+      situacao: comoSituacaoPedido(item.situacao),
+    })
+  }
+  return escolhidos
 }

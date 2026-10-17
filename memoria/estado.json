@@ -1,5 +1,15 @@
 {
-  "backlog": [],
+  "backlog": [
+    {
+      "titulo": "ListaReposicao.tsx nunca é usada: tela de reposição em /estoque?filtro=abaixo não tem cobertura/sugestão de compra",
+      "prioridade": 1,
+      "tipo": "bug",
+      "detalhe": "buscar_no_codigo('ListaReposicao') só acha o próprio arquivo; Estoque.tsx e Painel.tsx não importam o componente. O filtro 'abaixo' reusa a tabela de lotes, sem Cobertura nem 'Comprar N para voltar ao mínimo', que é exatamente a informação que o comprador precisa.",
+      "criterios": "aoEditar ligado; Cobertura, badge de reposição e sugestão aparecem; sem regressão em montarReposicao.",
+      "id": "T-007",
+      "criado_em": "2026-10-17T13:55:00.884114"
+    }
+  ],
   "concluidos": [],
   "ciclos": 0
 }
