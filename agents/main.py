@@ -5,7 +5,7 @@ import subprocess
 import git
 from datetime import datetime
 from crewai import Crew, Process
-from agents import EquipeERP  # 👈 Importação corrigida
+from agents import EquipeERP
 from tasks import TarefasERP
 
 # Inicializa os Agentes e Tarefas
@@ -48,15 +48,20 @@ def rodar_pipeline_de_testes(repo_path):
 
 def preparar_ambiente_git(repo):
     try:
-        repo.git.checkout('main')
-        origin = repo.remote(name='origin')
-        origin.pull()
+        if repo.is_dirty(untracked_files=True):
+            print("💡 Dica: Existem alterações locais não comitadas.")
         
+        # Garante a troca para a branch principal local
+        try:
+            repo.git.checkout('main')
+        except Exception:
+            repo.git.checkout('master')
+            
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         branch_name = f"feature/ia-ui-autonoma-{timestamp}"
         
         repo.git.checkout('-b', branch_name)
-        print(f"🌿 Branch isolada criada: {branch_name}")
+        print(f"🌿 Branch isolada criada com sucesso: {branch_name}")
         return branch_name
     except Exception as e:
         print(f"⚠️ Erro no setup Git: {e}")
@@ -69,7 +74,7 @@ def finalizar_e_enviar_pr(repo, branch_name):
         
         if not repo.is_dirty(untracked_files=True):
             print("ℹ️ Nenhuma alteração detectada.")
-            return
+            return None
 
         commit_msg = f"feat(ia): ciclo autônomo com UI/UX concluído - {branch_name}"
         repo.index.commit(commit_msg)
