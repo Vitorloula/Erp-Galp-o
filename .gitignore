@@ -11,3 +11,8 @@ playwright-report
 servidor-local/dados.json
 servidor-local/*.tmp
 servidor-local/banco/
+
+
+# Ambiente dos agentes de IA
+agents/venv/
+agents/__pycache__
