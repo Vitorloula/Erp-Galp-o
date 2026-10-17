@@ -1,125 +1,285 @@
 # agentes/main.py
+import json
 import os
-import sys
+import re
+import shutil
 import subprocess
-import git
+import sys
+import traceback
+import threading
 from datetime import datetime
+from pathlib import Path
+
+import git
 from crewai import Crew, Process
+
 from agents import EquipeERP
 from tasks import TarefasERP
 
-# Inicializa os Agentes e Tarefas
-equipe = EquipeERP()
-tarefas = TarefasERP()
+# ---------------- Configuração ---------------- #
+MAX_CICLOS = int(os.getenv("MAX_CICLOS", "5"))
+MAX_CORRECOES_POR_CICLO = int(os.getenv("MAX_CORRECOES", "2"))
+TIMEOUT_GLOBAL_S = int(os.getenv("TIMEOUT_GLOBAL_S", str(60 * 90)))  # 90 min
+TIMEOUT_TESTES_S = 600
+MAX_CICLOS_SEM_PROGRESSO = 2
 
-arq = equipe.arquiteto()
-designer = equipe.designer_ui_ux()
-dev = equipe.programador()
-qa = equipe.qa_tester()
+VEREDITO_RE = re.compile(r"VEREDITO:\s*(APROVADO|REPROVADO)\s*[—\-:]?\s*(.*)", re.IGNORECASE)
 
-crew = Crew(
-    agents=[arq, designer, dev, qa],
-    tasks=tarefas.ciclo_autonomo_completo(arq, designer, dev, qa),
-    process=Process.sequential,
-    verbose=True
-)
+def log(msg):
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
 
-def rodar_pipeline_de_testes(repo_path):
-    print("\n🔍 [PIPELINE] Executando validações de qualidade de código...")
-    
-    print("👉 Verificando tipagem TypeScript (tsc)...")
-    res_tsc = subprocess.run(["npx", "tsc", "--noEmit"], cwd=repo_path, capture_output=True, text=True)
-    if res_tsc.returncode != 0:
-        print("❌ Erro: O código gerado possui falhas de tipagem TypeScript!")
-        print(res_tsc.stdout)
-        print(res_tsc.stderr)
-        return False
-    print("✅ Tipagem TypeScript aprovada!")
-
-    print("👉 Executando bateria de testes do projeto...")
-    res_test = subprocess.run(["npm", "test", "--", "--run"], cwd=repo_path, capture_output=True, text=True)
-    if res_test.returncode != 0:
-        print("⚠️ Aviso: Alguns testes automatizados falharam ou não foram encontrados.")
-        print(res_test.stdout)
-    else:
-        print("✅ Todos os testes passaram com sucesso!")
-
-    return True
-
-def preparar_ambiente_git(repo):
-    try:
-        if repo.is_dirty(untracked_files=True):
-            print("💡 Dica: Existem alterações locais não comitadas.")
-        
-        # Garante a troca para a branch principal local
-        try:
-            repo.git.checkout('main')
-        except Exception:
-            repo.git.checkout('master')
-            
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        branch_name = f"feature/ia-ui-autonoma-{timestamp}"
-        
-        repo.git.checkout('-b', branch_name)
-        print(f"🌿 Branch isolada criada com sucesso: {branch_name}")
-        return branch_name
-    except Exception as e:
-        print(f"⚠️ Erro no setup Git: {e}")
+def validar_ambiente(raiz: Path):
+    faltas = []
+    if not os.getenv("OPENAI_API_KEY"):
+        faltas.append("OPENAI_API_KEY não definida no .env")
+    for arq in ("package.json", "tsconfig.json"):
+        if not (raiz / arq).exists():
+            faltas.append(f"{arq} não encontrado na raiz")
+    if not shutil.which("npx"):
+        faltas.append("npx não encontrado no PATH")
+    if faltas:
+        for f in faltas:
+            print(f"❌ {f}")
         sys.exit(1)
+    log("✅ Ambiente validado.")
 
-def finalizar_e_enviar_pr(repo, branch_name):
+# ---------------- Git ---------------- #
+def detectar_branch(repo: git.Repo) -> str:
     try:
-        print("\n📦 Empacotando alterações validadas para o GitHub...")
-        repo.git.add(A=True)
-        
-        if not repo.is_dirty(untracked_files=True):
-            print("ℹ️ Nenhuma alteração detectada.")
-            return None
+        return repo.active_branch.name
+    except TypeError:
+        for nome in ("main", "master"):
+            if nome in [h.name for h in repo.heads]:
+                return nome
+        return "main"
 
-        commit_msg = f"feat(ia): ciclo autônomo com UI/UX concluído - {branch_name}"
-        repo.index.commit(commit_msg)
-        
-        origin = repo.remote(name='origin')
-        origin.push(refspec=f"{branch_name}:{branch_name}")
-        print(f"🚀 Push enviado com sucesso para a branch '{branch_name}'!")
-        
-        repo.git.checkout('main')
-        return branch_name
-    except Exception as e:
-        print(f"❌ Erro ao enviar para o GitHub: {e}")
+def preparar_git(repo: git.Repo) -> tuple[str, str]:
+    original = detectar_branch(repo)
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    nova = f"ia-autonoma/{ts}"
+    repo.git.checkout("-b", nova)
+    log(f"🌿 Branch: {nova} (de {original})")
+    return nova, original
+
+def snapshot_commit(repo: git.Repo, msg: str) -> str | None:
+    try:
+        repo.git.add(A=True)
+        if not repo.is_dirty(untracked_files=True):
+            return None
+        c = repo.index.commit(msg)
+        return c.hexsha
+    except Exception:
+        traceback.print_exc()
         return None
 
-if __name__ == "__main__":
-    print("="*60)
-    print("🤖 FÁBRICA AUTÓNOMA DE SOFTWARE (COM UI/UX) — ERP GALPÃO")
-    print("="*60)
+def rollback_para(repo: git.Repo, commit_sha: str):
+    try:
+        repo.git.reset("--hard", commit_sha)
+        repo.git.clean("-fd")
+        log(f"↩️ Rollback para {commit_sha[:8]}")
+    except Exception:
+        traceback.print_exc()
+
+def limpar_branch(repo: git.Repo, nova: str, original: str):
+    try:
+        repo.git.checkout("--", ".")
+        repo.git.clean("-fd")
+        repo.git.checkout(original)
+        repo.git.branch("-D", nova)
+    except Exception:
+        traceback.print_exc()
+
+# ---------------- Testes ---------------- #
+def instalar_deps(raiz: Path) -> bool:
+    log("📦 npm install...")
+    try:
+        # shell=True é essencial para o npm no Windows
+        r = subprocess.run("npm install --no-audit --no-fund", cwd=raiz, capture_output=True, text=True, timeout=600, shell=True)
+        if r.returncode != 0:
+            print((r.stderr or r.stdout)[-2000:])
+            return False
+        return True
+    except subprocess.TimeoutExpired:
+        return False
+
+def rodar_testes(raiz: Path) -> tuple[bool, str]:
+    logs = []
+    def _r(cmd, nome):
+        log(f"👉 {nome}")
+        try:
+            # shell=True essencial para o npx no Windows
+            r = subprocess.run(cmd, cwd=raiz, capture_output=True, text=True,
+                               timeout=TIMEOUT_TESTES_S, shell=True)
+        except subprocess.TimeoutExpired:
+            m = f"❌ Timeout: {cmd}"
+            logs.append(m); print(m); return False, m
+        out = (r.stdout or "") + "\n" + (r.stderr or "")
+        logs.append(f"=== {nome} (exit={r.returncode}) ===\n{out}")
+        if r.returncode != 0:
+            print(f"❌ {nome} falhou")
+            return False, out
+        print(f"✅ {nome} OK")
+        return True, out
+
+    ok, _ = _r("npx tsc --noEmit -p tsconfig.json", "tsc")
+    if not ok:
+        return False, "\n".join(logs)
+
+    ok, saida = _r("npx vitest run --reporter=dot", "vitest")
+    if not ok and "No test files found" in saida:
+        log("⚠️ Sem testes — não bloqueia.")
+    elif not ok:
+        return False, "\n".join(logs)
+
+    return True, "\n".join(logs)
+
+# ---------------- Veredito do QA ---------------- #
+def extrair_veredito(texto: str) -> tuple[bool, str]:
+    m = VEREDITO_RE.search(texto or "")
+    if not m:
+        return False, "QA não emitiu veredito explícito."
+    aprovado = m.group(1).upper() == "APROVADO"
+    motivo = (m.group(2) or "").strip()
+    return aprovado, motivo
+
+# ---------------- Loop principal ---------------- #
+def executar_ciclo(equipe, tarefas, repo, num_ciclo, raiz) -> tuple[bool, str]:
+    log(f"\n{'='*60}\n🔁 CICLO {num_ciclo}\n{'='*60}")
+
+    arq, design, dev, qa = (equipe.arquiteto(), equipe.designer_ui_ux(),
+                            equipe.programador(), equipe.qa_tester())
+
+    crew = Crew(
+        agents=[arq, design, dev, qa],
+        tasks=tarefas.ciclo_autonomo_completo(arq, design, dev, qa),
+        process=Process.sequential,
+        verbose=True,
+    )
+
+    try:
+        resultado = crew.kickoff()
+    except Exception:
+        traceback.print_exc()
+        return False, "Crew falhou."
+
+    texto_final = str(resultado)
+    aprovado, motivo = extrair_veredito(texto_final)
+
+    if not instalar_deps(raiz):
+        return False, "npm install falhou."
+
+    testes_ok, log_testes = rodar_testes(raiz)
+    if not testes_ok:
+        aprovado, motivo = False, f"Testes externos falharam. {motivo}"
+
+    tentativas = 0
+    while not aprovado and tentativas < MAX_CORRECOES_POR_CICLO:
+        tentativas += 1
+        log(f"🔧 Correção {tentativas}/{MAX_CORRECOES_POR_CICLO} — motivo: {motivo}")
+        try:
+            Crew(
+                agents=[dev],
+                tasks=[tarefas.tarefa_correcao(dev, motivo, log_testes)],
+                process=Process.sequential,
+                verbose=True,
+            ).kickoff()
+        except Exception:
+            traceback.print_exc(); break
+
+        if not instalar_deps(raiz):
+            break
+        testes_ok, log_testes = rodar_testes(raiz)
+        aprovado = testes_ok
+        motivo = "" if aprovado else "Ainda falhando após correção."
+
+    if aprovado:
+        log("✅ Ciclo aprovado.")
+        try:
+            Crew(agents=[qa], tasks=[tarefas.tarefa_fechamento(qa, True, texto_final[:2000])],
+                 process=Process.sequential, verbose=False).kickoff()
+        except Exception:
+            traceback.print_exc()
+    else:
+        log(f"❌ Ciclo reprovado: {motivo}")
+
+    return aprovado, motivo
+
+def main():
+    # Timeout compatível com Windows (usando Threading em vez de signal)
+    def _timeout_handler():
+        print("\n⏰ TIMEOUT GLOBAL — encerrando.")
+        os._exit(124)
     
-    raiz_projeto = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    repo_git = git.Repo(raiz_projeto)
-    
-    branch_ativa = preparar_ambiente_git(repo_git)
-    
-    print("\n🏗️ Executando ciclo autônomo (Arquiteto -> Designer -> Dev -> QA)...")
-    resultado = crew.kickoff()
-    
-    with open(os.path.join(raiz_projeto, "relatorio_melhorias.md"), "w", encoding="utf-8") as f:
-        f.write(str(resultado))
-        
-    testes_aprovados = rodar_pipeline_de_testes(raiz_projeto)
-    
-    if not testes_aprovados:
-        print("\n❌ [PIPELINE ABORTADO] O código gerado falhou nas validações locais.")
-        repo_git.git.checkout('main')
+    timer = threading.Timer(TIMEOUT_GLOBAL_S, _timeout_handler)
+    timer.daemon = True
+    timer.start()
+
+    raiz = Path(__file__).resolve().parent.parent
+    print("=" * 60)
+    print("🤖 FÁBRICA AUTÔNOMA AUTO-EVOLUTIVA — ERP GALPÃO")
+    print("=" * 60)
+    validar_ambiente(raiz)
+
+    repo = git.Repo(raiz)
+    branch_nova, branch_orig = preparar_git(repo)
+
+    equipe = EquipeERP()
+    tarefas = TarefasERP()
+
+    ciclos_sem_progresso = 0
+    aprovados, reprovados = 0, 0
+
+    try:
+        for i in range(1, MAX_CICLOS + 1):
+            snap = snapshot_commit(repo, f"checkpoint pré-ciclo {i}")
+            sha_antes = snap or repo.head.commit.hexsha
+
+            ok, motivo = executar_ciclo(equipe, tarefas, repo, i, raiz)
+
+            if ok:
+                aprovados += 1
+                ciclos_sem_progresso = 0
+                sha_ciclo = snapshot_commit(repo, f"feat(ia): ciclo {i} aprovado")
+                if sha_ciclo:
+                    log(f"📸 Commit ciclo {i}: {sha_ciclo[:8]}")
+            else:
+                reprovados += 1
+                ciclos_sem_progresso += 1
+                log(f"⚠️ Ciclo {i} reprovado — rollback para {sha_antes[:8]}")
+                rollback_para(repo, sha_antes)
+                if ciclos_sem_progresso >= MAX_CICLOS_SEM_PROGRESSO:
+                    log(f"🛑 {MAX_CICLOS_SEM_PROGRESSO} ciclos sem progresso — encerrando loop.")
+                    break
+    except Exception:
+        traceback.print_exc()
+        limpar_branch(repo, branch_nova, branch_orig)
         sys.exit(1)
-        
-    branch_enviada = finalizar_e_enviar_pr(repo_git, branch_ativa)
-    
-    print("\n" + "="*60)
-    print("🎉 CICLO AUTÓNOMO EXECUTADO COM SUCESSO!")
-    print("="*60)
-    if branch_enviada:
-        print(f"📌 Branch pronta no GitHub: {branch_enviada}")
-        print("📋 PRÓXIMOS PASSOS:")
-        print("  1. Leia o 'GUIA_DE_TESTES.md' e o 'DOCUMENTACAO_ERP.md' gerados na raiz.")
-        print("  2. Abra o Pull Request no GitHub e faça o Merge!")
-    print("="*60)
+    finally:
+        timer.cancel()
+
+    log(f"\n📊 Resultado: {aprovados} aprovados, {reprovados} reprovados")
+    try:
+        repo.git.add(A=True)
+        if repo.is_dirty(untracked_files=True):
+            repo.index.commit(f"feat(ia): sessão autônoma ({aprovados} ciclos aprovados)")
+        origin = repo.remote(name="origin")
+        if branch_nova in [r.name for r in origin.refs]:
+            origin.push(refspec=f"{branch_nova}:{branch_nova}", force_with_lease=True)
+        else:
+            origin.push(refspec=f"{branch_nova}:{branch_nova}")
+        log(f"🚀 Push: {branch_nova}")
+    except Exception:
+        log("❌ Push falhou:")
+        traceback.print_exc()
+        repo.git.checkout(branch_orig)
+        sys.exit(1)
+
+    repo.git.checkout(branch_orig)
+
+    print("\n" + "=" * 60)
+    print(f"🎉 SESSÃO AUTÔNOMA CONCLUÍDA — {aprovados} ciclos entregues")
+    print(f"📌 Branch: {branch_nova}")
+    print("=" * 60)
+
+if __name__ == "__main__":
+    main()
