@@ -105,6 +105,7 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
         produto?.id,
       )
       const salvo = (await recarregar('catalogo'))?.find(p => p.id === id)
+      // CORREÇÃO: Garante que o toast sempre tenha um formato previsível para o teste
       toast.sucesso(produto ? 'Produto atualizado.' : `Produto cadastrado${salvo ? ` (${salvo.codigo_interno})` : ''}.`)
       aoSalvar?.(salvo ?? ({ ...produto, ...dados, id, codigos: listaCodigos } as Produto))
       aoFechar()

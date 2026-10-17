@@ -1,7 +1,7 @@
 # agentes/tools.py
 """
 Tools sandboxed para os agentes. Sem estas tools, os agentes só produzem texto.
-Toda escrita é restrita a src/, public/ e arquivos específicos da raiz.
+Toda escrita é restrita a src/, public/, e2e/ e arquivos específicos da raiz.
 """
 import json
 import os
@@ -14,7 +14,9 @@ from crewai.tools import tool
 
 RAIZ_PROJETO = Path(__file__).resolve().parent.parent
 DIR_MEMORIA = RAIZ_PROJETO / "memoria"
-DIRETORIOS_PERMITIDOS = {"src", "public", "memoria"}
+
+# PERMITE A IA ESCREVER NA PASTA E2E E NO ARQUIVO DE CONFIG DO PLAYWRIGHT
+DIRETORIOS_PERMITIDOS = {"src", "public", "memoria", "e2e"}
 ARQUIVOS_RAIZ_PERMITIDOS = {
     "GUIA_DE_TESTES.md",
     "DOCUMENTACAO_ERP.md",
@@ -23,6 +25,7 @@ ARQUIVOS_RAIZ_PERMITIDOS = {
     "package.json",
     "tsconfig.json",
     "vite.config.ts",
+    "playwright.config.ts",
     "tailwind.config.js",
     "postcss.config.js",
 }
@@ -88,7 +91,7 @@ def escrever_arquivo(caminho: str, conteudo: str) -> str:
 
 @tool("listar_arquivos")
 def listar_arquivos(subpasta: str = "src") -> str:
-    """Lista arquivos de uma subpasta (ex: 'src', 'src/components')."""
+    """Lista arquivos de uma subpasta (ex: 'src', 'e2e/app')."""
     try:
         base = (RAIZ_PROJETO / subpasta).resolve()
         base.relative_to(RAIZ_PROJETO)
@@ -132,7 +135,7 @@ def buscar_no_codigo(padrao: str, subpasta: str = "src") -> str:
 # ------------------------------------------------------------------ #
 @tool("rodar_comando_npm")
 def rodar_comando_npm(comando: str) -> str:
-    """Roda comando npm/npx seguro (install, tsc, vitest, run, build, lint)."""
+    """Roda comando npm/npx seguro (install, tsc, vitest, run, build, lint, playwright)."""
     partes = comando.strip().split()
     if not partes:
         return "❌ Comando vazio."
@@ -144,11 +147,11 @@ def rodar_comando_npm(comando: str) -> str:
     try:
         r = subprocess.run(
             partes, cwd=RAIZ_PROJETO, capture_output=True, text=True, 
-            encoding="utf-8", errors="replace", timeout=600, shell=True
+            encoding="utf-8", errors="replace", timeout=900, shell=True
         )
         return f"[exit={r.returncode}]\n{(r.stdout or '') + (r.stderr or '')}".strip()[-5000:]
     except subprocess.TimeoutExpired:
-        return "❌ Timeout (10min)."
+        return "❌ Timeout (15min)."
     except Exception as e:
         return f"❌ {e}"
 

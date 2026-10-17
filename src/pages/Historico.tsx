@@ -8,7 +8,8 @@ import { useDados } from '../contexto/Dados'
 import { useAtiva } from '../contexto/Empresa'
 import { movimentos } from '../lib/dados'
 import { exibirCodigo, formatarData, hojeISO, normalizarBusca } from '../lib/formato'
-import { PERIODOS, intervaloParaInstantes, periodoDaUrl, type Intervalo, type PeriodoRapido } from '../lib/periodos'
+// 🔧 CORREÇÃO: adicionar `intervaloRapido` no import
+import { PERIODOS, intervaloParaInstantes, intervaloRapido, periodoDaUrl, type Intervalo, type PeriodoRapido } from '../lib/periodos'
 import type { Movimentacao, TipoMov } from '../lib/tipos'
 
 const TIPOS_FILTRO: { valor: TipoMov; nome: string }[] = [
@@ -18,10 +19,8 @@ const TIPOS_FILTRO: { valor: TipoMov; nome: string }[] = [
   { valor: 'CORRECAO', nome: 'Correções' },
 ]
 
-/** Só os períodos que cabem na barra de chips (o "mês anterior" fica no calendário). */
 const PERIODOS_CHIP = PERIODOS.filter(p => p.valor !== 'mesAnterior')
 
-/** Escreve os filtros na URL com replace: trocar de chip não enche o histórico do navegador. */
 function juntarParams(params: URLSearchParams, mudancas: Record<string, string | null>): URLSearchParams {
   const p = new URLSearchParams(params)
   for (const [chave, valor] of Object.entries(mudancas)) {
@@ -36,7 +35,6 @@ export function Historico() {
   const { empresa, loja, pode } = useAtiva()
   const [params, setParams] = useSearchParams()
 
-  // Fonte da verdade = URL (?de=&ate=&tipo=&q=): recarregar ou compartilhar o link preserva os filtros.
   const daUrl = useMemo(() => periodoDaUrl(params, hojeISO()), [params])
   const tipo = (TIPOS_FILTRO.find(t => t.valor === params.get('tipo'))?.valor ?? '') as TipoMov | ''
   const termo = params.get('q') ?? ''
@@ -47,19 +45,26 @@ export function Historico() {
   const [corrigindo, setCorrigindo] = useState<Movimentacao | null>(null)
   const primeiroChip = useRef<HTMLButtonElement>(null)
 
-  const intervalo = daUrl.personalizado ? personalizado : daUrl.intervalo
+  // 🔧 CORREÇÃO: estado para o período (o Relatorios.tsx já tinha; o Historico esqueceu)
+  const [periodo, setPeriodo] = useState<PeriodoRapido>(daUrl.periodo)
 
-  // O campo de busca acompanha a URL (link colado ou "Limpar filtros").
+  // 🔧 CORREÇÃO: sincroniza o estado quando a URL muda (link colado, "Limpar filtros", etc)
+  useEffect(() => {
+    setPeriodo(daUrl.periodo)
+  }, [daUrl.periodo])
+
+  // 🔧 CORREÇÃO: usa o período do estado (não só da URL)
+  const intervalo = periodo === 'personalizado' ? personalizado : intervaloRapido(periodo)
+
   useEffect(() => {
     setBusca(termo)
   }, [termo])
 
-  // Digitar filtra na hora (no cliente) e grava na URL depois de uma pausa: uma entrada por busca, não por tecla.
   useEffect(() => {
     if (busca.trim() === termo.trim()) return
     const espera = setTimeout(() => setParams(juntarParams(params, { q: busca.trim() || null }), { replace: true }), 300)
     return () => clearTimeout(espera)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- cada tecla reinicia o prazo; `params` é a URL atual
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busca])
 
   useEffect(() => {
@@ -91,7 +96,8 @@ export function Historico() {
   }
 
   function escolherPeriodo(p: PeriodoRapido) {
-    // "Personalizado" abre o calendário no intervalo que está na tela.
+    // 🔧 CORREÇÃO: guarda o período no estado (era o que faltava)
+    setPeriodo(p)
     if (p === 'personalizado') escrever({ de: intervalo.de, ate: intervalo.ate })
     else escrever({ de: null, ate: null })
   }
@@ -100,24 +106,29 @@ export function Historico() {
     if (!data) return
     const novo = lado === 'de' ? { de: data, ate: intervalo.ate } : { de: intervalo.de, ate: data }
     setPersonalizado(novo)
+    // 🔧 CORREÇÃO: mudar a data força "personalizado"
+    setPeriodo('personalizado')
     escrever({ de: novo.de, ate: novo.ate })
   }
 
   function limparFiltros() {
     setPersonalizado(daUrl.intervalo)
     setBusca('')
+    // 🔧 CORREÇÃO: volta o período para o padrão
+    setPeriodo(daUrl.periodo)
     escrever({ de: null, ate: null, tipo: null, q: null })
     primeiroChip.current?.focus()
   }
 
   const temFiltro = Boolean(tipo || termo.trim() || params.get('de') || params.get('ate'))
-  const periodoAtual: PeriodoRapido = daUrl.periodo
+  // 🔧 CORREÇÃO: usa o estado (não daUrl.periodo)
+  const periodoAtual: PeriodoRapido = periodo
   const nomePeriodo = (PERIODOS.find(p => p.valor === periodoAtual)?.nome ?? '').toLowerCase()
   const descricaoPeriodo = periodoAtual === 'personalizado' ? `de ${formatarData(intervalo.de)} a ${formatarData(intervalo.ate)}` : nomePeriodo
   const nomeTipo = TIPOS_FILTRO.find(t => t.valor === tipo)?.nome ?? tipo
   const textoVazio = termo.trim()
     ? `Nenhum lançamento corresponde a “${termo.trim()}”${descricaoPeriodo ? ` (${descricaoPeriodo})` : ''}. Tente outro termo ou limpe os filtros.`
-    : tipo || daUrl.personalizado
+    : tipo || periodoAtual === 'personalizado'
       ? `Não há lançamentos${tipo ? ` de ${nomeTipo}` : ''} ${descricaoPeriodo}.`
       : 'Não há lançamentos para os filtros escolhidos.'
 

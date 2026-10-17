@@ -2,17 +2,22 @@ name: 🤖 Fábrica Autônoma Full-Stack
 
 on:
   schedule:
-    - cron: '0 3 * * *' 
-  workflow_dispatch: 
+    - cron: '0 3 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: write
   pull-requests: write
 
+# Impede duas execuções simultâneas (se uma estiver rodando, a outra espera)
+concurrency:
+  group: fabrica-autonoma
+  cancel-in-progress: false
+
 jobs:
   evoluir-erp:
-    # MUDANÇA AQUI: Forçando Windows, já que seu log mostrou runneradmin
-    runs-on: windows-latest 
+    runs-on: windows-latest
+    timeout-minutes: 60
 
     steps:
       - name: 📥 Baixar o código
@@ -28,7 +33,8 @@ jobs:
       - name: 🟩 Configurar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: npm
 
       - name: 📦 Instalar Dependências
         run: |
@@ -40,40 +46,30 @@ jobs:
           git config --global user.name "Robô ERP Galpão"
           git config --global user.email "robo@erpgalpao.com"
 
-      # --- A IA TRABALHA AQUI ---
       - name: 🏗️ Executar a Fábrica Autônoma
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          MAX_CICLOS: '2' 
+          MAX_CICLOS: '2'
         run: python agents/main.py
 
-      # --- O SEGREDO PARA O E2E FUNCIONAR ---
-      - name: 🎭 Instalar Navegadores do Playwright
+      # Usa exatamente o mesmo comando do testes.yml (Edge pré-instalado no Windows)
+      - name: 🧪 Testes de ponta a ponta (Playwright + Edge)
         if: success()
-        # No Windows, NÃO usar --with-deps. Apenas instalar o Chromium.
-        run: npx playwright install chromium 
+        run: npm run test:e2e
 
-      - name: 🧪 Rodar Testes E2E
-        if: success()
-        env:
-          CI: 'true'
-        run: npx playwright test
-
-      # --- SE TUDO PASSAR, CRIA O PR ---
       - name: 🚀 Criar Pull Request
         if: success()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
         run: |
-          $BRANCH = git branch -r --sort=-committerdate | Select-String 'ia-autonoma/' | Select-Object -First 1
+          $BRANCH = (git branch -r --sort=-committerdate | Select-String 'ia-autonoma/' | Select-Object -First 1).ToString().Trim() -replace 'origin/', ''
           if ($BRANCH) {
-            $BRANCH = $BRANCH.ToString().Trim() -replace 'origin/', ''
-            gh pr create --title "🤖 Evolução IA: $(Get-Date -Format 'dd/MM/yyyy')" --body "PR gerado automaticamente. E2E aprovado." --base saas --head $BRANCH
+            gh pr create --title "🤖 Evolução IA: $(Get-Date -Format 'dd/MM/yyyy')" --body "PR gerado automaticamente. E2E aprovado no Edge." --base saas --head $BRANCH
           } else {
             echo "⚠️ Nenhuma branch nova encontrada."
           }
 
-      # --- SE FALHAR, ENVIA E-MAIL ---
       - name: 📧 Enviar E-mail de Alerta
         if: failure()
         uses: dawidd6/action-send-mail@v3
@@ -87,6 +83,6 @@ jobs:
           to: ${{ secrets.MAIL_TO }}
           from: "Robô ERP Galpão"
           body: |
-            A execução da fábrica autônoma falhou. 
+            A execução da fábrica autônoma falhou.
             Acesse os logs completos aqui:
             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
