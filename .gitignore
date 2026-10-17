@@ -23,3 +23,9 @@ venv/
 __pycache__/
 *.pyc
 .DS_Store
+
+
+# Código da fábrica (não deve ser tocado pelo rollback da IA)
+agents/*.py
+agents/venv/
+agents/__pycache__/
