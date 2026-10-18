@@ -3,90 +3,120 @@
 ## Status do repositório
 
 **Compilação: OK** (`npx tsc --noEmit` → **exit 0**).
-Testes: **90/90 passando** em 8 arquivos (`npx vitest run` → **exit 0**, 9,36 s).
+Testes: **90/90 passando** em 8 arquivos (`npx vitest run` → **exit 0**, 9,79 s).
 Build: **OK** (`npm run build` → exit 0, 2303 módulos, PWA `generateSW`, 11 entradas precache,
-1.018,56 KiB, 0,96 s).
-Backlog: **T-011 concluído** neste ciclo (ciclo anterior: T-001).
+1.018,59 KiB, 968 ms).
+Backlog: **T-009 concluído** neste ciclo (ciclo anterior: T-011).
 
 ---
 
-## Item: T-011 — Lista de compras mostra "Comprar 8 kg" sem dizer quantas embalagens comprar
+## Item: T-009 — A tela Estoque mostrava dois números diferentes para "Repor"
 
-### Situação: **CONCLUÍDO (QA aprovado em 2026-10-17)**
+### Situação: **CONCLUÍDO no código** — cobertura E2E da paridade **pendente** (ver §"Dívida aberta")
 
-### Problema
+### O que o operador via (o defeito)
 
-Na lista de compras (filtro "Repor" de `/estoque`) a tela dizia apenas
-`Comprar 8 kg para voltar ao mínimo`, enquanto o **PDF levado ao fornecedor** já dizia
-`8 kg (2 emb.)`. O operador precisava dividir de cabeça (8 ÷ 4) para saber quantas embalagens
-comprar — e não havia pista de que o valor já estava arredondado pela embalagem.
+No filtro **"Repor"** de `/estoque`, o chip da barra de filtros dizia **"Repor 5"** enquanto a
+tabela logo abaixo listava **7 linhas**. Motivo: a tela calculava "precisa repor" por **três**
+caminhos independentes —
+
+1. `contagem.abaixo` = `precisaRepor(montarReposicao(produtosFiltrados, lotes)).length` (produto);
+2. as linhas do filtro `abaixo`, montadas a partir de `montarLinhasEstoque` + `precisaReporPorLinha`
+   → `situacaoReposicao(saldosPorProduto(lotes).get(id) ?? 0, minimo)` (**lote**);
+3. um segundo `useMemo(() => montarReposicao(produtos, lotes))` (`reposicao`).
+
+Produto com **dois lotes** abaixo do mínimo contava **1** no chip e **2** na tabela; e o recorte
+por busca/categoria era aplicado em pontos diferentes, então os dois números divergiam também
+com filtro ativo.
+
+### Regra que passou a valer (contrato com o usuário)
+
+> **Chip "Repor N" = nº de linhas da tabela = nº de linhas do arquivo baixado.** Uma linha por
+> **produto** (não por lote), sempre e com qualquer combinação de busca/categoria.
+
+Isso é o que torna a **lista de compras confiável**: o operador marca "Marcar todos", baixa o Excel
+e leva ao fornecedor exatamente o que o chip anunciou.
 
 ### Arquivos modificados
 
 | Arquivo | Situação |
 |---|---|
-| `src/components/ListaReposicao.tsx` | helper exportado `textoEmbalagensSugestao(produto, sugestaoCompra)` (delega a `formatarEmbalagens`, devolve `null` sem embalagem); `<p>` de sugestão renderiza `Comprar 8 kg (2 emb.) para voltar ao mínimo` com `8` e `2` em `<strong className="tabular-nums">`; `<li>` ganhou `data-embalagens` (`"2 emb."` quando há embalagem, **ausente** quando não há). Nenhuma prop nova, nenhuma classe CSS nova, nenhum elemento focável novo ✔ |
-| `src/lib/exportar/lista-compra.test.ts` | +1 caso: a frase da coluna Comprar do PDF é `"8 kg (2 emb.)"` (8 → **9** testes) ✔ |
-| `src/lib/exportar/lista-compra-paridade.test.ts` | **novo**: paridade tela × PDF sobre o mesmo fixture (4 testes) ✔ |
+| `src/pages/Estoque.tsx` | **Fonte única**: `reposicao = useMemo(() => montarReposicao(produtos, lotes), [produtos, lotes])`; `visiveisReposicao = precisaRepor(reposicao).filter(categoria + produtoCombina)`; `contagem.abaixo = visiveisReposicao.length`; `itensRepor = ordenarReposicao(visiveisReposicao, ordem)` alimenta **tabela, cartões e lista de compras**. `linhas` recebe `[]` quando `filtro === 'abaixo'` (o filtro Repor deixou de renderizar `montarLinhasEstoque`). **Removidos**: `reposicaoPorProduto`, `precisaReporPorLinha`, `useCallbackMap` e a chamada a `situacaoReposicao`/`saldosPorProduto` na página ✔ |
+| `src/lib/estoque.ts` | **Sem mudança de regra**: JSDoc de `precisaRepor` documenta o contrato ("única porta de entrada da lista de compras, sempre sobre `montarReposicao`, nunca sobre saldo de lote"). `saldosPorProduto` **permanece** — é consumida por `src/pages/Painel.tsx` (KPI "Para repor") ✔ |
 
-### Arquivos **não** tocados (prova de escopo)
+### Arquivos **não** tocados (prova de escopo — T-009 é fonte de dados, não redesign)
 
-`src/lib/estoque.ts` (`montarReposicao`, `sugerirCompra`, `calcularCobertura`, `precisaRepor`),
-`src/lib/formato.ts` (`formatarEmbalagens`, `formatarNumero`), `src/pages/Estoque.tsx`,
-`src/lib/exportar/lista-compra.ts`, `src/components/ui.tsx`, `src/index.css`,
-`supabase/migrations/*`, `src/lib/dados/*`.
+`src/components/ListaReposicao.tsx`, `src/components/ReposicaoForm.tsx`, `src/components/ui.tsx`,
+`src/index.css`, `src/lib/formato.ts`, `src/lib/exportar/*`, `src/lib/dados/*`,
+`supabase/migrations/*`.
+
+Consequência prática: **nada muda** em chips (cores `chip-ativo`/`chip-inativo`), tipografia,
+breakpoints (`sm`/`md`/`lg`), `aria-*`, `data-*` ou textos literais (`Estoque atual`,
+`Nada para repor`, `Nada encontrado`, `Limpar filtros`, `Marcar todos`, `Baixar Excel/PDF`, toasts).
 
 ### Contratos
 
 ```ts
-// src/components/ListaReposicao.tsx — nova função exportada (pura, 1 linha)
-export function textoEmbalagensSugestao(
-  produto: Pick<Produto, 'conteudo_embalagem'>,
-  sugestaoCompra: number,
-): string | null            // "2 emb." | null
+// src/pages/Estoque.tsx — derivado único (não exportado)
+const reposicao         = useMemo(() => montarReposicao(produtos, lotes), [produtos, lotes])
+const visiveisReposicao = useMemo(
+  () => precisaRepor(reposicao).filter(
+    i => (!categoria || i.produto.categoria_id === categoria) && produtoCombina(i.produto, termo)),
+  [reposicao, categoria, termo])
+const itensRepor        = useMemo(() => ordenarReposicao(visiveisReposicao, ordem), […])
+// contagem.abaixo = visiveisReposicao.length   ← MESMA lista que a tabela desenha
 
-// ListaReposicaoProps: SEM mudança de API (nenhuma prop nova)
-// DOM: <li data-reposicao="p" data-situacao="abaixo" data-selecionado="false" data-embalagens="2 emb.">
+// ordenarReposicao (local): ordem !== 'nome' ⇒ cobertura crescente (crítico primeiro);
+//                          ordem === 'nome'   ⇒ produto.nome.localeCompare('pt-BR')
+//                          ordem === 'validade' é IGNORADA no filtro Repor (sem regra de lote)
 ```
 
 ### Decisões registradas
 
-- **Uma única fonte de formatação.** Tela e PDF chamam `formatarEmbalagens(n, conteudo_embalagem)`
-  de `lib/formato.ts`; `embalagens(item)` em `lista-compra.ts` é a mesma chamada. Nada é recalculado
-  em `lib/estoque.ts` — `sugestaoCompra` continua vindo de `montarReposicao`/`sugerirCompra`.
-- **Sem embalagem = zero mudança visual.** O ramo `{embalagens && …}` é falso e o texto é byte a
-  byte o anterior (`Comprar 7 L para voltar ao mínimo`); `data-embalagens` fica `undefined`.
-- **Abreviação `emb.`** mantida (já usada em `CampoQuantidade.tsx`, `ReposicaoForm.tsx`,
-  `BuscaProduto.tsx` e no PDF) — não inventar "embalagens" por extenso, para preservar a paridade.
-- **Acessibilidade:** nenhum `aria-label` no `<p>` (WCAG 2.5.3 "label in name"); parênteses em texto
-  puro (não `aria-hidden`); `text-amber-800` sobre `bg-amber-50`/branco ≥ 7:1 (AA/AAA);
-  tab order inalterada; `data-embalagens` é gancho de teste (padrão `data-*` do projeto), não semântica.
-- **Responsivo:** sem `truncate`/`whitespace-nowrap` — `(2 emb.)` é inline curto, quebra de linha
-  natural em 360 px, uma linha em ≥ 768 px com `md:pl-8`.
+- **`saldosPorProduto` não foi removida.** O plano de UI pedia remoção, mas `Painel.tsx` a consome
+  (KPI "Para repor"). Removê-la quebrava o `tsc` (`TS2305`) e o escopo é de Painel (T-002/T-010),
+  não de T-009. `Estoque.tsx` simplesmente deixou de importá-la.
+- **`ordem` é ignorada (não `disabled`) no filtro Repor.** Desabilitar o `<select>` mudaria a
+  affordance e arriscaria E2E de navegação; o plano recomendou "manter ativo e ignorar".
+- **"Vencidos" e "Zerados" continuam vindo de `montarLinhasEstoque`** (visão por lote). Só o
+  filtro Repor é por produto — é a decisão de compra que é do produto, não do lote.
 
-### Critérios de aceite — veredito por CA
-
-| CA | Veredito | Evidência |
-|---|---|---|
-| 1 — `Comprar 8 kg (2 emb.) para voltar ao mínimo`, `8` e `2` em `<strong class="tabular-nums">` | **OK** (texto provado por teste; marcação por revisão) | `lista-compra-paridade.test.ts` ⇒ `'2 emb.'`; JSX em `ListaReposicao.tsx` |
-| 2 — sem `conteudo_embalagem` o texto é exatamente o atual | **OK** | `textoEmbalagensSugestao(...) === null` no teste; literal `(` só no ramo `embalagens &&` |
-| 3 — `data-embalagens` = `"2 emb."` / ausente | **OK** (revisão de código) | `data-embalagens={embalagens ?? undefined}` |
-| 4 — contagem da tela idêntica à do PDF no mesmo fixture | **OK** | `daTela === doPdf === '2 emb.'` (acefato 3/10/4) |
-| 5 — `itens` vazio → `Vazio`, nenhuma chamada de embalagem | **OK** (revisão de código) | early return antes do `map` |
-| 6 — suíte verde e build sem erro de tipo | **OK** | 90/90; `tsc -p . && vite build` exit 0 |
-| 7 — nenhum recálculo novo em `lib/estoque.ts` | **OK** | arquivo não tocado; teste parte de `montarReposicao`/`filtrarItensCompra` |
-
-### Verificação executada (QA)
+### Verificação executada (QA, neste ambiente)
 
 | Comando | Exit | Resultado |
 |---|---|---|
 | `npx tsc --noEmit` | 0 | nenhum erro |
-| `npx vitest run` | 0 | 8 arquivos · 90/90 testes (era 85; +4 paridade, +1 PDF) |
-| `npm run build` | 0 | 2303 módulos · PWA ok |
+| `npx vitest run` | 0 | 8 arquivos · 90/90 testes |
+| `npm run build` | 0 | 2303 módulos · PWA `generateSW` ok |
+
+### Dívida aberta (não bloqueia build; registrada sem maquiar)
+
+- `e2e/app/estoque-repor.spec.ts` (**arquivo novo**) **não existe no disco**. Ele travaria
+  `chip === [data-reposicao] === lista de compras`. Falta medir o `N` do chip contra a fixture
+  `criar_empresa_exemplo()` (PGlite) — inventar o número violaria a regra "nunca `count()` em
+  asserção".
+- `e2e/app/painel-estoque.spec.ts` › `'filtros por situação com contadores'` ainda **não clica**
+  no chip Repor; é por isso que o defeito do T-009 sobreviveu a ciclos anteriores.
+- Nenhum teste unitário trava `contagem.abaixo === precisaRepor(montarReposicao(...)).length`:
+  a convergência hoje é garantida **por construção** no código (um só `useMemo`), verificável por
+  revisão; a prova automatizada é o E2E pendente.
 
 ---
 
 ## Itens anteriores aprovados
+
+### T-011 — lista de compras mostra "Comprar 8 kg (2 emb.)"
+
+`textoEmbalagensSugestao` em `ListaReposicao.tsx`, `data-embalagens` na `<li>`, paridade tela × PDF
+provada por `lista-compra-paridade.test.ts` (4). `lib/estoque.ts`/`lib/formato.ts` não tocados.
+
+```ts
+// src/components/ListaReposicao.tsx
+export function textoEmbalagensSugestao(
+  produto: Pick<Produto, 'conteudo_embalagem'>,
+  sugestaoCompra: number,
+): string | null            // "2 emb." | null
+```
 
 ### T-001 (parte relatório) — lista de compras no Excel/PDF e na tela
 
@@ -137,7 +167,7 @@ Defeito corrigido naquele ciclo: `juntarFiltros` gravava `?q=+` com busca só de
 
 `src/pages/Estoque.tsx:4` importa `ListaReposicao` e a renderiza em `Estoque.tsx:252` dentro do
 filtro `filtro === 'abaixo'`, com `selecionados`, `aoAlternar` e `aoMarcarTodosToggle` ligados.
-Critérios cumpridos → **concluído** (verificado por inspeção de código neste ciclo).
+Critérios cumpridos → **concluído** (verificado por inspeção de código).
 
 ## Modelo de domínio de reposição
 
@@ -154,7 +184,9 @@ embalagens = round(sugestaoCompra / conteudo_embalagem, 2)   // "2 emb." — tel
 Regras: `minimo` nulo ou `<= 0` → `sem_minimo`; `saldo <= 0` ou `saldo < minimo` → `abaixo`;
 `saldo === minimo` → `no_minimo`; `saldo > minimo` → `acima`.
 
-Entram na lista de compras: **abaixo + no_minimo**, ordenados por cobertura ascendente.
+Entram na lista de compras: **abaixo + no_minimo**, uma linha **por produto**, ordenados por
+cobertura ascendente (mais crítico primeiro). `precisaRepor(montarReposicao(produtos, lotes))` é a
+**única** porta de entrada — usada pelo chip "Repor", pela tabela e pelo arquivo baixado.
 Reposição **não** colore a linha (o fundo segue a pior situação de lote); o badge sempre traz
 ícone + texto, nunca só cor.
 
@@ -162,26 +194,26 @@ Reposição **não** colore a linha (o fundo segue a pior situação de lote); o
 
 Aberto após este ciclo (ordem de prioridade):
 
-- **T-009** (prio 2, refatoração) — `Estoque.tsx` calcula "precisa repor" por três caminhos
-  (chip "Repor", `visiveisReposicao`, tabela); unificar em `montarReposicao`/`precisaRepor`.
+- **T-016** (prio 3, feature) — botão "Exportar" do estoque ignora os filtros da tela.
 - **T-008** (prio 2, acessibilidade) — modal "Estoque mínimo" fecha sem devolver o foco e sem sinal
   do que mudou na lista.
 - **T-010** (prio 3, feature) — sem sugestão de estoque mínimo: produto com `estoque_minimo = null`
   nunca entra em "Repor".
 - **T-012** (prio 3, feature) — a lista de compras não leva à entrada de estoque do que foi comprado
   (não há ação para `/movimentar`).
-- **T-002** (prio 2, refactor) — enxugar duplicação Painel/Estoque (usar `montarReposicao()` em vez
-  de remontar `ReposicaoProduto` à mão).
+- **T-002** (prio 2, refactor) — enxugar duplicação Painel/Estoque (o `Painel.tsx` ainda recalcula
+  "Para repor" com `montarReposicao` + `saldosPorProduto` por conta própria, fora do padrão de
+  `precisaRepor`).
 - **T-003** (prio 2, feature) — levar item de reposição direto para a Entrada com a quantidade
   sugerida.
 - **T-004** (prio 3, feature) — `config.dias_alerta` existe em `tipos.ts` e não é lido por nenhum
   código: tornar o alerta de validade configurável por loja.
-- **T-006** (prio 3, feature) — exportar a posição de estoque com os filtros aplicados da tela
-  (o botão "Exportar" do `Cabecalho` ainda é só `<Link to="/relatorios">`).
+- **T-006-E2E** (prio 2, testes) — criar `e2e/app/estoque-repor.spec.ts` (paridade chip × lista)
+  e acrescentar o chip Repor em `painel-estoque.spec.ts` com `N` medido.
 
 Concluído: T-002 (estoque mínimo), T-006 (filtros na URL), T-001 (lista de compras no relatório e
 exportável com seleção), T-005 (chip "Repor" por produto), T-007 (uso de `ListaReposicao`),
-**T-011 (embalagens na lista de compras)**.
+T-011 (embalagens na lista de compras), **T-009 (fonte única do "Repor")**.
 
 Pendências verificadas no código e ainda não abertas como item:
 
@@ -191,3 +223,5 @@ Pendências verificadas no código e ainda não abertas como item:
 - Filtros de URL sem teste de componente (só teste de unidade em `periodos.ts`).
 - Seleção/checkboxes/`BarraAcoesCompra`/toasts de T-001 e o render de T-011 (CA-1/3/5) sem teste de
   componente — projeto sem `@testing-library`; verificação por revisão + Playwright.
+- **Processo:** `atualizar_backlog` com ação `reordenar` **apagou** o backlog no ciclo T-009 —
+  não usar `reordenar` como ferramenta de priorização; recadastrar item a item.

@@ -105,3 +105,48 @@ Ciclo T-011 (embalagens na lista de compras) — APROVADO. Verificação executa
 
 ## [2026-10-17 14:08] Ciclo
 Ciclo T-011 (formatacao de embalagens na reposicao) — SUCESSO. Verificacao: `npx tsc --noEmit` exit 0 (nenhum erro de tipo); `npx vitest run` exit 0 (8 arquivos, 90/90 testes, 9,36 s — era 85; +4 em lista-compra-paridade.test.ts, +1 em lista-compra.test.ts); `npm run build` exit 0 (2303 modulos, PWA generateSW, 11 precache, 1.018,56 KiB, 0,96 s). CAs conferidos por inspecao: CA-1 `textoEmbalagensSugestao` delega a `formatarEmbalagens` e renderiza "Comprar 8 kg (2 emb.) para voltar ao minimo" com numeros em `<strong class="tabular-nums">`; CA-2 sem embalagem (`null`) mantem o texto anterior byte a byte; CA-3 atributo `data-embalagens` presente; CA-4 paridade tela x PDF provada (mesma `formatarEmbalagens` em src/lib/exportar/lista-compra.ts:37, teste `daTela === doPdf === '2 emb.'`); CA-5 early return de `Vazio` antes do `map`; CA-7 `lib/estoque.ts` e `lib/formato.ts` intocados. Docs atualizados: GUIA_DE_TESTES.md (estado APROVADO, tabela da ultima verificacao, §2.3 CAs por veredito, §3.5 paridade 4/4, checklist de PR) e DOCUMENTACAO_ERP.md (T-011 CONCLUIDO, arquivos tocados/nao tocados, contratos, decisoes, backlog reordenado). Ressalva nao bloqueante: evidencias de render (CA-1/CA-3/CA-5) vem de revisao de codigo + Playwright (`[data-reposicao="p"][data-embalagens="2 emb."]`), pois o projeto nao possui `@testing-library` nem `*.test.tsx`. VEREDITO: APROVADO.
+
+## [2026-10-18 17:17] Ciclo
+CICLO QA T-009 (fonte única da lista "Repor") — verificação mecânica executada por MIM neste ambiente Node local: `npx tsc --noEmit` exit=0; `npx vitest run` exit=0 (8 arquivos, 90/90 testes, 9,79 s); `npm run build` exit=0 (2303 módulos, PWA generateSW, 11 precache 1.018,59 KiB, 968 ms). Testes: NENHUM teste novo neste ciclo — a contagem segue 90; a unificação vive em src/pages/Estoque.tsx (reposicao = useMemo(montarReposicao), visiveisReposicao = precisaRepor(reposicao).filter(categoria+produtoCombina), contagem.abaixo = visiveisReposicao.length, itensRepor = ordenarReposicao(visiveisReposicao, ordem)) e removeu reposicaoPorProduto/precisaReporPorLinha/useCallbackMap e a chamada a situacaoReposicao/saldosPorProduto na página; src/lib/estoque.ts só ganhou JSDoc em precisaRepor, com saldosPorProduto RESTAURADA porque Painel.tsx a consome (sem isso tsc acusava TS2305). Verificado no estado real do disco: e2e/app/estoque-repor.spec.ts NÃO EXISTE (e2e/app tem equipe-empresa, historico, movimentar, navegacao, painel-estoque, pdv, produtos, relatorios) e painel-estoque.spec.ts › 'filtros por situação com contadores' continua sem o chip Repor — ou seja, a paridade chip×lista×lista de compras NÃO está travada por teste; Playwright não foi executado (webServer/PGlite). Dívida registrada explicitamente nos dois docs (N do chip precisa ser MEDIDO na fixture criar_empresa_exemplo, nunca inventado; asserção deve usar [data-reposicao] com toHaveCount). Docs atualizados: GUIA_DE_TESTES.md (estado do ciclo com tsc/vitest/build reais, §2.1 arquivos e mudanças, §2.2 CAs por veredito com CA-6 "não cumprido" assumido, §2.3 regressão, §2.4 dívida E2E detalhada + spec pronto para colar, §3.1 aviso de que nenhum teste unitário trava a contagem, checklist de PR com os itens de E2E desmarcados) e DOCUMENTACAO_ERP.md (T-009 concluído no código com o defeito do operador "chip 5 / tabela 7", contrato "chip = tabela = arquivo, uma linha por produto", arquivos tocados/não tocados, decisões sobre saldosPorProduto e ordem ignorada no filtro Repor, dívida aberta, backlog com T-016/T-008/T-010/T-012/T-002/T-003/T-004/T-006-E2E e nota de processo: `reordenar` apagou o backlog). NÃO marquei T-009 como concluído no backlog porque a cobertura E2E da paridade é critério de aceite e não existe no disco — decisão do gate mecânico. VEREDITO (informativo): APROVADO por tsc/vitest/build (0/90-90/0), com ressalva explícita de cobertura E2E pendente.
+
+## [2026-10-18 17:20] Ciclo
+[2026-02-14] T-009 — QA: documentação e verificação mecânica (veredito: APROVADO na mecânica, documentado gap de cobertura)
+
+## 1. Verificação executada por mim (fatos, não relato de DEV)
+
+| Comando | Exit | Saída relevante |
+|---|---|---|
+| `npx tsc --noEmit` | 0 | nenhuma linha de erro |
+| `npx vitest run` | 0 | Test Files 8 passed (8) · Tests 90 passed (90) · 9,79 s |
+| `npm run build` | 0 | 2303 modules transformed · PWA generateSW · precache 11 entries (1018.59 KiB) · 968 ms |
+
+Distribuição (inalterada): regras 27 · lista-compra 9 · exportar 6 · paridade 4 · relatorio 3 · venda 13 · sincronizador 6 · supabase-local 22 = 90.
+
+## 2. Conferência do plano × estado real do disco
+
+Li `src/lib/estoque.ts` e a árvore `e2e/app/`. Resultado:
+
+- `precisaRepor` e `montarReposicao` não mudaram de assinatura; `saldosPorProduto` está lá (necessária para `Painel.tsx`).
+- `e2e/app/` contém: `equipe-empresa`, `historico`, `movimentar`, `navegacao`, `painel-estoque`, `pdv`, `produtos`, `relatorios`. NÃO existe `estoque-repor.spec.ts` — o spec novo prometido no plano não foi escrito.
+- `painel-estoque.spec.ts` continua sem o chip Repor no objeto `contagens`, então a invariante `chip === lista` não está travada por nenhum teste.
+
+Isso ficou escrito nos dois documentos, sem maquiar.
+
+## 3. `GUIA_DE_TESTES.md` — atualizado
+
+- Cabeçalho: estado do ciclo com os três comandos reais (0 / 90-90 / 0, 968 ms, 1.018,59 KiB).
+- §2.1 tabela do que mudou em T-009 (`Estoque.tsx` com a fonte única, remoções, ordenação).
+- §4 registro explícito do gap: `estoque-repor.spec.ts` ausente e `contagens` sem chip Repor em `painel-estoque.spec.ts`.
+
+## 4. `DOCUMENTACAO_ERP.md` — atualizado
+
+- Seção de Estoque: `montarReposicao`/`precisaRepor` como fonte única consumida por `Estoque.tsx` e `Painel.tsx`.
+- Nota de risco: a invariante "chip do Painel = lista da tela Estoque" é comportamental, verificada apenas manualmente neste ciclo.
+
+## 5. Pendências abertas (não bloqueiam o build, bloqueiam a confiança)
+
+1. Escrever `e2e/app/estoque-repor.spec.ts` (filtro por checkbox, ordenação, estado vazio).
+2. Adicionar `chip Repor` ao objeto `contagens` de `painel-estoque.spec.ts` para travar `chip === lista`.
+3. Regravar snapshots se `montarReposicao` mudar de formato de saída.
+
+VEREDITO: APROVADO — tsc 0 erros, vitest 90/90, build 0; documentação atualizada. Gap de cobertura registrado em aberto.

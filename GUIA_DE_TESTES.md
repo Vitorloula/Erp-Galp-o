@@ -1,9 +1,14 @@
 # Guia de Testes — ERP Galpão
 
-> **Estado deste ciclo: APROVADO.** `npx tsc --noEmit` exit=0, `npx vitest run` exit=0
-> (8 arquivos, **90/90 testes**), `npm run build` exit=0. Item **T-011 concluído** no backlog:
-> a lista de compras passou a mostrar o nº de embalagens na tela, com o mesmo texto do PDF.
-> Ciclo anterior (T-001) segue verde — nenhuma regressão.
+> **Estado deste ciclo (T-009):** verificação mecânica executada **por este QA**, direto no
+> ambiente Node local (não é relato do DEV):
+> `npx tsc --noEmit` → **exit 0** · `npx vitest run` → **exit 0** (8 arquivos, **90/90** testes) ·
+> `npm run build` → **exit 0** (2303 módulos, PWA `generateSW`, 11 entradas precache 1.018,59 KiB,
+> 968 ms).
+> Item **T-009** (fonte única da lista "Repor") concluído no código. **Nenhum teste novo foi
+> escrito neste ciclo** — o `e2e/app/estoque-repor.spec.ts` planejado **não existe no disco**
+> (ver §2.4) e a contagem de testes unitários ficou **igual** (90) porque a mudança é de *fonte de
+> dados* numa página, sem helper puro novo. Nenhuma regressão em T-011/T-001/T-006/T-002.
 
 ## 1. Comandos obrigatórios (ordem)
 
@@ -15,45 +20,74 @@ npm run build        # tsc -p . + vite build: recomendado antes de release
 
 Regra de aceite: **os três comandos verdes**. Um vermelho = ciclo reprovado.
 
-## 2. Última verificação (QA) — ciclo T-011
+## 2. Última verificação (QA) — ciclo T-009
 
 | Comando | Exit | Resultado |
 |---|---|---|
 | `npx tsc --noEmit` | **0** | nenhum erro de tipo |
-| `npx vitest run` | **0** | 8 arquivos, **90 testes, 90 passando** (9,36 s) |
-| `npm run build` | **0** | 2303 módulos, PWA `generateSW`, 11 entradas precache (1.018,56 KiB), 0,96 s |
+| `npx vitest run` | **0** | 8 arquivos, **90 testes, 90 passando** (9,79 s) |
+| `npm run build` | **0** | 2303 módulos, PWA `generateSW`, 11 entradas precache (1.018,59 KiB), 968 ms |
 
-### 2.1 O que mudou neste ciclo (T-011)
+Distribuição da suíte (inalterada em relação a T-011 — nenhum teste novo):
+
+| Arquivo | Testes |
+|---|---|
+| `src/lib/regras.test.ts` | 27 |
+| `src/lib/relatorio.test.ts` | 3 |
+| `src/lib/exportar/exportar.test.ts` | 6 |
+| `src/lib/exportar/lista-compra.test.ts` | 9 |
+| `src/lib/exportar/lista-compra-paridade.test.ts` | 4 |
+| `src/pdv/venda.test.ts` | 13 |
+| `src/pdv/sincronizador.test.ts` | 6 |
+| `servidor-local/supabase-local.test.ts` | 22 |
+
+### 2.1 O que mudou neste ciclo (T-009)
 
 | Arquivo | Mudança | Teste |
 |---|---|---|
-| `src/components/ListaReposicao.tsx` | helper exportado `textoEmbalagensSugestao(produto, sugestaoCompra)` (delega a `formatarEmbalagens`); `<p>` de sugestão passa a renderizar `Comprar 8 kg (2 emb.) para voltar ao mínimo`; `<li>` ganhou `data-embalagens` | `lista-compra-paridade.test.ts` (4) + `lista-compra.test.ts` (1) |
-| `src/lib/exportar/lista-compra.test.ts` | novo caso "PDF: a coluna Comprar traz a mesma frase da tela (`8 kg (2 emb.)`)" — 8 → **9** testes | verde |
-| `src/lib/exportar/lista-compra-paridade.test.ts` | **novo**: paridade tela × PDF sobre o mesmo fixture (acefato: mínimo 10, saldo 3, embalagem 4) | 4/4 verde |
-| `src/lib/formato.ts` / `src/lib/estoque.ts` | **não alterados** — `sugestaoCompra` continua vindo de `montarReposicao`/`sugerirCompra`; a tela só formata | regressão via `regras.test.ts` |
+| `src/pages/Estoque.tsx` | **fonte única**: `reposicao = useMemo(() => montarReposicao(produtos, lotes), [produtos, lotes])`; `visiveisReposicao = precisaRepor(reposicao).filter(categoria + produtoCombina)`; `contagem.abaixo = visiveisReposicao.length`; `itensRepor = ordenarReposicao(visiveisReposicao, ordem)`. **Removidos**: `reposicaoPorProduto`, `precisaReporPorLinha`, `useCallbackMap` e a chamada a `situacaoReposicao`/`saldosPorProduto` **na página** | Regressão via `regras.test.ts` (27) — `montarReposicao`/`precisaRepor` com assinatura intacta |
+| `src/pages/Estoque.tsx` | `ordenarReposicao(itens, ordem)` novo (local, no próprio arquivo): `ordem !== 'nome'` ⇒ cobertura crescente; `ordem === 'nome'` ⇒ `localeCompare('pt-BR')`. `ordem === 'validade'` é **ignorada** no filtro Repor (decisão do plano, menor risco) | — (função local de página; sem teste de componente no projeto) |
+| `src/lib/estoque.ts` | **só documentação** no JSDoc de `precisaRepor` (contrato: única porta de entrada da lista de compras, sempre sobre `montarReposicao`) + `saldosPorProduto` **restaurada** (é consumida por `src/pages/Painel.tsx` — mantê-la é pré-requisito de `tsc` verde) | `regras.test.ts` §3.1 cobre `saldosPorProduto` |
 
-### 2.2 Regressão conferida (nada caiu)
-
-- `src/pdv/venda.test.ts` 13 · `src/lib/relatorio.test.ts` 3 · `src/lib/regras.test.ts` 27
-- `src/lib/exportar/exportar.test.ts` 6 — 4 abas na ordem, `A5 = 'Código'`, `fgColor FF047857`,
-  aba "Lista de compras" ausente com `compras:false`, PDF maior com a seção
-- `src/lib/exportar/lista-compra.test.ts` **9** (era 8; +1 de paridade de texto do PDF)
-- `src/lib/exportar/lista-compra-paridade.test.ts` **4** (novo)
-- `src/pdv/sincronizador.test.ts` 6 · `servidor-local/supabase-local.test.ts` 22 (inclui
-  WebSocket "cada aparelho só recebe alterações que tem permissão de ver" e
-  "os dados e as sessões sobrevivem a um reinício")
-
-### 2.3 Critérios de aceite de T-011 — veredito
+### 2.2 Critérios de aceite de T-009 — veredito (informativo; o gate mecânico decide)
 
 | CA | Veredito | Evidência |
 |---|---|---|
-| 1 — `sugestaoCompra 8` + `conteudo_embalagem 4` → `Comprar 8 kg (2 emb.) para voltar ao mínimo`, `8` e `2` em `<strong class="tabular-nums">` | **OK (revisão de código)** | JSX em `ListaReposicao.tsx`; texto do número provado por `textoEmbalagensSugestao(...) === '2 emb.'` em `lista-compra-paridade.test.ts` |
-| 2 — sem embalagem o texto é exatamente o anterior | **OK** | `textoEmbalagensSugestao` devolve `null` (teste "produto sem conteúdo por embalagem não ganha parênteses"); o literal `(` só existe no ramo `embalagens &&` |
-| 3 — `data-embalagens` = `"2 emb."` / ausente | **OK (revisão de código)** | `data-embalagens={embalagens ?? undefined}`; sem `*.test.tsx` no projeto |
-| 4 — contagem da tela == contagem do PDF | **OK** | `lista-compra-paridade.test.ts`: `daTela === doPdf === '2 emb.'` no mesmo `ItemCompra` |
-| 5 — `itens` vazio → `Vazio` sem chamada de embalagem | **OK (revisão de código)** | early return em `ListaReposicao.tsx` **antes** do `map` |
-| 6 — `npm test` verde e `npm run build` sem erro de tipo | **OK** | 90/90 + build exit 0 |
-| 7 — nenhum recálculo novo em `lib/estoque.ts` | **OK** | `estoque.ts` não foi tocado; `lista-compra-paridade.test.ts` parte de `montarReposicao`/`filtrarItensCompra` |
+| 1 — `contagem.abaixo === itensRepor.length` **por construção** | **OK** | `c.abaixo = visiveisReposicao.length` e `itensRepor` derivam de `visiveisReposicao`; não existe mais caminho paralelo (`precisaReporPorLinha` removido) |
+| 2 — tabela/listas do filtro Repor não usam `montarLinhasEstoque` | **OK** | `linhas` recebe `[]` quando `filtro === 'abaixo'`; a lista é `ListaReposicao` com `itensRepor` |
+| 3 — `aria-*`/`data-*`/literais preservados | **OK** | `aria-label="Filtrar estoque"`, `aria-pressed`, `data-reposicao`, `data-linha-estoque`, `data-selecao`, `Estoque atual`, `Nada encontrado`, `Nada para repor`, `Baixar Excel/PDF`, toasts |
+| 4 — nenhum recálculo de regra de lote na página | **OK** | imports de `situacaoReposicao`/`saldosPorProduto` saíram de `Estoque.tsx` |
+| 5 — `tsc`/`vitest`/`build` verdes | **OK** | 0 / 90-90 / 0 |
+| 6 — E2E travando a paridade chip × lista | **NÃO CUMPRIDO** | `e2e/app/estoque-repor.spec.ts` **não existe** no disco (ver §2.4); `e2e/app/painel-estoque.spec.ts` continua sem clicar no chip Repor |
+
+### 2.3 Regressão conferida (nada caiu)
+
+- `regras.test.ts` 27/27 — inclui o domínio de reposição (`situacaoReposicao`, `sugerirCompra`,
+  `calcularCobertura`, `montarReposicao`, `precisaRepor`, `saldosPorProduto`), §3.1.
+- `relatorio.test.ts` 3/3 e `lista-compra.test.ts` 9/9 — a lista de compras exportada continua
+  saindo de `montarReposicao`, não do filtro da tela.
+- `lista-compra-paridade.test.ts` 4/4 — paridade tela × PDF (`(2 emb.)`) de T-011 intacta.
+- `exportar.test.ts` 6/6 — 4 abas na ordem, `A5 = 'Código'`, `fgColor FF047857`, aba ausente com
+  `compras:false`.
+
+### 2.4 E2E — o que **não** foi feito (dívida aberta, sem maquiar)
+
+- **Nenhum `.spec.ts` foi criado ou alterado neste ciclo.** Estado real da pasta `e2e/app/`:
+  `equipe-empresa`, `historico`, `movimentar`, `navegacao`, `painel-estoque`, `pdv`, `produtos`,
+  `relatorios`. **Não existe `estoque-repor.spec.ts`.**
+- `e2e/app/painel-estoque.spec.ts` › `Estoque › 'filtros por situação com contadores'` **precisa**
+  ganhar o chip Repor (o objeto `contagens` hoje só tem `Todos/Vencidos/Zerados/Vencem em 30 dias/Em dia`).
+  O `N` do chip tem de ser **medido** em runtime contra a fixture `criar_empresa_exemplo()`
+  (PGlite) — não pode ser inventado. Asserção do filtro Repor usa `[data-reposicao]` com
+  `toHaveCount(N)` (o filtro Repor **não** emite `[data-linha-estoque]`). Se o bloco Repor for
+  colocado antes do chip `Em dia`, o `toHaveURL(/filtro=ok/)` final do teste continua válido.
+- Especificação pronta do spec novo (colar assim que `N` for medido): 1) paridade chip ×
+  `[data-reposicao]`; 2) paridade com busca (`getByLabel('Buscar')`); 3) paridade com categoria
+  (`selectOption({ label: 'Fertilizante' })`); 4) zerado sem lote aparece 1× e produto com
+  `estoque_minimo = null` não aparece; 5) "Marcar todos" + `page.waitForEvent('download')` com
+  `lista-compra` no nome; 6) mobile com `semRolagemHorizontal(page)`.
+- Playwright **não foi executado** neste ciclo (depende do `webServer` + PGlite de
+  `e2e/preparar.ts`). O gate mecânico externo é quem roda.
 
 ## 3. Cobertura atual dos testes
 
@@ -62,11 +96,15 @@ Regra de aceite: **os três comandos verdes**. Um vermelho = ciclo reprovado.
 | `src/lib/regras.test.ts` | 27 | formato (validade, `lerNumero`, `formatarDelta`), `situacaoLote`, `montarLinhasEstoque`, `resumirProduto`, códigos de barras/GTIN, GS1, períodos + `periodoDaUrl`, `totaisPorGrupo`, permissões por papel, grupos de movimentação, domínio de reposição (§3.1) |
 | `src/lib/relatorio.test.ts` | 3 | lista de compras do relatório (§3.3) |
 | `src/lib/exportar/exportar.test.ts` | 6 | Excel (4 abas, cores, aba "Lista de compras", ausência da aba quando a seção está desmarcada) e PDF (`%PDF-`, cresce com a seção de compras) |
-| `src/lib/exportar/lista-compra.test.ts` | **9** | `filtrarItensCompra`, `nomeArquivoListaCompra`, `gerarListaCompraExcel`, `gerarListaCompraPdf`, texto da coluna "Comprar" (§3.4) |
-| `src/lib/exportar/lista-compra-paridade.test.ts` | **4** | paridade tela × PDF do nº de embalagens (§3.5) |
+| `src/lib/exportar/lista-compra.test.ts` | 9 | `filtrarItensCompra`, `nomeArquivoListaCompra`, `gerarListaCompraExcel`, `gerarListaCompraPdf`, texto da coluna "Comprar" (§3.4) |
+| `src/lib/exportar/lista-compra-paridade.test.ts` | 4 | paridade tela × PDF do nº de embalagens (§3.5) |
 | `src/pdv/venda.test.ts` | 13 | regras da venda no PDV |
 | `src/pdv/sincronizador.test.ts` | 6 | sincronização offline |
 | `servidor-local/supabase-local.test.ts` | 22 | banco local, tempo real (WebSocket), persistência entre reinícios |
+
+> **Nenhum teste novo neste ciclo (T-009).** A suíte total continua **90**. A lacuna é de
+> *cobertura de página* (a unificação vive em `Estoque.tsx`), e o projeto não tem
+> `@testing-library` nem `*.test.tsx`; a cobertura pretendida para T-009 é **Playwright** (§2.4).
 
 ### 3.1 Domínio de reposição — coberto
 
@@ -80,6 +118,11 @@ Regra de aceite: **os três comandos verdes**. Um vermelho = ciclo reprovado.
 - `sugerirCompra` arredondando por `conteudo_embalagem` (saldo 5, mínimo 12, embalagem 20 → 20)
 - `sugerirCompra` sem embalagem (saldo 5, mínimo 12 → 7)
 - `montarReposicao` ignora `ativo=false` e `controla_estoque=false`
+
+> **Contrato de T-009 que o teste unitário ainda NÃO trava:** que `precisaRepor(montarReposicao(...))`
+> seja a **única** contagem usada pela tela. Hoje isso é garantido só por ausência de código
+> alternativo em `Estoque.tsx` (revisão) + o E2E pendente de §2.4. Se alguém reintroduzir
+> `situacaoReposicao(saldos.get(id)…)` na página, a suíte unitária **não** acusa.
 
 ### 3.2 Filtros na URL e totais da lista (T-006) — coberto
 
@@ -130,7 +173,7 @@ Cobre `filtrarItensCompra` (função pura em `lib/estoque.ts`), `nomeArquivoList
   colunas 9 e 10 `null`, `rowCount === 5 + itens + 1` (legenda)
 - Excel sem seleção: aviso "Nenhum produto selecionado para compra." em `A6`
 - PDF: `%PDF-` e > 5000 bytes, com e sem itens
-- **T-011 (novo)**: a frase da coluna Comprar do PDF é `"8 kg (2 emb.)"` —
+- **T-011**: a frase da coluna Comprar do PDF é `"8 kg (2 emb.)"` —
   `${formatarNumero(sugestaoCompra)} ${unidade}${emb ? ` (${emb})` : ''}`, a mesma expressão de `lista-compra.ts`
 
 > **Contrato de formatação da coluna "Comprar" (decidido no ciclo T-001):**
@@ -164,15 +207,26 @@ npx vitest run -t "paridade tela × PDF"
 npx vitest run -t "Excel: 1 aba"
 ```
 
+Playwright (quando o `N` do chip Repor existir — §2.4):
+
+```bash
+npx playwright test e2e/app/painel-estoque.spec.ts e2e/app/produtos.spec.ts e2e/app/relatorios.spec.ts
+npx playwright test e2e/app/estoque-repor.spec.ts   # só depois de criar o arquivo
+```
+
 ## 5. Checklist de PR (não pular)
 
 - [x] `npx tsc --noEmit` exit 0
 - [x] `npx vitest run` 0 falhas (90/90)
 - [x] `npm run build` exit 0
-- [x] Novo domínio em `lib/` tem teste próprio (`relatorio.test.ts`, `lista-compra.test.ts`, `lista-compra-paridade.test.ts`)
-- [x] Texto compartilhado entre tela e exportação tem teste de paridade (`lista-compra-paridade.test.ts`)
+- [x] Nenhuma regra de negócio recalculada na página em T-009 (`situacaoReposicao`/`saldosPorProduto` fora de `Estoque.tsx`)
+- [x] `lib/estoque.ts` preservado para o `Painel.tsx` (`saldosPorProduto` restaurada — remoção é escopo de T-010/T-002)
 - [x] Sem `TODO`/`FIXME`/placeholder nos arquivos tocados
-- [x] Nenhuma alteração em `src/lib/dados/*`, `supabase/migrations/*`, `lib/estoque.ts` nem `lib/formato.ts` neste ciclo
+- [ ] **`e2e/app/painel-estoque.spec.ts`: acrescentar `Repor: N` (medido) em `contagens` e a asserção
+      `expect(page.locator('[data-reposicao]')).toHaveCount(N)`** — falta
+- [ ] **`e2e/app/estoque-repor.spec.ts` (novo): paridade chip × lista × lista de compras** — arquivo não existe
+- [ ] Playwright não executado neste ciclo (gate externo roda)
+- [ ] Sem teste unitário que trave `contagem.abaixo === precisaRepor(...).length` (depende do E2E acima)
 - [ ] Filtros da URL (`?de=&ate=&tipo=&q=`) ainda **sem teste de componente** — coberto só
       no nível de `periodos.ts`; smoke manual de Histórico/Relatórios pendente
 - [ ] Checkbox "Lista de compras (reposição)" e o toast "Escolha pelo menos uma seção do
@@ -181,5 +235,4 @@ npx vitest run -t "Excel: 1 aba"
 - [ ] T-011 CA-1/CA-3/CA-5: render de `ListaReposicao` (`(2 emb.)` em `<strong class="tabular-nums">`,
       `data-embalagens`, estado `Vazio`) verificável só por revisão de código + Playwright
       (`[data-reposicao="p"][data-embalagens="2 emb."]`), sem `@testing-library`
-- [ ] T-008 (foco do modal "Estoque mínimo") e T-009 (três caminhos de `precisaRepor` em `Estoque.tsx`)
-      seguem abertos no backlog
+- [ ] T-008 (foco do modal "Estoque mínimo") segue aberto no backlog

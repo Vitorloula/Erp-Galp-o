@@ -167,7 +167,7 @@ export function encontrarPorCodigo(produtos: Produto[], codigo: string): Produto
   if (!canonico) return undefined
   for (const produto of produtos) {
     const c = produto.codigos.find(x => x.codigo === canonico)
-    if (c) return { produto, fator: c.fator }
+    if (c) return { produto: produto, fator: c.fator }
   }
   const porInterno = produtos.find(p => p.codigo_interno.toUpperCase() === codigo.trim().toUpperCase())
   return porInterno ? { produto: porInterno, fator: 1 } : undefined
@@ -286,7 +286,13 @@ export function montarReposicao(produtos: Produto[], lotes: Lote[], hoje = hojeI
   )
 }
 
-/** Só os que precisam de compra (abaixo ou exatamente no mínimo), para o Painel e o filtro "Repor". */
+/**
+ * Recorte da lista de reposição para quem precisa de compra (abaixo ou exatamente no mínimo).
+ *
+ * É a ÚNICA porta de entrada da lista de compras (chip "Repor", tabela e arquivo exportado),
+ * sempre aplicada sobre `montarReposicao(produtos, lotes)` — nunca sobre saldos de lote.
+ * Assim a contagem do chip, as linhas da tabela e o arquivo levam uma linha por PRODUTO.
+ */
 export function precisaRepor(itens: ReposicaoProduto[]): ReposicaoProduto[] {
   return itens.filter(i => noPontoDePedido(i.situacao))
 }

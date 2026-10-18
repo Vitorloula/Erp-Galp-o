@@ -15,11 +15,9 @@ import {
   montarReposicao,
   precisaRepor,
   produtoCombina,
-  saldosPorProduto,
-  situacaoReposicao,
   type LinhaEstoque,
+  type ReposicaoProduto,
   type Situacao,
-  type SituacaoReposicao,
 } from '../lib/estoque'
 import { formatarData, formatarEmbalagens, formatarNumero, formatarValidade } from '../lib/formato'
 import { baixarArquivo, tituloEmpresa } from '../lib/relatorio'
@@ -52,6 +50,16 @@ function ordenar(linhas: LinhaEstoque[], ordem: Ordem) {
   )
 }
 
+/**
+ * Ordem da lista "Repor". A compra é decidida por produto, não por lote: a ordem padrão é a de
+ * `montarReposicao()` (cobertura crescente = mais crítico primeiro, ver `ReposicaoProduto`).
+ * "Ordenar por validade" não se aplica a esta lista — o lote não faz parte da decisão de compra.
+ */
+function ordenarReposicao(itens: ReposicaoProduto[], ordem: Ordem): ReposicaoProduto[] {
+  if (ordem !== 'nome') return itens
+  return [...itens].sort((a, b) => a.produto.nome.localeCompare(b.produto.nome, 'pt-BR'))
+}
+
 export function Estoque() {
   const { produtos, lotes, categorias, nomeCategoria, carregando } = useDados()
   const { pode, empresa, loja, lojas } = useAtiva()
@@ -67,36 +75,20 @@ export function Estoque() {
   const [gerando, setGerando] = useState<'xlsx' | 'pdf' | null>(null)
   const [dicaVisivel, setDicaVisivel] = useState(false)
 
+  // Linhas por lote: alimentam os chips Vencidos/Zerados/Vencem/Em dia e o filtro "Todos".
   const todas = useMemo(() => montarLinhasEstoque(produtos, lotes), [produtos, lotes])
-  const saldos = useMemo(() => saldosPorProduto(lotes), [lotes])
-  const reposicaoPorProduto = useMemo(() => {
-    const mapa = new Map<string, SituacaoReposicao>()
-    for (const p of produtos) if (p.estoque_minimo !== null) mapa.set(p.id, situacaoReposicao(saldos.get(p.id) ?? 0, p.estoque_minimo))
-    return mapa
-  }, [produtos, saldos])
-  const precisaReporPorLinha = useCallbackMap(reposicaoPorProduto)
-
   const base = useMemo(
     () => todas.filter(l => (!categoria || l.produto.categoria_id === categoria) && produtoCombina(l.produto, termo)),
     [todas, categoria, termo],
   )
-  const contagem = useMemo(() => {
-    const c: Record<Filtro, number> = { todos: base.length, vencido: 0, zerado: 0, vencendo: 0, abaixo: 0, ok: 0 }
-    base.forEach(l => c[l.situacao]++)
-    // Conta PRODUTOS no ponto de pedido (o filtro Repor é por produto, não por lote).
-    c.abaixo = precisaRepor(
-      montarReposicao(
-        produtos.filter(p => (!categoria || p.categoria_id === categoria) && produtoCombina(p, termo)),
-        lotes,
-      ),
-    ).length
-    return c
-  }, [base, produtos, lotes, categoria, termo])
 
-  // Lista de compras: a decisão de compra vem inteira de lib/estoque.ts.
+  // ── Lista de compras: fonte ÚNICA (T-009) ──────────────────────────────────────────────
+  // A decisão de compra vem inteira de lib/estoque.ts e é calculada UMA vez; o chip "Repor",
+  // a lista e o arquivo exportado leem exatamente este array (filtrado depois, pela tela).
   const reposicao = useMemo(() => montarReposicao(produtos, lotes), [produtos, lotes])
   const visiveisReposicao = useMemo(
-    () => precisaRepor(reposicao).filter(i => (!categoria || i.produto.categoria_id === categoria) && produtoCombina(i.produto, termo)),
+    () =>
+      precisaRepor(reposicao).filter(i => (!categoria || i.produto.categoria_id === categoria) && produtoCombina(i.produto, termo)),
     [reposicao, categoria, termo],
   )
   const itensSelecionados = useMemo(
@@ -105,15 +97,22 @@ export function Estoque() {
   )
   const marcadosVisiveis = useMemo(() => visiveisReposicao.filter(i => selecionados.has(i.produto.id)).length, [visiveisReposicao, selecionados])
 
-  const linhas = useMemo(() => {
-    const filtradas =
-      filtro === 'todos'
-        ? base
-        : filtro === 'abaixo'
-          ? base.filter(l => precisaReporPorLinha(l.produto.id) === 'abaixo' || precisaReporPorLinha(l.produto.id) === 'no_minimo')
-          : base.filter(l => l.situacao === filtro)
-    return ordenar(filtradas, ordem)
-  }, [base, filtro, ordem, precisaReporPorLinha])
+  const contagem = useMemo(() => {
+    const c: Record<Filtro, number> = { todos: base.length, vencido: 0, zerado: 0, vencendo: 0, abaixo: 0, ok: 0 }
+    base.forEach(l => c[l.situacao]++)
+    // Nenhum recálculo: o chip "Repor" mostra o tamanho da MESMA lista que a tabela desenha.
+    c.abaixo = visiveisReposicao.length
+    return c
+  }, [base, visiveisReposicao])
+
+  /** Linhas por lote (tabela padrão). O filtro "Repor" NÃO usa estas linhas — ele usa `visiveisReposicao`. */
+  const linhas = useMemo(
+    () => ordenar(filtro === 'todos' ? base : base.filter(l => l.situacao === filtro), ordem),
+    [base, filtro, ordem],
+  )
+
+  /** Lista de compras já na ordem escolhida na tela (a mesma da tabela e do arquivo). */
+  const itensRepor = useMemo(() => ordenarReposicao(visiveisReposicao, ordem), [visiveisReposicao, ordem])
 
   // Seleção só faz sentido dentro da lista de compras.
   useEffect(() => {
@@ -157,10 +156,10 @@ export function Estoque() {
 
   const marcarTodos = useCallback(() => {
     setSelecionados(s => {
-      const todos = visiveisReposicao.length > 0 && visiveisReposicao.every(i => s.has(i.produto.id))
-      return todos ? new Set() : new Set(visiveisReposicao.map(i => i.produto.id))
+      const todos = itensRepor.length > 0 && itensRepor.every(i => s.has(i.produto.id))
+      return todos ? new Set() : new Set(itensRepor.map(i => i.produto.id))
     })
-  }, [visiveisReposicao])
+  }, [itensRepor])
 
   async function exportarCompra(formato: 'xlsx' | 'pdf') {
     if (itensSelecionados.length === 0) {
@@ -186,7 +185,7 @@ export function Estoque() {
 
   if (carregando) return <Carregando />
 
-  const todosMarcados = visiveisReposicao.length > 0 && marcadosVisiveis === visiveisReposicao.length
+  const todosMarcados = itensRepor.length > 0 && marcadosVisiveis === itensRepor.length
   const semFiltro = !termo && !categoria
 
   return (
@@ -250,7 +249,7 @@ export function Estoque() {
           )}
 
           <ListaReposicao
-            itens={visiveisReposicao}
+            itens={itensRepor}
             aoEditar={pode.movimentar ? setEditando : undefined}
             selecionados={selecionados}
             aoAlternar={alternar}
@@ -282,7 +281,7 @@ export function Estoque() {
             }
           />
 
-          {visiveisReposicao.length > 0 && (
+          {itensRepor.length > 0 && (
             <div role="region" aria-label="Ações da lista de compras" className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 lg:bottom-0">
               <div className="cartao flex flex-wrap items-center gap-x-3 gap-y-2 border-emerald-200 bg-white/95 p-3 shadow-lg backdrop-blur">
                 <p className="text-sm font-semibold text-slate-700" aria-live="polite" aria-atomic="true" data-selecao>
@@ -290,13 +289,13 @@ export function Estoque() {
                     <>Selecione produtos para baixar a lista</>
                   ) : (
                     <>
-                      {marcadosVisiveis} de {visiveisReposicao.length} selecionado{marcadosVisiveis === 1 ? '' : 's'}
+                      {marcadosVisiveis} de {itensRepor.length} selecionado{marcadosVisiveis === 1 ? '' : 's'}
                     </>
                   )}
                 </p>
 
                 <div className="flex gap-2">
-                  <button type="button" className="btn btn-fantasma px-2.5 py-1.5 text-xs" onClick={marcarTodos} disabled={visiveisReposicao.length === 0}>
+                  <button type="button" className="btn btn-fantasma px-2.5 py-1.5 text-xs" onClick={marcarTodos} disabled={itensRepor.length === 0}>
                     {todosMarcados ? 'Desmarcar todos' : 'Marcar todos'}
                   </button>
                   <button type="button" className="btn btn-fantasma px-2.5 py-1.5 text-xs" onClick={() => setSelecionados(new Set())} disabled={marcadosVisiveis === 0}>
@@ -435,9 +434,4 @@ export function Estoque() {
       <ReposicaoForm produto={editando} aoFechar={() => setEditando(null)} />
     </div>
   )
-}
-
-/** Memoriza a consulta de situação de reposição por produto (usada nos filtros). */
-function useCallbackMap(mapa: Map<string, SituacaoReposicao>) {
-  return useMemo(() => (produtoId: string): SituacaoReposicao => mapa.get(produtoId) ?? 'sem_minimo', [mapa])
 }
