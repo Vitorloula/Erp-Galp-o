@@ -1,323 +1,219 @@
 # agentes/tasks.py
+"""
+Tasks do pipeline. Regras detalhadas de E2E vivem em 'agents/REGRAS_E2E.md'.
+QA LLM só documenta — gate mecânico (qa_gate.py) é quem aprova/reprova.
+"""
+
 from crewai import Task
 
 
 class TarefasERP:
+    # ================================================================
+    # Pipeline principal (um ciclo autônomo completo)
+    # ================================================================
     def ciclo_autonomo_completo(self, arquiteto, designer, programador, qa):
         return [
-            # ============================================================
-            # 1. ARQUITETO — Analisa, mantém o backlog e prioriza
-            # ============================================================
+            # ------------------------------------------------------- #
+            # 1. ARQUITETO
+            # ------------------------------------------------------- #
             Task(
                 description=(
-                    "PASSO 1 — Estude 'ler_estado_projeto'. Se o backlog estiver "
-                    "vazio ou desatualizado, INSPECIONE o código (listar_arquivos "
-                    "em src/, buscar_no_codigo por TODOs/placeholders) e use "
-                    "'atualizar_backlog' para registrar 3-8 itens concretos com "
-                    "id (T-001...), titulo, prioridade (1=alta) e tipo.\n"
-                    "PASSO 2 — Escolha o PRÓXIMO item a executar e produza um "
-                    "PLANO com: item_id escolhido, objetivo, arquivos que serão "
-                    "tocados, critérios de aceite verificáveis."
+                    "PASSO 1 — Leia 'ler_estado_projeto'. Se o backlog estiver "
+                    "vazio ou desatualizado, inspecione o código "
+                    "(listar_arquivos em src/, buscar_no_codigo por "
+                    "TODOs/placeholders) e use 'atualizar_backlog' com "
+                    "acao='adicionar' para registrar 3-8 itens concretos "
+                    "(id T-001..., titulo, prioridade 1=alta, tipo, "
+                    "arquivos_que_toca).\n\n"
+                    "PASSO 2 — Escolha o PRÓXIMO item a executar (prioridade "
+                    "mais alta).\n\n"
+                    "PASSO 3 — PERSISTA o plano chamando 'definir_plano' com:\n"
+                    "  item_id: o ID escolhido\n"
+                    "  objetivo: 1-2 frases\n"
+                    "  arquivos_json: array JSON com paths que serão tocados, "
+                    "ex: '[\"src/pages/Estoque.tsx\"]'\n"
+                    "  criterios: lista textual do que conta como 'pronto'"
                 ),
                 expected_output=(
-                    "Plano com: ITEM_ID=<id>, OBJETIVO, ARQUIVOS_ALVO, "
-                    "CRITERIOS_DE_ACEITE (lista)."
+                    "Plano persistido em estado.json (campo plano_atual). "
+                    "Formato esperado: '✅ Plano salvo: item=..., arquivos=N.'"
                 ),
                 agent=arquiteto,
             ),
 
-            # ============================================================
-            # 2. DESIGNER — Define UI/UX e mapeia testes E2E afetados
-            # ============================================================
+            # ------------------------------------------------------- #
+            # 2. DESIGNER
+            # ------------------------------------------------------- #
             Task(
                 description=(
-                    "Defina: estrutura de componentes, props TS, Tailwind, "
-                    "breakpoints, a11y (aria-labels, foco, contraste).\n\n"
-                    "IMPORTANTE — Antes de propor mudanças na UI, LEIA a pasta 'e2e/' "
-                    "e verifique se o componente/tela que será alterado tem testes E2E. "
-                    "Se tiver, avise no plano: 'Esta mudança quebrará os testes X, Y e Z — "
-                    "atualizar o .spec.ts correspondente'.\n\n"
-                    "NUNCA altere IDs, data-testid, aria-labels ou textos que os testes "
-                    "E2E dependem SEM avisar. Se a mudança for necessária, o teste também "
-                    "precisa ser atualizado — inclua isso no plano."
+                    "Leia o plano via 'ler_estado_projeto' (campo plano_atual).\n\n"
+                    "Defina: estrutura de componentes, props TS, classes "
+                    "Tailwind, breakpoints, a11y (aria-labels, foco, "
+                    "contraste).\n\n"
+                    "IMPORTANTE — Antes de propor mudanças na UI, LEIA a "
+                    "pasta 'e2e/' e verifique se o componente/tela que será "
+                    "alterado tem testes E2E. Se tiver, liste quais .spec.ts "
+                    "precisarão ser atualizados.\n\n"
+                    "NUNCA altere IDs, data-testid, aria-labels ou textos "
+                    "que os testes E2E dependem SEM avisar neste plano."
                 ),
                 expected_output=(
-                    "Diretrizes de UI/UX + lista explícita de testes E2E que serão afetados."
+                    "Diretrizes de UI/UX + lista de .spec.ts afetados."
                 ),
                 agent=designer,
             ),
 
-            # ============================================================
-            # 3. PROGRAMADOR — Implementa o código E ajusta os testes afetados
-            # ============================================================
+            # ------------------------------------------------------- #
+            # 3. PROGRAMADOR
+            # ------------------------------------------------------- #
             Task(
                 description=(
-                    "Implemente o PLANO salvando CADA arquivo com 'escrever_arquivo'.\n"
-                    "Respeite 'regras_projeto.md'. NUNCA exponha segredos.\n\n"
-
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "🚨 REGRA 1 — ATUALIZAR TESTES E2E QUE VOCÊ QUEBROU\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "Se você alterou qualquer texto, ID, aba (ex: Excel), toast, "
-                    "estado de empty, ou comportamento visível na UI:\n"
-                    "  1) LEIA o arquivo .spec.ts correspondente em 'e2e/app/'\n"
-                    "  2) ATUALIZE o .spec.ts para refletir a nova realidade\n"
-                    "  3) Rode 'npx playwright test --project=app-computador' para validar\n\n"
-                    "EXEMPLOS PRÁTICOS:\n"
-                    "  - Se adicionou a aba 'Lista de compras' ao Excel, atualize o "
-                    "expect do Excel em 'relatorios.spec.ts'.\n"
-                    "  - Se adicionou uma nova seção ao PDF, inclua o nome dela no "
-                    "loop que desmarca todas as seções no teste.\n"
-                    "  - Se mudou o texto de um toast, use regex no .spec.ts "
-                    "em vez de texto exato.\n"
-                    "  - Se mudou um empty state, use asserção comportamental "
-                    "(ex: `toHaveCount(0)` na lista) em vez de verificar texto.\n\n"
-
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "🚨 REGRA 2 — NUNCA USE count() EM ASSERÇÕES (NÃO AUTO-ESPERA)\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "❌ ERRADO (não auto-espera, falha por timing/debounce):\n"
-                    "   `expect(await movs(page).count()).toBeGreaterThan(3)`\n"
-                    "   `expect(await page.locator('tr').count()).toBe(5)`\n"
-                    "   `expect(await page.getByText('X').count()).toBe(1)`\n\n"
-                    "✅ CORRETO (auto-espera até 8s, imune a debounce/async):\n"
-                    "   `await expect(movs(page)).toHaveCount(5)`\n"
-                    "   `await expect(page.locator('tr')).toHaveCount(5)`\n"
-                    "   `await expect.poll(() => movs(page).count()).toBeGreaterThan(3)`\n\n"
-                    "Motivo: campos de busca no app têm debounce de ~300ms. Se você "
-                    "usa `expect(await count())`, o teste lê o valor ANTES do debounce "
-                    "disparar, e falha. `toHaveCount()` e `expect.poll()` retentam.\n\n"
-
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "🚨 REGRA 3 — COBRIR OPÇÕES DINÂMICAS COMPLETAMENTE\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "Se o código-fonte itera sobre uma lista (ex: array de seções, "
-                    "abas, categorias), e você adicionou um item novo, ATUALIZE o "
-                    "teste para cobrir esse item também.\n\n"
-                    "Exemplo: se adicionou uma 5ª seção ao PDF, inclua o nome dela "
-                    "no loop `for (const secao of [...])` no relatorios.spec.ts.\n"
-                    "Se adicionou uma 5ª aba ao Excel, inclua em `.toEqual([...])`.\n\n"
-
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "🚨 REGRA 4 — NUNCA REVERTER UI PARA TESTE PASSAR\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "Se um teste antigo falha porque a UI mudou (legitimamente), "
-                    "ATUALIZE o teste. Não reverta a UI para o teste passar — a "
-                    "não ser que a quebra seja um bug real introduzido por você.\n\n"
-                    "❌ NUNCA comente ou pule um teste para fazer o ciclo passar.\n"
-                    "❌ NUNCA use `.skip()` sem justificativa documentada no commit.\n\n"
-
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "🚨 REGRA 5 — REGEX FLEXÍVEL EM TOASTS E NOTIFICAÇÕES\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "Toasts e notificações dependem de TIMING e de dados dinâmicos "
-                    "(códigos auto-gerados, IDs, timestamps). Um regex muito específico "
-                    "quebra de forma INTERMITENTE (flaky).\n\n"
-                    "❌ ERRADO (regex estrita com código auto-gerado):\n"
-                    "   `toast(page, /Produto cadastrado \\(P\\d+\\)\\./)`\n"
-                    "   `toast(page, 'Correção #42 registrada (+5 sc)')`\n"
-                    "   `toast(page, 'Pedido 2024-10-17-001 criado')`\n\n"
-                    "✅ CORRETO (regex flexível + validação em outra camada):\n"
-                    "   `toast(page, /Produto cadastrado/).toBeVisible()`\n"
-                    "   Depois, valide o RESULTADO com asserções determinísticas:\n"
-                    "     - `page.getByRole('heading', { name: /Fungicida/ })`\n"
-                    "     - `page.getByRole('link', { name: /Fungicida/ })`\n"
-                    "     - `expect(itens).toHaveCount(N)`\n\n"
-                    "Motivo: o toast pode sair SEM o código se o cache ainda não "
-                    "propagou do banco. O produto É criado — o resto do teste já "
-                    "valida isso. Exigir o código no toast torna o teste flaky.\n\n"
-                    "⚠️ VARREDURA OBRIGATÓRIA: procure em TODO o 'e2e/' por padrões "
-                    "como `\\(P\\d+\\)`, `#\\d+`, `\\d{4}-\\d{2}-\\d{2}` em toasts. "
-                    "Relaxe TODOS, não só o que quebrou.\n\n"
-
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "🚨 REGRA 6 — BUSCA COM DEBOUNCE: ESPERAR OU CLICAR\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "Campos de busca do app têm debounce de ~300ms. Se você faz:\n"
-                    "   `await fill('termo'); await press('Enter');`\n"
-                    "o Enter dispara ANTES dos resultados aparecerem → nada acontece.\n\n"
-                    "❌ ERRADO (fill seguido IMEDIATAMENTE de Enter):\n"
-                    "   `await page.getByLabel('Buscar').fill('oleo')`\n"
-                    "   `await page.getByLabel('Buscar').press('Enter')`\n"
-                    "   `await expect(item).toBeVisible()`  // falha, item não foi adicionado\n\n"
-                    "✅ CORRETO (espera o resultado aparecer, depois clica ou Enter):\n"
-                    "   `await page.getByLabel('Buscar').fill('oleo')`\n"
-                    "   `await expect(page.getByRole('button', { name: /Óleo/ })).toBeVisible()`\n"
-                    "   `await page.getByRole('button', { name: /Óleo/ }).click()`  // ← MAIS ROBUSTO\n\n"
-                    "OU (se o Enter for obrigatório):\n"
-                    "   `await page.getByLabel('Buscar').fill('oleo')`\n"
-                    "   `await expect(page.getByRole('button', { name: /Óleo/ })).toBeVisible()`\n"
-                    "   `await page.getByLabel('Buscar').press('Enter')`\n"
-                    "   `await expect.poll(() => item.count()).toBe(1)`\n\n"
-                    "Motivo: o `fill()` só preenche o input. Os resultados de busca "
-                    "só aparecem ~300ms depois (debounce). Se o Enter for disparado "
-                    "antes, o app não tem resultado pra adicionar. PREfira clicar no "
-                    "botão do produto (mais determinístico que Enter).\n\n"
-
+                    "Implemente o plano de 'plano_atual' salvando CADA "
+                    "arquivo com 'escrever_arquivo'. Respeite "
+                    "'regras_projeto.md'. NUNCA exponha segredos.\n\n"
+                    "━━━ REGRAS DE E2E ━━━\n"
+                    "ANTES de tocar em qualquer .spec.ts, LEIA "
+                    "'agents/REGRAS_E2E.md' com 'ler_arquivo'. As regras "
+                    "de lá são OBRIGATÓRIAS. Em resumo:\n"
+                    "  • Atualize .spec.ts que você quebrou (Regra 1)\n"
+                    "  • Nunca use `expect(await locator.count())` (Regra 2)\n"
+                    "  • Cubra opções dinâmicas completamente (Regra 3)\n"
+                    "  • Nunca reverta UI para teste passar (Regra 4)\n"
+                    "  • Regex flexível em toasts (Regra 5)\n"
+                    "  • Busca com debounce: espere o botão antes do "
+                    "    Enter, ou clique nele (Regra 6)\n"
+                    "  • Bug real × teste desatualizado (Regra 8)\n\n"
                     "Ao final, rode 'npx tsc --noEmit' e "
                     "'npx playwright test --project=app-computador'."
                 ),
                 expected_output=(
-                    "Arquivos criados/modificados + status do tsc + status do E2E. "
-                    "Inclua na saída se algum .spec.ts foi atualizado e por quê."
+                    "Arquivos criados/modificados + status do tsc + status "
+                    "do E2E. Inclua quais .spec.ts foram atualizados e por quê."
                 ),
                 agent=programador,
             ),
 
-            # ============================================================
-            # 4. QA — Valida com regras estritas de qualidade de testes
-            # ============================================================
+            # ------------------------------------------------------- #
+            # 4. QA (só documenta — gate é externo)
+            # ------------------------------------------------------- #
             Task(
                 description=(
-                    "Valide rodando 'npx tsc --noEmit', 'npx vitest run --coverage' "
-                    "e 'npx playwright test --project=app-computador'.\n\n"
-
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "🚨 REGRA CRÍTICA — TESTES DE ESTADO VAZIO E TOASTS\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "- NUNCA dependa de texto exato em testes de UI. Textos mudam.\n"
-                    "- Use asserções de COMPORTAMENTO:\n"
-                    "    * `toHaveCount(0)` para listas vazias (não checar texto de empty state).\n"
-                    "    * `page.on('download')` para verificar se downloads dispararam.\n"
-                    "    * `toBeDisabled()` / `toBeEnabled()` para estados de botões.\n"
-                    "    * `toHaveAttribute()` para estados de dados (data-situacao, data-tipo, etc).\n"
-                    "- Para toasts, use regex flexível (ex: `/cadastrad[oa]/i`) ou verifique "
-                    "que QUALQUER toast apareceu em `[aria-live=\"polite\"]`.\n"
-                    "- Se um teste E2E falhar por causa de texto volátil, ATUALIZE o .spec.ts "
-                    "para usar asserções comportamentais — NÃO mude o texto da UI só para "
-                    "o teste passar.\n\n"
-
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "🚨 REGRA CRÍTICA — BUG REAL vs TESTE DESATUALIZADO\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "Se o teste falhar, analise o error-context.md e responda:\n\n"
-                    "  (a) O TESTE está desatualizado (texto/aba/seção mudou)?\n"
-                    "      → REPROVE o ciclo e peça ao Programador para atualizar o .spec.ts.\n\n"
-                    "  (b) A UI tem um BUG REAL (botão não funciona, filtro não aplica)?\n"
-                    "      → REPROVE o ciclo e devolva ao Programador com mensagem clara:\n"
-                    "         'BUG na UI: [descrição]. Arquivo suspeito: src/components/X.tsx'.\n"
-                    "      → NÃO aceite um teste verde se ele esconde um bug real.\n\n"
-                    "SINAIS DE BUG REAL (não é problema do teste):\n"
-                    "  - Clicar em botão X não muda o estado visível (lista continua igual).\n"
-                    "  - Validação Y não bloqueia a ação mesmo quando deveria bloquear.\n"
-                    "  - Texto do estado é coerente mas o comportamento é errado.\n\n"
-                    "SINAIS DE TESTE DESATUALIZADO:\n"
-                    "  - Texto mudou mas o comportamento ainda é correto.\n"
-                    "  - Nova aba/seção foi adicionada mas o loop não cobre ela.\n"
-                    "  - `expect(await count())` sem auto-espera (timing bug).\n\n"
-
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "🚨 REGRA CRÍTICA — TIMING / DEBOUNCE\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "Se o teste falhar com `Received: X` onde X é o valor ANTERIOR "
-                    "esperado (ex: esperava 4+, recebeu 1), suspeite de debounce:\n"
-                    "  - `fill('Carlos')` no app dispara debounce de ~300ms.\n"
-                    "  - `expect(await count())` lê ANTES do debounce disparar.\n"
-                    "  - Solução: usar `await expect.poll(() => count()).toBeGreaterThan(3)`\n"
-                    "    ou `await expect(locator).toHaveCount(N)`.\n\n"
-
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "🚨 REGRA CRÍTICA — TOASTS COM DADOS DINÂMICOS (FLAKY)\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "Se um teste de toast falhar INTERMITENTEMENTE (às vezes passa, "
-                    "às vezes não), o regex provavelmente está muito específico.\n\n"
-                    "Sintoma: `Locator: toast(/Produto cadastrado \\(P\\d+\\)\\./)` "
-                    "→ element not found, mas o produto FOI criado (13 produtos ativos "
-                    "visível, produto na lista).\n\n"
-                    "Causa: o componente faz `recarregar()` antes do toast, mas o cache "
-                    "pode não ter propagado — o toast sai como 'Produto cadastrado.' "
-                    "SEM o código.\n\n"
-                    "Solução: relaxar o regex do toast para `/Produto cadastrado/` "
-                    "(sem o código), e validar o RESULTADO em outra asserção "
-                    "(navegação, contagem, texto no detalhe).\n\n"
-
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "🚨 REGRA CRÍTICA — BUSCA COM DEBOUNCE (ENTER CEDO DEMAIS)\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "Se o teste falhar porque um item não apareceu após busca por nome:\n\n"
-                    "Sintoma: `Locator: [data-item=\"Óleo mineral adjuvante\"]` → not found, "
-                    "mesmo após `fill('oleo') + press('Enter')`.\n\n"
-                    "Causa: o `fill()` NÃO carrega os resultados da busca. Eles só aparecem "
-                    "~300ms depois (debounce). Se o `press('Enter')` dispara antes, o app "
-                    "não tem resultado pra adicionar.\n\n"
-                    "Solução no teste:\n"
-                    "  1) APÓS o `fill()`, espere o botão do produto aparecer:\n"
-                    "     `await expect(page.getByRole('button', { name: /Óleo/ })).toBeVisible()`\n"
-                    "  2) DEPOIS clique no botão (mais determinístico que Enter):\n"
-                    "     `await page.getByRole('button', { name: /Óleo/ }).click()`\n"
-                    "  3) OU use `expect.poll()` se precisar validar a adição:\n"
-                    "     `await expect.poll(() => item.count()).toBe(1)`\n\n"
-
-                    "Se a cobertura for menor que 80%, escreva mais testes unitários.\n\n"
-                    "Atualize GUIA_DE_TESTES.md e DOCUMENTACAO_ERP.md.\n\n"
-                    "FINALIZE com uma linha exata: 'VEREDITO: APROVADO' ou "
-                    "'VEREDITO: REPROVADO — <motivo curto>'."
+                    "O gate mecânico (tsc/vitest/build/playwright) é "
+                    "rodado por script externo (qa_gate.py). Seu papel é "
+                    "DOCUMENTAR.\n\n"
+                    "Ações:\n"
+                    "  1) Leia o plano (ler_estado_projeto -> plano_atual).\n"
+                    "  2) Atualize GUIA_DE_TESTES.md com qualquer novo "
+                    "     teste adicionado neste ciclo (nome do arquivo "
+                    "     .spec.ts + o que cobre).\n"
+                    "  3) Atualize DOCUMENTACAO_ERP.md se a feature for "
+                    "     relevante para o usuário final.\n"
+                    "  4) Chame 'registrar_ciclo' com um resumo do que foi "
+                    "     feito (item_id + 2-3 linhas).\n\n"
+                    "NÃO tente aprovar/reprovar — isso é feito pelo gate "
+                    "mecânico. Seu veredito textual é apenas informativo. "
+                    "Se você não conseguir executar npx/npm (ambiente sem "
+                    "Node), registre isso claramente em vez de inventar "
+                    "resultado."
                 ),
                 expected_output=(
-                    "Docs atualizados + veredito explícito (APROVADO ou REPROVADO) + "
-                    "resumo do E2E com contagem de testes que passaram/falharam."
+                    "Docs atualizados + registro do ciclo no histórico."
                 ),
                 agent=qa,
             ),
         ]
 
     # ================================================================
-    # TASK DE CORREÇÃO — usada pelo loop de auto-reparo do main.py
+    # Task de correção — usada pelo loop de auto-reparo do main.py
     # ================================================================
     def tarefa_correcao(self, programador, motivo: str, log: str = ""):
         return Task(
             description=(
-                f"O QA REPROVOU o ciclo. Motivo: {motivo}\n\n"
-                "🚨 REGRA DE OURO (repito porque é crucial):\n"
-                "Se a falha for um teste E2E (.spec.ts) quebrado:\n"
-                "  1) Analise o erro. É bug REAL na UI ou teste desatualizado?\n"
-                "  2) Se for bug real: corrija o componente em 'src/'.\n"
-                "  3) Se for teste desatualizado (texto mudou, aba nova, etc): "
-                "atualize o .spec.ts correspondente em 'e2e/app/'.\n"
-                "  4) Se o teste falha porque um botão/filtro NÃO FUNCIONA: é bug real, "
-                "corrija o componente — NÃO comente o teste.\n"
-                "  5) Se o teste falha com `Received: X` (valor anterior ao esperado): "
-                "é timing/debounce. Use `expect.poll()` ou `toHaveCount()`.\n"
-                "  6) Se o teste falha por regex muito específico em toast "
-                "(ex: `/Produto cadastrado \\(P\\d+\\)\\./`): é FLAKY. "
-                "Relaxe o regex para `/Produto cadastrado/` e valide o resultado "
-                "em outra asserção.\n"
-                "  7) Se o teste falha porque um item não apareceu após busca por "
-                "nome (com `fill() + press('Enter')`), suspeite de DEBOUNCE: "
-                "o Enter disparou antes dos resultados carregarem. "
-                "Espere o botão do produto aparecer (getByRole().toBeVisible()) "
-                "e CLIQUE nele em vez de usar Enter.\n\n"
-                "❌ NUNCA comente ou pule um teste para fazer o ciclo passar.\n"
-                "❌ NUNCA reverta uma melhoria de UI só para um teste antigo passar.\n"
-                "❌ NUNCA use `expect(await locator.count()).toBeX()` — não auto-espera.\n\n"
-                "Corrija APENAS o necessário usando 'escrever_arquivo' (sobrescrever). "
-                "Rode 'npx tsc --noEmit' e 'npx playwright test --project=app-computador' "
-                "ao final para confirmar.\n\n"
+                f"O gate REPROVOU o ciclo. Motivo: {motivo}\n\n"
+                "Antes de corrigir, LEIA 'agents/REGRAS_E2E.md' e o plano "
+                "atual (ler_estado_projeto -> plano_atual).\n\n"
+                "Classifique a falha antes de agir:\n"
+                "  • BUG REAL na UI (botão não funciona, filtro não aplica) "
+                "    → corrija o componente em 'src/'.\n"
+                "  • TESTE DESATUALIZADO (texto/aba/seção mudou) → atualize "
+                "    o .spec.ts em 'e2e/app/'.\n"
+                "  • TIMING/DEBOUNCE (`Received: X` com valor anterior ao "
+                "    esperado) → use `expect.poll()` ou `toHaveCount()`.\n"
+                "  • TOAST FLAKY (regex com código auto-gerado) → relaxe o "
+                "    regex (ex: `/Produto cadastrado/` em vez de "
+                "    `/Produto cadastrado \\(P\\d+\\)/`).\n"
+                "  • BUSCA COM DEBOUNCE (Enter disparou antes dos "
+                "    resultados) → espere o botão aparecer "
+                "    (`getByRole().toBeVisible()`) e clique nele.\n"
+                "  • VIOLAÇÃO MECÂNICA (skip, only, count() em asserção) → "
+                "    remova.\n"
+                "  • AMBIENTE (npx/npm não encontrado, WinError 2) → NÃO é "
+                "    bug de código. Reporte e NÃO altere nenhum arquivo.\n\n"
+                "❌ NUNCA comente, pule (.skip) ou reverta UI para fazer o "
+                "ciclo passar.\n\n"
+                "Corrija APENAS o necessário usando 'escrever_arquivo' "
+                "(sobrescrever). Rode 'npx tsc --noEmit' e "
+                "'npx playwright test --project=app-computador' ao final "
+                "para confirmar.\n\n"
                 f"=== LOG DE TESTES ===\n{log[-5000:]}"
             ),
             expected_output=(
-                "Arquivos corrigidos + explicação do que era bug real vs teste "
-                "desatualizado vs flaky vs debounce + confirmação de que o E2E passou."
+                "Arquivos corrigidos + classificação da falha "
+                "(bug real / teste desatualizado / timing / flaky / "
+                "debounce / mecânico / ambiente) + confirmação de que o "
+                "E2E passou (ou explicação de por que não foi possível "
+                "executar)."
             ),
             agent=programador,
         )
 
     # ================================================================
-    # TASK DE FECHAMENTO — registra o ciclo aprovado no histórico
+    # Task de fechamento — registra o ciclo aprovado no histórico
     # ================================================================
-    def tarefa_fechamento(self, qa, sucesso: bool, resumo: str):
+    def tarefa_fechamento(self, qa, sucesso: bool, resumo: str, item_id: str = ""):
+        concluir = (
+            f"Use 'atualizar_backlog' com acao='concluir', "
+            f"item_id='{item_id}'."
+            if sucesso and item_id
+            else "Não altere o backlog (ciclo não aprovado ou item_id desconhecido)."
+        )
         return Task(
             description=(
-                f"Ciclo terminou com {'SUCESSO' if sucesso else 'FALHA'}. "
+                f"Ciclo terminou com {'SUCESSO' if sucesso else 'FALHA'}.\n"
                 f"Resumo: {resumo}\n\n"
                 "Ações:\n"
-                "  1) Use 'registrar_ciclo' para anexar ao historico.md "
-                "(formato: '[YYYY-MM-DD] <título>\\n<resumo>').\n"
-                "  2) Se sucesso, use 'atualizar_backlog' com acao='concluir' "
-                "para marcar o item do ciclo como concluído.\n"
-                "  3) Se falha, NÃO mexa no backlog — o item continua pendente.\n\n"
-                "Lembre-se: o historico.md é APPEND-ONLY. Nunca apague entradas antigas."
+                "  1) Chame 'registrar_ciclo' com o resumo acima "
+                "     (formato: '[YYYY-MM-DD] <título>\\n<resumo>').\n"
+                f"  2) {concluir}\n"
+                "  3) Se falha, NÃO mexa no backlog.\n\n"
+                "O histórico é APPEND-ONLY. Nunca apague entradas antigas."
             ),
-            expected_output="Histórico atualizado + item do backlog marcado (se sucesso).",
+            expected_output=(
+                "Histórico atualizado + item do backlog marcado (se sucesso)."
+            ),
             agent=qa,
+        )
+
+    # ================================================================
+    # Task do Product Owner
+    # ================================================================
+    def gerar_features(self, po):
+        return Task(
+            description=(
+                "Antes de gerar features, leia 'ler_estado_projeto' e "
+                "verifique se o backlog já tem 3+ itens pendentes. Se "
+                "tiver, NÃO adicione nada e retorne 'backlog já satisfeito'.\n\n"
+                "Para cada feature nova (id PO-001, PO-002, ...), use "
+                "'atualizar_backlog' com acao='adicionar' e dados_json "
+                "contendo:\n"
+                "  • id, titulo (≤80 chars), prioridade (1=alta), tipo\n"
+                "  • evidencia: 'arquivo.tsx:linha — <descrição do problema>'\n"
+                "  • arquivos_que_toca: array com paths EXISTENTES (máx 5)\n\n"
+                "Ancore CADA feature em evidência concreta do código. Sem "
+                "evidência = não proponha."
+            ),
+            expected_output=(
+                "Features válidas adicionadas (ou 'backlog já satisfeito')."
+            ),
+            agent=po,
         )
