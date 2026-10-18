@@ -150,3 +150,37 @@ Isso ficou escrito nos dois documentos, sem maquiar.
 3. Regravar snapshots se `montarReposicao` mudar de formato de saída.
 
 VEREDITO: APROVADO — tsc 0 erros, vitest 90/90, build 0; documentação atualizada. Gap de cobertura registrado em aberto.
+
+## [2026-10-18 17:29] Ciclo
+[2026-02-14] Ciclo QA T-016 / T-017 — DOCUMENTAÇÃO (papel delegado pelo gate)
+
+Escopo: o gate mecânico (qa_gate.py) roda tsc/vitest/build/playwright. O papel deste ciclo foi DOCUMENTAR. Nenhum resultado de build/Playwright foi inventado: esses dois NÃO foram executados por mim e assim ficam registrados.
+
+1. Comandos executados neste ambiente (fatos, não relato de DEV)
+
+| Comando | Exit | Resultado |
+|---|---|---|
+| npx tsc --noEmit | 0 | sem erros (127 arquivos de src/, incl. Estoque.tsx, Relatorios.tsx, relatorio.ts) |
+| npx tsc -p e2e/tsconfig.json --noEmit | 0 | sem erros (33 arquivos de files: 21 specs E2E + base.ts/preparar.ts/servidor-local/*/vite.config.ts) |
+| npx vitest run | 0 | 8 arquivos, 90/90 testes (9,85 s) |
+| npx vitest run src/lib/relatorio.test.ts | 0 | 3/3 |
+| npx vitest run -t filtro | 0 | 3 passed / 87 skipped |
+| npm run lint | 1 | Missing script: "lint" — script não existe; não é erro de código |
+| npm run build | — | NÃO executado neste ciclo (gate externo) |
+| npx playwright test | — | NÃO executado neste ciclo (gate externo + webServer/PGlite) |
+
+2. Distribuição dos 90 testes
+regras 27 · relatorio 3 · exportar 6 · lista-compra 9 · lista-compra-paridade 4 · venda 13 · sincronizador 6 · supabase-local 22 = 90.
+Total IGUAL ao de T-009: nenhum teste novo entrou no disco neste ciclo.
+
+3. Divergências / observações
+- npm run lint falha por script inexistente (exit 1): é lacuna de configuração do package.json, não erro de tipagem ou de teste. Recomenda-se ao Programador adicionar o script "lint" (eslint) ou remover a expectativa de lint do fluxo.
+- tsc de src/ e de e2e/ ambos exit 0 — nenhum erro de tipo, critério de bloqueio satisfeito.
+- vitest 90/90 — critério de bloqueio satisfeito.
+- build e playwright permanecem NÃO VERIFICADOS por este QA; aprovação final depende do gate externo.
+
+4. Documentação
+- GUIA_DE_TESTES.md e DOCUMENTACAO_ERP.md: ciclo é de documentação; registradas as contagens reais acima (90 testes, 8 arquivos, 21 specs E2E em 33 arquivos de tsconfig e2e).
+- Backlog: NÃO alterado neste ciclo (sem item_id confiável para marcar e aprovação final pendente do gate externo).
+
+Veredito parcial deste QA: tipos e testes unitários OK (tsc 0/0, vitest 90/90); build e E2E não executados por mim — não certificados.

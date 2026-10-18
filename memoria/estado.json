@@ -3,7 +3,7 @@
     {
       "id": "T-016",
       "titulo": "Exportar do Estoque abre /relatorios sem os filtros da tela (exporta o estoque inteiro)",
-      "prioridade": 3,
+      "prioridade": 1,
       "tipo": "bug",
       "detalhe": "O cabeçalho de Estoque.tsx tem <Link to='/relatorios'>Exportar</Link> sem passar categoria/busca/situação; lib/periodos.ts já tem juntarFiltros() usado pelo Histórico para montar URLs. O operador que filtrou 'Repor' + categoria exporta tudo e confere linha a linha no Excel.",
       "arquivos_que_toca": [
@@ -15,18 +15,45 @@
       "criado_em": "2026-10-18T17:12:48.823859"
     },
     {
-      "id": "T-009",
-      "titulo": "Unificar fonte da lista 'Repor': chip, tabela e lista de compras divergem e montarReposicao roda 2x por render",
-      "prioridade": 1,
-      "tipo": "bug",
-      "detalhe": "Estoque.tsx: contagem.abaixo usa precisaRepor(montarReposicao(produtosFiltrados, lotes)).length; as linhas do filtro 'abaixo' usam precisaReporPorLinha (situacaoReposicao(saldos.get(id) ?? 0, minimo), de saldosPorProduto(lotes)); a lista de compras usa outro useMemo reposicao = montarReposicao(produtos, lotes). Duas derivações da regra de lib/estoque.ts na mesma tela (chip N x tabela M) e cálculo duplicado a cada render.",
+      "id": "T-017",
+      "titulo": "Aba 'Posição' do Relatórios ignora busca/categoria e não avisa que os filtros do Estoque vieram no link",
+      "prioridade": 2,
+      "tipo": "melhoria",
+      "detalhe": "Relatorios.tsx só lê de=/ate= e produtoId; os params de T-016 (q=, categoria=, situacao=) chegariam pela URL mas não são lidos nem mostrados. O operador que exporta 'estoque filtrado' vê posicao com todas as linhas ativas e não entende o porquê. Falta um aviso visível dos filtros aplicados + botão 'limpar'.",
       "arquivos_que_toca": [
-        "src/pages/Estoque.tsx",
-        "src/lib/estoque.ts",
-        "src/lib/regras.test.ts"
+        "src/pages/Relatorios.tsx",
+        "src/lib/relatorio.ts",
+        "src/lib/relatorio.test.ts"
       ],
-      "criterios": "Um único useMemo de montarReposicao(produtos, lotes) alimenta chip 'Repor', contagem, lista de compras e flag por produto; termo/categoria aplicados depois via precisaRepor(...).filter(produtoCombina/categoria); contagem do chip 'Repor' === nº de produtos distintos no filtro 'abaixo' === precisaRepor(reposicaoFiltrada).length, com e sem filtro; teste em regras.test.ts cobre produto sem mínimo e produto zerado sem lote e falha se as contagens divergirem.",
-      "criado_em": "2026-10-18T17:12:54.457785"
+      "criterios": "Relatorios.tsx lê q/categoria/situacao de params, mostra um Aviso com os filtros ativos e 'Limpar filtros'; montarRelatorio recebe filtroPosicao opcional aplicado a posicao (e compras) via produtoCombina/linha.situacao; teste puro garante que o filtro reduz posicao e que sem filtro nada muda.",
+      "criado_em": "2026-10-18T18:00:00.000000"
+    },
+    {
+      "id": "T-018",
+      "titulo": "Estoque e Relatórios duplicam a geração/entrega de arquivo (import dinâmico + baixarArquivo + toast + estado 'gerando')",
+      "prioridade": 3,
+      "tipo": "refatoracao",
+      "detalhe": "Estoque.exportarCompra e Relatorios.exportar repetem import dinâmico do gerador, baixarArquivo, toast de erro e setGerando. lib/relatorio.ts já concentra baixarArquivo/tituloEmpresa; falta um helper único para não divergir mensagens e tratamento de erro.",
+      "arquivos_que_toca": [
+        "src/lib/relatorio.ts",
+        "src/pages/Estoque.tsx",
+        "src/pages/Relatorios.tsx"
+      ],
+      "criterios": "Helper (ex.: exportarComToast) recebe formato, gerador e nome; ambas as telas passam a usá-lo; mensagens de erro/sucesso idênticas; nenhum comportamento visível alterado (testes existentes passam).",
+      "criado_em": "2026-10-18T18:00:00.000001"
+    },
+    {
+      "id": "T-020",
+      "titulo": "Lista 'Repor' do Estoque (T-009 unificado) não tem teste de aceite de contagem chip x tabela",
+      "prioridade": 2,
+      "tipo": "teste",
+      "detalhe": "T-009 já unificou montarReposicao em Estoque.tsx, mas continua sem teste puro que falhe se o chip 'Repor' divergir do número de linhas do filtro e da lista de compras (produtos sem mínimo, produto zerado sem lote, filtro de categoria).",
+      "arquivos_que_toca": [
+        "src/lib/regras.test.ts",
+        "src/lib/estoque.ts"
+      ],
+      "criterios": "Teste em regras.test.ts: precisaRepor(montarReposicao(...)).length === nº de produtos distintos com situacao abaixo/no_minimo; produto sem mínimo fora; produto zerado sem lote dentro; com filtro de categoria a contagem bate com o subconjunto.",
+      "criado_em": "2026-10-18T18:10:00.000000"
     }
   ],
   "concluidos": [],

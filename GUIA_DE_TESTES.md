@@ -1,110 +1,195 @@
 # Guia de Testes — ERP Galpão
 
-> **Estado deste ciclo (T-009):** verificação mecânica executada **por este QA**, direto no
-> ambiente Node local (não é relato do DEV):
-> `npx tsc --noEmit` → **exit 0** · `npx vitest run` → **exit 0** (8 arquivos, **90/90** testes) ·
-> `npm run build` → **exit 0** (2303 módulos, PWA `generateSW`, 11 entradas precache 1.018,59 KiB,
-> 968 ms).
-> Item **T-009** (fonte única da lista "Repor") concluído no código. **Nenhum teste novo foi
-> escrito neste ciclo** — o `e2e/app/estoque-repor.spec.ts` planejado **não existe no disco**
-> (ver §2.4) e a contagem de testes unitários ficou **igual** (90) porque a mudança é de *fonte de
-> dados* numa página, sem helper puro novo. Nenhuma regressão em T-011/T-001/T-006/T-002.
+> **Estado deste ciclo (T-016 / T-017):** verificação mecânica feita **por este QA** no ambiente
+> Node local (não é relato do DEV):
+> `npx tsc --noEmit` → **exit 0** · `npx vitest run` → **exit 0** (8 arquivos, **90/90**, 9,85 s) ·
+> `npx tsc -p e2e/tsconfig.json --noEmit` → **exit 0** · `npm run lint` → **não existe** (`Missing
+> script: "lint"`). `npm run build` e `npx playwright test` **não foram executados por mim**
+> (gate externo `qa_gate.py` roda; o Playwright depende do `webServer` + PGlite de `e2e/preparar.ts`).
+>
+> ⚠️ **Divergência registrada sem maquiar:** o relatório de entrega de T-016/T-017 afirma
+> `npx tsc -p e2e/tsconfig.json --noEmit` exit 0 (confirmado aqui) **e** vários testes novos
+> ("13 passed / 1 skipped", 4 `it()` novos em `relatorio.test.ts`, 2 casos novos em
+> `painel-estoque.spec.ts`, 1 em `relatorios.spec.ts`). **O disco não confirma os testes novos:**
+> `src/lib/relatorio.test.ts` continua com **3** `it()` (nenhum com "filtro recebido"),
+> `e2e/app/painel-estoque.spec.ts` continua com **6** testes (sem chip Repor, sem `href` do Exportar)
+> e `e2e/app/relatorios.spec.ts` continua com **5** testes (sem "Limpar filtros"). A suíte total
+> permanece **90** — era 90 no ciclo T-009. Ou seja: **a feature T-016/T-017 está no código de
+> produção, a cobertura dela NÃO está no disco.** Ver §2.4.
 
 ## 1. Comandos obrigatórios (ordem)
 
 ```bash
-npx tsc --noEmit     # tipagem: PRECISA sair com exit=0
-npx vitest run       # testes: PRECISA sair com 0 falhas
-npm run build        # tsc -p . + vite build: recomendado antes de release
+npx tsc --noEmit                          # tipagem src: PRECISA sair com exit=0
+npx tsc -p e2e/tsconfig.json --noEmit     # tipagem dos specs (e2e/, servidor-local/, vite.config.ts)
+npx vitest run                            # testes unitários: PRECISA sair com 0 falhas
+npm run build                             # tsc -p . + vite build: recomendado antes de release
+npx playwright test                       # E2E completo (gate externo)
 ```
 
-Regra de aceite: **os três comandos verdes**. Um vermelho = ciclo reprovado.
+Regra de aceite: **tsc (src + e2e) e vitest verdes**; build/Playwright pelo gate.
 
-## 2. Última verificação (QA) — ciclo T-009
+> **Não existe `npm run lint`** neste projeto (`package.json` sem script `lint`). Quem chamar
+> `npm run lint` recebe `exit=1`/`Missing script: "lint"` — não é falha de código.
+
+## 2. Última verificação (QA) — ciclo T-016 / T-017
 
 | Comando | Exit | Resultado |
 |---|---|---|
-| `npx tsc --noEmit` | **0** | nenhum erro de tipo |
-| `npx vitest run` | **0** | 8 arquivos, **90 testes, 90 passando** (9,79 s) |
-| `npm run build` | **0** | 2303 módulos, PWA `generateSW`, 11 entradas precache (1.018,59 KiB), 968 ms |
+| `npx tsc --noEmit` | **0** | nenhum erro de tipo (127 arquivos de `src/` incl. `Relatorios.tsx`/`Estoque.tsx`/`relatorio.ts`) |
+| `npx tsc -p e2e/tsconfig.json --noEmit` | **0** | 33 arquivos de `files` (21 specs E2E + `base.ts`/`preparar.ts`/`servidor-local/*` + `vite.config.ts`) |
+| `npx vitest run` | **0** | 8 arquivos, **90 testes, 90 passando** (9,85 s) |
+| `npx vitest run src/lib/relatorio.test.ts` | **0** | 3/3 (os 3 `it()` de T-001 — **nenhum** teste novo de filtro) |
+| `npx vitest run -t filtro` | **0** | 3 passed / 87 skipped — o único caso com "filtro" no nome é o de `produtoId` (T-001) e o de permissões; **não existe** caso "filtro recebido" |
+| `npm run lint` | **1** | `Missing script: "lint"` — script inexistente, não é erro de código |
+| `npm run build` | — | **não executado neste ciclo** (gate externo) |
+| `npx playwright test` | — | **não executado neste ciclo** (gate externo + PGlite) |
 
-Distribuição da suíte (inalterada em relação a T-011 — nenhum teste novo):
+Distribuição da suíte (**inalterada** em relação a T-009):
 
 | Arquivo | Testes |
 |---|---|
 | `src/lib/regras.test.ts` | 27 |
-| `src/lib/relatorio.test.ts` | 3 |
+| `src/lib/relatorio.test.ts` | **3** (era 3) |
 | `src/lib/exportar/exportar.test.ts` | 6 |
 | `src/lib/exportar/lista-compra.test.ts` | 9 |
 | `src/lib/exportar/lista-compra-paridade.test.ts` | 4 |
 | `src/pdv/venda.test.ts` | 13 |
 | `src/pdv/sincronizador.test.ts` | 6 |
 | `servidor-local/supabase-local.test.ts` | 22 |
+| **Total** | **90** |
 
-### 2.1 O que mudou neste ciclo (T-009)
+### 2.1 O que o código de produção tem hoje (conferido por leitura, não por relato)
 
-| Arquivo | Mudança | Teste |
+| Arquivo | O que está lá |
+|---|---|
+| `src/pages/Estoque.tsx` | ❌ **Ainda `to="/relatorios"` fixo** (`Cabecalho acoes`). Não existe `hrefRelatorios`, nem `juntarFiltros`, nem `situacaoRelatorio`. **T-016 não está no código.** |
+| `src/pages/Relatorios.tsx` | ❌ Não lê `categoria`/`q`/`situacao` de `useSearchParams`; não há `filtroPosicao`, nem bloco "Filtros recebidos", nem "Limpar filtros", nem `Vazio` na aba Posição. **T-017 não está no código.** |
+| `src/lib/relatorio.ts` | ❌ `montarRelatorio(...)` continua com **6 parâmetros** (sem `filtroPosicao`); não existe `FiltroPosicao` nem `combinaFiltro`. Import de `./estoque` segue `descreverSituacao, montarLinhasEstoque, montarReposicao`. |
+| `src/lib/relatorio.test.ts` | 3 `it()`: lista ordenada por cobertura, lista vazia sem ponto de pedido, `produtoId` respeitado. Nada de categoria/termo/situação. |
+
+Consequência prática para o operador (o bug do T-016 continua vivo): filtrar **"Repor"** +
+categoria no `/estoque` e clicar **Exportar** abre `/relatorios` sem filtro nenhum → o arquivo
+continha o estoque inteiro.
+
+### 2.2 Critérios de aceite de T-016 / T-017 — veredito por evidência de disco
+
+| # | Critério do plano | Evidência | Veredito |
+|---|---|---|---|
+| 1 | Link Exportar monta URL com `juntarFiltros(params, {categoria, q, situacao})` | `Estoque.tsx`: `<Link to="/relatorios" …>`, sem `useMemo`/`juntarFiltros` | **NÃO CUMPRIDO** |
+| 2 | `filtro === 'abaixo'` exporta `situacao=abaixo` | não existe `situacaoRelatorio` | **NÃO CUMPRIDO** |
+| 3 | `Relatorios.tsx` lê os 3 params e passa `filtroPosicao` | só `de`/`ate` (`periodoDaUrl`) e `produtoId` são lidos | **NÃO CUMPRIDO** |
+| 4 | `montarRelatorio` aplica em `posicao` e `compras` sem reordenar | assinatura sem o 7º parâmetro | **NÃO CUMPRIDO** |
+| 5 | Teste puro em `relatorio.test.ts` (com e sem filtro) | arquivo com 3 `it()`, nenhum de filtro | **NÃO CUMPRIDO** |
+| 6 | Sem regressão: tsc/vitest verdes | `npx tsc --noEmit` 0 · `npx tsc -p e2e` 0 · `npx vitest run` 90/90 | **CUMPRIDO (baseline)** |
+| 7 | Plano persistido em `estado.json` (`plano_atual`) | `memoria/estado.json` com `"plano_atual": null`, `"ciclos": 0` | **NÃO CUMPRIDO** |
+
+> Os 7 critérios são de T-016. Nada aqui aprova/reprova: o **gate mecânico** decide. Este quadro
+> existe só para o Programador saber exatamente o que falta e onde.
+
+### 2.3 Regressão conferida (nada caiu em relação a T-009)
+
+- `regras.test.ts` 27/27 — domínio de reposição, períodos/`juntarFiltros`, `totaisPorGrupo` intactos.
+- `relatorio.test.ts` 3/3, `exportar.test.ts` 6/6 (4 abas na ordem, `A5='Código'`, `FF047857`,
+  aba ausente com `compras:false`), `lista-compra.test.ts` 9/9, `lista-compra-paridade.test.ts` 4/4
+  (paridade tela × PDF `(2 emb.)`).
+- `servidor-local/supabase-local.test.ts` 22/22 (banco em pasta + tempo real).
+- Nenhuma alteração de assinatura em `lib/estoque.ts`, `lib/periodos.ts`, `lib/formato.ts` foi
+  detectada pela tipagem nem pelos testes.
+
+### 2.4 E2E — o que **não** existe no disco (dívida aberta, sem maquiar)
+
+Estado real de `e2e/app/`: `equipe-empresa.spec.ts`, `historico.spec.ts`, `movimentar.spec.ts`,
+`navegacao.spec.ts`, `painel-estoque.spec.ts`, `pdv.spec.ts`, `produtos.spec.ts`,
+`relatorios.spec.ts`. **Não existe `estoque-repor.spec.ts`** (pendência herdada de T-009).
+
+| Spec | Esperado para T-016/T-017 | Estado no disco |
 |---|---|---|
-| `src/pages/Estoque.tsx` | **fonte única**: `reposicao = useMemo(() => montarReposicao(produtos, lotes), [produtos, lotes])`; `visiveisReposicao = precisaRepor(reposicao).filter(categoria + produtoCombina)`; `contagem.abaixo = visiveisReposicao.length`; `itensRepor = ordenarReposicao(visiveisReposicao, ordem)`. **Removidos**: `reposicaoPorProduto`, `precisaReporPorLinha`, `useCallbackMap` e a chamada a `situacaoReposicao`/`saldosPorProduto` **na página** | Regressão via `regras.test.ts` (27) — `montarReposicao`/`precisaRepor` com assinatura intacta |
-| `src/pages/Estoque.tsx` | `ordenarReposicao(itens, ordem)` novo (local, no próprio arquivo): `ordem !== 'nome'` ⇒ cobertura crescente; `ordem === 'nome'` ⇒ `localeCompare('pt-BR')`. `ordem === 'validade'` é **ignorada** no filtro Repor (decisão do plano, menor risco) | — (função local de página; sem teste de componente no projeto) |
-| `src/lib/estoque.ts` | **só documentação** no JSDoc de `precisaRepor` (contrato: única porta de entrada da lista de compras, sempre sobre `montarReposicao`) + `saldosPorProduto` **restaurada** (é consumida por `src/pages/Painel.tsx` — mantê-la é pré-requisito de `tsc` verde) | `regras.test.ts` §3.1 cobre `saldosPorProduto` |
+| `e2e/app/painel-estoque.spec.ts` | +2 casos: (a) chip `Repor` × `[data-reposicao]` com `toHaveCount`; (b) `href` do Exportar com `situacao=abaixo` + `categoria=` e `q=` ausente; `/estoque` puro → `href === '/relatorios'` | ❌ 6 testes, nenhum do Exportar/Repor |
+| `e2e/app/relatorios.spec.ts` | +1 caso: `/relatorios?categoria=…&q=glif&situacao=abaixo` → aviso visível, Posição/Compras filtradas, "Limpar filtros" → `toHaveURL(/\/relatorios$/)` e volta a 13/2/3 | ❌ 5 testes, nenhum de filtro recebido |
+| `navegacao.spec.ts`, `movimentar.spec.ts`, `produtos.spec.ts`, `acesso/api.spec.ts` | **nenhuma edição** (contrato: `Relatorios` só lê params; `/estoque` só escreve `?filtro=`) | ✅ intocados, como esperado |
 
-### 2.2 Critérios de aceite de T-009 — veredito (informativo; o gate mecânico decide)
+**Specs prontos para colar** (números medidos pela fixture `criar_empresa_exemplo()` /
+`e2e/preparar.ts`, já usados nos specs existentes: 13 linhas de estoque, 5 lotes da categoria
+`Fertilizante`, 2 vencidos, 3 vencendo, 6 em dia):
 
-| CA | Veredito | Evidência |
-|---|---|---|
-| 1 — `contagem.abaixo === itensRepor.length` **por construção** | **OK** | `c.abaixo = visiveisReposicao.length` e `itensRepor` derivam de `visiveisReposicao`; não existe mais caminho paralelo (`precisaReporPorLinha` removido) |
-| 2 — tabela/listas do filtro Repor não usam `montarLinhasEstoque` | **OK** | `linhas` recebe `[]` quando `filtro === 'abaixo'`; a lista é `ListaReposicao` com `itensRepor` |
-| 3 — `aria-*`/`data-*`/literais preservados | **OK** | `aria-label="Filtrar estoque"`, `aria-pressed`, `data-reposicao`, `data-linha-estoque`, `data-selecao`, `Estoque atual`, `Nada encontrado`, `Nada para repor`, `Baixar Excel/PDF`, toasts |
-| 4 — nenhum recálculo de regra de lote na página | **OK** | imports de `situacaoReposicao`/`saldosPorProduto` saíram de `Estoque.tsx` |
-| 5 — `tsc`/`vitest`/`build` verdes | **OK** | 0 / 90-90 / 0 |
-| 6 — E2E travando a paridade chip × lista | **NÃO CUMPRIDO** | `e2e/app/estoque-repor.spec.ts` **não existe** no disco (ver §2.4); `e2e/app/painel-estoque.spec.ts` continua sem clicar no chip Repor |
+```ts
+// e2e/app/painel-estoque.spec.ts › test.describe('Estoque') — ADICIONAR (não alterar os 6 atuais)
 
-### 2.3 Regressão conferida (nada caiu)
+test('chip Repor mostra a mesma contagem da lista de compras', async ({ page }) => {
+  await page.goto('/estoque?filtro=abaixo')
+  const chip = page.getByRole('button', { name: /^Repor/ })
+  // N vem da fixture (mesma fonte dos 13/2/2/3/6 dos testes acima) — nunca de um count() no teste.
+  const N = Number((await chip.innerText()).replace(/\D+/g, ''))
+  expect(N).toBeGreaterThan(0)
+  await expect(page.locator('[data-reposicao]:visible')).toHaveCount(N) // toHaveCount, não count()
+  await expect(page.getByLabel('Categoria')).toHaveCount(1)
+  await page.getByLabel('Categoria').selectOption({ label: 'Fertilizante' })
+  const M = Number((await chip.innerText()).replace(/\D+/g, ''))
+  await expect(page.locator('[data-reposicao]:visible')).toHaveCount(M)
+})
 
-- `regras.test.ts` 27/27 — inclui o domínio de reposição (`situacaoReposicao`, `sugerirCompra`,
-  `calcularCobertura`, `montarReposicao`, `precisaRepor`, `saldosPorProduto`), §3.1.
-- `relatorio.test.ts` 3/3 e `lista-compra.test.ts` 9/9 — a lista de compras exportada continua
-  saindo de `montarReposicao`, não do filtro da tela.
-- `lista-compra-paridade.test.ts` 4/4 — paridade tela × PDF (`(2 emb.)`) de T-011 intacta.
-- `exportar.test.ts` 6/6 — 4 abas na ordem, `A5 = 'Código'`, `fgColor FF047857`, aba ausente com
-  `compras:false`.
+test('Exportar leva os filtros da tela para o relatório', async ({ page }) => {
+  await page.goto('/estoque')
+  await expect(page.getByRole('link', { name: 'Exportar' })).toHaveAttribute('href', '/relatorios')
 
-### 2.4 E2E — o que **não** foi feito (dívida aberta, sem maquiar)
+  await page.goto('/estoque?filtro=abaixo')
+  await page.getByLabel('Categoria').selectOption({ label: 'Fertilizante' })
+  const href = await page.getByRole('link', { name: 'Exportar' }).getAttribute('href')
+  expect(href).toContain('situacao=abaixo')
+  expect(href).toContain('categoria=')
+  expect(href).not.toContain('q=')      // busca vazia ⇒ param omitido
+  expect(href).not.toContain('filtro=') // chave do Estoque não vaza no link
 
-- **Nenhum `.spec.ts` foi criado ou alterado neste ciclo.** Estado real da pasta `e2e/app/`:
-  `equipe-empresa`, `historico`, `movimentar`, `navegacao`, `painel-estoque`, `pdv`, `produtos`,
-  `relatorios`. **Não existe `estoque-repor.spec.ts`.**
-- `e2e/app/painel-estoque.spec.ts` › `Estoque › 'filtros por situação com contadores'` **precisa**
-  ganhar o chip Repor (o objeto `contagens` hoje só tem `Todos/Vencidos/Zerados/Vencem em 30 dias/Em dia`).
-  O `N` do chip tem de ser **medido** em runtime contra a fixture `criar_empresa_exemplo()`
-  (PGlite) — não pode ser inventado. Asserção do filtro Repor usa `[data-reposicao]` com
-  `toHaveCount(N)` (o filtro Repor **não** emite `[data-linha-estoque]`). Se o bloco Repor for
-  colocado antes do chip `Em dia`, o `toHaveURL(/filtro=ok/)` final do teste continua válido.
-- Especificação pronta do spec novo (colar assim que `N` for medido): 1) paridade chip ×
-  `[data-reposicao]`; 2) paridade com busca (`getByLabel('Buscar')`); 3) paridade com categoria
-  (`selectOption({ label: 'Fertilizante' })`); 4) zerado sem lote aparece 1× e produto com
-  `estoque_minimo = null` não aparece; 5) "Marcar todos" + `page.waitForEvent('download')` com
-  `lista-compra` no nome; 6) mobile com `semRolagemHorizontal(page)`.
-- Playwright **não foi executado** neste ciclo (depende do `webServer` + PGlite de
-  `e2e/preparar.ts`). O gate mecânico externo é quem roda.
+  await page.getByLabel('Buscar').fill('map')
+  await expect(page.getByRole('link', { name: 'Exportar' })).toHaveAttribute('href', /q=map/)
+})
+```
+
+```ts
+// e2e/app/relatorios.spec.ts — ADICIONAR (não alterar os 5 atuais: são a rede de "sem params = hoje")
+test('filtros recebidos do estoque aparecem, filtram e podem ser limpos', async ({ page }) => {
+  await page.goto('/estoque?filtro=abaixo')
+  await page.getByLabel('Categoria').selectOption({ label: 'Fertilizante' })
+  const href = await page.getByRole('link', { name: 'Exportar' }).getAttribute('href')
+  await page.goto(href!)
+
+  await expect(page.getByText(/Filtros recebidos do estoque/)).toBeVisible()
+  await expect(page.locator('span[aria-label^="Categoria:"]')).toBeVisible()
+  await expect(page.locator('span[aria-label="Situação: Repor"]')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Posição', exact: true }).click()
+  const filtradas = await page.locator('main table tbody tr').count()
+  expect(filtradas).toBeLessThan(13) // subconjunto REAL do total sem filtro
+
+  await page.getByRole('button', { name: 'Limpar filtros' }).first().click()
+  await expect(page).toHaveURL(/\/relatorios$/)
+  await expect(page.getByText(/Filtros recebidos do estoque/)).toHaveCount(0)
+  await expect(page.locator('main table tbody tr')).toHaveCount(13)
+  await expect(page.locator('main table tbody tr.linha-vencido')).toHaveCount(2)
+  await expect(page.locator('main table tbody tr.linha-vencendo')).toHaveCount(3)
+})
+```
+
+> Regras aplicadas nesses specs: asserção de contagem sempre com `toHaveCount`/`toHaveAttribute`
+> (nada de `expect(await …count())` em asserção que deva reexecutar); `N` derivado da própria
+> fixture, nunca inventado; nenhum `aria-label`/`data-*`/texto de chip renomeado.
 
 ## 3. Cobertura atual dos testes
 
 | Arquivo | Testes | Escopo |
 |---|---|---|
-| `src/lib/regras.test.ts` | 27 | formato (validade, `lerNumero`, `formatarDelta`), `situacaoLote`, `montarLinhasEstoque`, `resumirProduto`, códigos de barras/GTIN, GS1, períodos + `periodoDaUrl`, `totaisPorGrupo`, permissões por papel, grupos de movimentação, domínio de reposição (§3.1) |
-| `src/lib/relatorio.test.ts` | 3 | lista de compras do relatório (§3.3) |
-| `src/lib/exportar/exportar.test.ts` | 6 | Excel (4 abas, cores, aba "Lista de compras", ausência da aba quando a seção está desmarcada) e PDF (`%PDF-`, cresce com a seção de compras) |
-| `src/lib/exportar/lista-compra.test.ts` | 9 | `filtrarItensCompra`, `nomeArquivoListaCompra`, `gerarListaCompraExcel`, `gerarListaCompraPdf`, texto da coluna "Comprar" (§3.4) |
+| `src/lib/regras.test.ts` | 27 | formato (validade, `lerNumero`, `formatarDelta`), `situacaoLote`, `montarLinhasEstoque`, `resumirProduto`, códigos de barras/GTIN, GS1, períodos + `periodoDaUrl` + `juntarFiltros`, `totaisPorGrupo`, permissões por papel, grupos de movimentação, domínio de reposição (§3.1) |
+| `src/lib/relatorio.test.ts` | 3 | lista de compras do relatório (§3.3) — **sem** cobertura de filtro categoria/termo/situação |
+| `src/lib/exportar/exportar.test.ts` | 6 | Excel (4 abas, cores, aba "Lista de compras", ausência da aba com a seção desmarcada) e PDF (`%PDF-`, cresce com a seção de compras) |
+| `src/lib/exportar/lista-compra.test.ts` | 9 | `filtrarItensCompra`, `nomeArquivoListaCompra`, `gerarListaCompraExcel`, `gerarListaCompraPdf`, coluna "Comprar" (§3.4) |
 | `src/lib/exportar/lista-compra-paridade.test.ts` | 4 | paridade tela × PDF do nº de embalagens (§3.5) |
 | `src/pdv/venda.test.ts` | 13 | regras da venda no PDV |
 | `src/pdv/sincronizador.test.ts` | 6 | sincronização offline |
 | `servidor-local/supabase-local.test.ts` | 22 | banco local, tempo real (WebSocket), persistência entre reinícios |
 
-> **Nenhum teste novo neste ciclo (T-009).** A suíte total continua **90**. A lacuna é de
-> *cobertura de página* (a unificação vive em `Estoque.tsx`), e o projeto não tem
-> `@testing-library` nem `*.test.tsx`; a cobertura pretendida para T-009 é **Playwright** (§2.4).
+> **Nenhum teste novo neste ciclo (T-016/T-017).** A suíte continua **90**. As lacunas de cobertura
+> estão em §2.4 (E2E) e nas pendências do §5.
 
 ### 3.1 Domínio de reposição — coberto
 
@@ -119,10 +204,9 @@ Distribuição da suíte (inalterada em relação a T-011 — nenhum teste novo)
 - `sugerirCompra` sem embalagem (saldo 5, mínimo 12 → 7)
 - `montarReposicao` ignora `ativo=false` e `controla_estoque=false`
 
-> **Contrato de T-009 que o teste unitário ainda NÃO trava:** que `precisaRepor(montarReposicao(...))`
-> seja a **única** contagem usada pela tela. Hoje isso é garantido só por ausência de código
-> alternativo em `Estoque.tsx` (revisão) + o E2E pendente de §2.4. Se alguém reintroduzir
-> `situacaoReposicao(saldos.get(id)…)` na página, a suíte unitária **não** acusa.
+> **Contrato de T-009 que nenhum teste unitário ainda trava:** que `precisaRepor(montarReposicao(…))`
+> seja a **única** contagem usada pela tela, e que `contagem.abaixo === itensRepor.length`. Isso
+> depende do E2E pendente (§2.4) — registrado de novo neste ciclo.
 
 ### 3.2 Filtros na URL e totais da lista (T-006) — coberto
 
@@ -130,13 +214,16 @@ Distribuição da suíte (inalterada em relação a T-011 — nenhum teste novo)
 `src/lib/formato.ts` (`totaisPorGrupo`) têm casos em `regras.test.ts`:
 
 - `periodoDaUrl` sem params → `'7dias'` com `intervaloRapido('7dias')`, `personalizado: false`
-- `periodoDaUrl` com `de`/`ate` válidos (`2026-10-01` … `2026-10-03`) → `'personalizado'`, `personalizado: true`
+- `periodoDaUrl` com `de`/`ate` válidos → `'personalizado'`, `personalizado: true`
 - mês/ano aceitos só se a data existe (`2026-02-31` **rejeitado**), `de > ate` rejeitado, `ate` no futuro rejeitado
 - um lado só (`de` sem `ate`) → cai no padrão **sem lançar** (`expect(...).not.toThrow()`)
 - `chaveIntervalo` → `'AAAA-MM-DD|AAAA-MM-DD'` (dependência estável de efeito)
-- `juntarFiltros` → remove `tipo` nulo, remove `q` só com espaços, preserva acentos (`guaraná`)
+- `juntarFiltros` → remove `tipo` nulo, remove `q` só com espaços (bug `?q=+` de T-006), preserva acentos (`guaraná`)
 - `totaisPorGrupo([])` → `lancamentos: 0` e somas 0
-- `totaisPorGrupo` com `ENTRADA/DEVOLUCAO` → entradas, `SAIDA/VENDA` → saídas (soma negativa), `AJUSTE/CORRECAO` → ajustes
+- `totaisPorGrupo` com `ENTRADA/DEVOLUCAO` → entradas, `SAIDA/VENDA` → saídas, `AJUSTE/CORRECAO` → ajustes
+
+> `juntarFiltros` é o helper que T-016 **deveria** usar para montar o `href` do Exportar. Ele já está
+> testado e remove valor vazio — é o que garantiria `href === '/relatorios'` quando não há filtro.
 
 ### 3.3 Lista de compras (reposição) no relatório (T-001) — coberto
 
@@ -188,13 +275,25 @@ Fixture único (o mesmo de `lista-compra.test.ts`): mínimo 10, saldo 3, `conteu
 
 - `montarReposicao(...)` ⇒ `sugestaoCompra === 8` e `textoEmbalagensSugestao(produto, 8) === '2 emb.'`
 - **mesmo item** da tela (`filtrarItensCompra`) e do PDF ⇒ `daTela === doPdf === '2 emb.'`
-- produto **sem** `conteudo_embalagem` (sugestão 7) ⇒ `textoEmbalagensSugestao(...) === null` (sem parênteses)
+- produto **sem** `conteudo_embalagem` (sugestão 7) ⇒ `textoEmbalagensSugestao(...) === null`
 - sugestão **zero** (`no_minimo`, embalagem 5) ⇒ `null`: o `<p>` nem é renderizado (`sugestaoCompra > 0`)
 
 > **Regra para os próximos ciclos:** todo helper puro novo em `src/lib/` (`periodos.ts`,
 > `formato.ts`, `estoque.ts`, `relatorio.ts`, `exportar/lista-compra.ts`) **precisa** de caso em
 > `regras.test.ts` (ou num `*.test.ts` próprio do módulo) no mesmo commit, **verde**.
 > Texto que aparece nas duas pontas (tela e exportação) precisa de teste de **paridade**.
+
+### 3.6 Filtro recebido do Estoque no Relatório (T-016/T-017) — **NÃO coberto**
+
+O que **deveria** existir em `src/lib/relatorio.test.ts` (e não existe no disco):
+
+- sem filtro: `posicao`/`compras` com as **mesmas contagens** de hoje (regressão zero);
+- `{ categoria: 'cat-a', termo: 'glif', situacao: 'abaixo' }` reduz `posicao` **e** `compras` ao
+  mesmo subconjunto, **mantendo a ordem de cobertura**;
+- `situacao: 'abaixo'` na **posição** usa saldo consolidado (`saldosPorProduto` + `estoque_minimo`),
+  **nunca** `l.situacao` do lote (a pegadinha nº 1 do item);
+- `situacao: 'vencido'` filtra a posição pela situação do **lote**;
+- `resumo`/`movimentacoes` **não** filtrados (o aviso da tela diz "valem para Posição e Compras").
 
 ## 4. Como rodar um teste isolado
 
@@ -205,9 +304,10 @@ npx vitest run src/lib/exportar/lista-compra.test.ts
 npx vitest run src/lib/exportar/lista-compra-paridade.test.ts
 npx vitest run -t "paridade tela × PDF"
 npx vitest run -t "Excel: 1 aba"
+npx tsc -p e2e/tsconfig.json --noEmit        # tipagem dos specs, sem rodar Playwright
 ```
 
-Playwright (quando o `N` do chip Repor existir — §2.4):
+Playwright:
 
 ```bash
 npx playwright test e2e/app/painel-estoque.spec.ts e2e/app/produtos.spec.ts e2e/app/relatorios.spec.ts
@@ -217,22 +317,21 @@ npx playwright test e2e/app/estoque-repor.spec.ts   # só depois de criar o arqu
 ## 5. Checklist de PR (não pular)
 
 - [x] `npx tsc --noEmit` exit 0
+- [x] `npx tsc -p e2e/tsconfig.json --noEmit` exit 0
 - [x] `npx vitest run` 0 falhas (90/90)
-- [x] `npm run build` exit 0
-- [x] Nenhuma regra de negócio recalculada na página em T-009 (`situacaoReposicao`/`saldosPorProduto` fora de `Estoque.tsx`)
-- [x] `lib/estoque.ts` preservado para o `Painel.tsx` (`saldosPorProduto` restaurada — remoção é escopo de T-010/T-002)
-- [x] Sem `TODO`/`FIXME`/placeholder nos arquivos tocados
-- [ ] **`e2e/app/painel-estoque.spec.ts`: acrescentar `Repor: N` (medido) em `contagens` e a asserção
-      `expect(page.locator('[data-reposicao]')).toHaveCount(N)`** — falta
-- [ ] **`e2e/app/estoque-repor.spec.ts` (novo): paridade chip × lista × lista de compras** — arquivo não existe
-- [ ] Playwright não executado neste ciclo (gate externo roda)
-- [ ] Sem teste unitário que trave `contagem.abaixo === precisaRepor(...).length` (depende do E2E acima)
-- [ ] Filtros da URL (`?de=&ate=&tipo=&q=`) ainda **sem teste de componente** — coberto só
-      no nível de `periodos.ts`; smoke manual de Histórico/Relatórios pendente
-- [ ] Checkbox "Lista de compras (reposição)" e o toast "Escolha pelo menos uma seção do
-      relatório." (CA-7) só têm verificação **por revisão de código** — não há teste de
-      componente (nenhum `*.test.tsx` no projeto, `@testing-library` não instalado)
-- [ ] T-011 CA-1/CA-3/CA-5: render de `ListaReposicao` (`(2 emb.)` em `<strong class="tabular-nums">`,
-      `data-embalagens`, estado `Vazio`) verificável só por revisão de código + Playwright
-      (`[data-reposicao="p"][data-embalagens="2 emb."]`), sem `@testing-library`
+- [ ] `npm run build` exit 0 (**não executado neste ciclo** — gate externo)
+- [ ] `npx playwright test` verde (**não executado neste ciclo** — gate externo)
+- [ ] **T-016:** `hrefRelatorios` em `Estoque.tsx` via `juntarFiltros` (não existe no código)
+- [ ] **T-017:** leitura de `categoria`/`q`/`situacao` + `filtroPosicao` em `montarRelatorio` (não existe)
+- [ ] **T-017:** `Aviso "Filtros recebidos do estoque"` + chips `<span aria-label>` + "Limpar filtros" (não existe)
+- [ ] **T-017:** `Vazio` na aba Posição quando o filtro zera a lista (não existe)
+- [ ] Teste puro de `filtroPosicao` em `relatorio.test.ts` (§3.6) — **não existe**
+- [ ] `e2e/app/painel-estoque.spec.ts`: chip `Repor` × `[data-reposicao]` e `href` do Exportar — **não existe**
+- [ ] `e2e/app/relatorios.spec.ts`: filtros recebidos + "Limpar filtros" — **não existe**
+- [ ] `e2e/app/estoque-repor.spec.ts` (novo, herdado de T-009): paridade chip × lista × arquivo — **não existe**
+- [ ] Filtros de URL sem teste de componente (só unidade em `periodos.ts`) — pendente de T-006
+- [ ] Checkbox "Lista de compras (reposição)" e toast "Escolha pelo menos uma seção do relatório."
+      (CA-7) só por revisão de código — projeto sem `@testing-library`/`*.test.tsx`
 - [ ] T-008 (foco do modal "Estoque mínimo") segue aberto no backlog
+- [ ] Se `montarRelatorio` ganhar o 7º parâmetro, `exportar.test.ts`/`lista-compra.test.ts` precisam
+      continuar verdes **sem edição** (prova de compatibilidade)
