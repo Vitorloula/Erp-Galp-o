@@ -15,6 +15,35 @@
       "criado_em": "2026-10-18T17:12:48.823859"
     },
     {
+      "id": "T-021",
+      "titulo": "Filtro de produto do Relatórios (?produto=) não vai para a URL — link compartilhado abre 'Todos os produtos'",
+      "prioridade": 1,
+      "tipo": "bug",
+      "detalhe": "Relatorios.tsx lê de=/ate= da URL via periodoDaUrl, mas o select Produto é só estado local (useState('')) e nunca é escrito em params nem lido no mount. Junto com T-016/T-017 (q=, categoria=, situacao=), o link de 'exportar estoque filtrado' perde o recorte por produto ao recarregar/compartilhar. Falta também ler produto= no init e usar juntarFiltros de lib/periodos.ts em vez de manipular URLSearchParams à mão.",
+      "arquivos_que_toca": [
+        "src/pages/Relatorios.tsx",
+        "src/lib/relatorio.ts",
+        "src/lib/relatorio.test.ts"
+      ],
+      "criterios": "?produto=<id> no mount seleciona o produto; trocar o select atualiza a URL (replace) com juntarFiltros; produto inexistente/desconhecido é ignorado sem quebrar; teste do montarRelatorio continua garantindo filtro por produto.",
+      "criado_em": "2026-10-18T18:20:00.000000"
+    },
+    {
+      "id": "T-019",
+      "titulo": "Estoque e Relatórios não têm um recorte de filtros único reutilizável (produto+termo+categoria+situação)",
+      "prioridade": 2,
+      "tipo": "refatoracao",
+      "detalhe": "Estoque.tsx filtra à mão (produtoCombina + categoria + situacao) e Relatorios.tsx, ao receber os params de T-016/T-017, precisa repetir exatamente a mesma lógica sobre montarLinhasEstoque e montarReposicao. Sem uma função pura em lib/estoque.ts, os dois lados divergem (ex.: termo com acento, categoria de produto inativo) e a exportação não bate com a tela.",
+      "arquivos_que_toca": [
+        "src/lib/estoque.ts",
+        "src/lib/regras.test.ts",
+        "src/pages/Estoque.tsx",
+        "src/pages/Relatorios.tsx"
+      ],
+      "criterios": "Nova função pura (ex.: filtrarRecorte({termo, categoria, situacao})) em lib/estoque.ts aplicada por Estoque e Relatorios; teste em regras.test.ts cobre termo sem acento, categoria e situacao no mesmo recorte; comportamento visível do Estoque inalterado.",
+      "criado_em": "2026-10-18T18:25:00.000000"
+    },
+    {
       "id": "T-017",
       "titulo": "Aba 'Posição' do Relatórios ignora busca/categoria e não avisa que os filtros do Estoque vieram no link",
       "prioridade": 2,
@@ -27,6 +56,19 @@
       ],
       "criterios": "Relatorios.tsx lê q/categoria/situacao de params, mostra um Aviso com os filtros ativos e 'Limpar filtros'; montarRelatorio recebe filtroPosicao opcional aplicado a posicao (e compras) via produtoCombina/linha.situacao; teste puro garante que o filtro reduz posicao e que sem filtro nada muda.",
       "criado_em": "2026-10-18T18:00:00.000000"
+    },
+    {
+      "id": "T-020",
+      "titulo": "Lista 'Repor' do Estoque (T-009 unificado) não tem teste de aceite de contagem chip x tabela",
+      "prioridade": 2,
+      "tipo": "teste",
+      "detalhe": "T-009 já unificou montarReposicao em Estoque.tsx, mas continua sem teste puro que falhe se o chip 'Repor' divergir do número de linhas do filtro e da lista de compras (produtos sem mínimo, produto zerado sem lote, filtro de categoria).",
+      "arquivos_que_toca": [
+        "src/lib/regras.test.ts",
+        "src/lib/estoque.ts"
+      ],
+      "criterios": "Teste em regras.test.ts: precisaRepor(montarReposicao(...)).length === nº de produtos distintos com situacao abaixo/no_minimo; produto sem mínimo fora; produto zerado sem lote dentro; com filtro de categoria a contagem bate com o subconjunto.",
+      "criado_em": "2026-10-18T18:10:00.000000"
     },
     {
       "id": "T-018",
@@ -43,17 +85,18 @@
       "criado_em": "2026-10-18T18:00:00.000001"
     },
     {
-      "id": "T-020",
-      "titulo": "Lista 'Repor' do Estoque (T-009 unificado) não tem teste de aceite de contagem chip x tabela",
-      "prioridade": 2,
-      "tipo": "teste",
-      "detalhe": "T-009 já unificou montarReposicao em Estoque.tsx, mas continua sem teste puro que falhe se o chip 'Repor' divergir do número de linhas do filtro e da lista de compras (produtos sem mínimo, produto zerado sem lote, filtro de categoria).",
+      "id": "T-022",
+      "titulo": "Relatórios gera arquivo com seções vazias (posicao/compras sem linhas) sem avisar antes do download",
+      "prioridade": 3,
+      "tipo": "melhoria",
+      "detalhe": "exportar() só valida que ao menos uma seção está marcada. Se o recorte do período/filtros zerar posicao ou compras, o Excel/PDF sai com a seção em branco e o operador só descobre abrindo o arquivo. Melhor mostrar contagem por seção no cartão 'Incluir no arquivo' (ex.: 'Posição (0)') e indicar seção sem dados.",
       "arquivos_que_toca": [
-        "src/lib/regras.test.ts",
-        "src/lib/estoque.ts"
+        "src/pages/Relatorios.tsx",
+        "src/lib/exportar/excel.ts",
+        "src/lib/exportar/pdf.ts"
       ],
-      "criterios": "Teste em regras.test.ts: precisaRepor(montarReposicao(...)).length === nº de produtos distintos com situacao abaixo/no_minimo; produto sem mínimo fora; produto zerado sem lote dentro; com filtro de categoria a contagem bate com o subconjunto.",
-      "criado_em": "2026-10-18T18:10:00.000000"
+      "criterios": "Cada seção mostra o nº de linhas que será exportado; seção sem linhas aparece com '(0)' / 'sem dados' e a geração não quebra; aviso quando todas as seções marcadas estão vazias.",
+      "criado_em": "2026-10-18T18:20:00.000001"
     }
   ],
   "concluidos": [],

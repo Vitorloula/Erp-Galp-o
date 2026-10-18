@@ -184,3 +184,34 @@ Total IGUAL ao de T-009: nenhum teste novo entrou no disco neste ciclo.
 - Backlog: NÃO alterado neste ciclo (sem item_id confiável para marcar e aprovação final pendente do gate externo).
 
 Veredito parcial deste QA: tipos e testes unitários OK (tsc 0/0, vitest 90/90); build e E2E não executados por mim — não certificados.
+
+## [2026-10-18 17:35] Ciclo
+Ciclo T-016 + T-017 (Exportar do Estoque levando filtros -> Relatórios). QA de documentação: gate mecânico externo (qa_gate.py); aqui rodei e registrei apenas o verificável no ambiente: `npx tsc --noEmit` exit 0, `npx tsc -p e2e/tsconfig.json --noEmit` exit 0, `npx vitest run` exit 0 (8 arquivos, 90/90, 9,84 s), `npm run build` exit 0 (2303 módulos, PWA generateSW, 901 ms), `npx playwright test --list` exit 0 (171 testes/17 arquivos); `npm run lint` exit 1 (Missing script — script inexistente, não é erro de código); `npx playwright test` NÃO executado (depende de webServer + PGlite, fica no gate externo).
+
+ACHADO FACTUAL (sem maquiar): a feature T-016/T-017 NÃO está no código. `src/pages/Estoque.tsx:187` tem `<Link to="/relatorios">` fixo (sem juntarFiltros, sem situacao=, sem aria-label); `src/pages/Relatorios.tsx` lê só de=/ate= + produtoId (sem FiltrosRecebidos/Limpar filtros/Vazio na Posição); `src/lib/relatorio.ts` com montarRelatorio de 6 parâmetros (sem filtroPosicao); `src/lib/relatorio.test.ts` com 3 it() (nenhum de filtro, confirmado com --reporter=verbose); painel-estoque.spec.ts com 6 casos Estoque e relatorios.spec.ts com 5 (nenhum de Exportar/filtros recebidos); `e2e/app/estoque-repor.spec.ts` inexistente. Suíte segue 90 (vitest) e 171 (Playwright) — igual a T-009. `memoria/estado.json` com plano_atual:null e ciclos:0.
+
+DOCS ATUALIZADOS: `GUIA_DE_TESTES.md` reescrito — tabela de comandos com exit codes reais, §2.1 estado do código por leitura, §2.2 critérios de aceite de T-016/T-017 (1-5 e 7 NÃO CUMPRIDOS; 6 CUMPRIDO como baseline), §2.3 regressão, §2.4 dívida E2E com os 2 casos prontos para `painel-estoque.spec.ts`, 1 para `relatorios.spec.ts` e o arquivo novo `estoque-repor.spec.ts`, §2.5 contratos impostos (href exato '/relatorios', sem vazar filtro=, sem q= vazio, link com texto visível 'Exportar', aviso sem <table>/aria-live), §3.6 lacuna unitária de filtroPosicao, checklist de PR. `DOCUMENTACAO_ERP.md` atualizado — nova seção do item T-016+T-017 com o defeito do ponto de vista do operador, contrato de UI (o que muda e o que NÃO muda), aviso de que `@/` não é alias válido (tsconfig sem paths/vite sem resolve.alias), tabela de verificação, e regra para T-017: situacao=abaixo usa saldo consolidado do produto, nunca l.situacao do lote; status do repositório e backlog reordenado por prioridade real.
+
+Nenhum arquivo de `src/` ou `e2e/` foi alterado por este QA.
+
+## [2026-10-18 17:37] Ciclo
+[2026-02-14] QA T-016 + T-017 — REPROVADO (feature ausente no código)
+
+Comandos executados neste ambiente:
+- npx tsc --noEmit → exit 0 (nenhum erro de tipo)
+- npx tsc -p e2e/tsconfig.json --noEmit → exit 0 (specs + base.ts + vite.config.ts ok)
+- npx vitest run → exit 0, 8 arquivos, 90/90 (9,84 s)
+- npx vitest run src/lib/relatorio.test.ts --reporter=verbose → exit 0, 3/3 (nenhum it() de filtro)
+- npm run build → exit 0, 2303 módulos, PWA generateSW, 1.018,63 KiB, 901 ms
+- npx playwright test --list → exit 0, 171 testes / 17 arquivos
+- npm run lint → exit 1: Missing script "lint" (script inexistente — não é erro de código)
+- npx playwright test (execução) → não executado: depende do webServer + PGlite de e2e/preparar.ts; fica no gate externo
+
+Achado factual (sem maquiar) — a feature NÃO está no código:
+- src/pages/Estoque.tsx:187 → <Link to="/relatorios"> fixo (sem juntarFiltros, sem situacao=, sem aria-label)
+- src/pages/Relatorios.tsx → lê só de/ate + produtoId; sem FiltrosRecebidos, sem "Limpar filtros", sem Vazio na Posição
+- src/lib/relatorio.ts → montarRelatorio com 6 parâmetros (sem filtroPosicao)
+- src/lib/relatorio.test.ts → 3 it(); painel-estoque.spec.ts → 6 casos Estoque; relatorios.spec.ts → 5 casos; e2e/app/estoque-repor.spec.ts → não existe. Suíte segue 90 testes / 17 arquivos
+
+Backlog: NÃO alterado (ciclo reprovado).
+VEREDITO: REPROVADO — feature de filtros/relatórios não implementada (Estoque.tsx:187 link fixo, Relatorios.tsx sem FiltrosRecebidos/Limpar filtros/Vazio, relatorio.ts sem filtroPosicao, estoque-repor.spec.ts inexistente).
