@@ -1,39 +1,37 @@
 # Guia de Testes — ERP Galpão
 
-> **Estado deste ciclo (T-016 / T-017 — Exportar do Estoque levando filtros → Relatórios):**
-> verificação mecânica feita **por este QA** no ambiente Node local (não é relato do DEV):
+> **Estado deste ciclo (reenvio de T-021 — `?produto=` do Relatórios na URL, ciclo de DOCUMENTAÇÃO):**
+> o **gate mecânico** (`qa_gate.py`) é quem roda tsc/vitest/build/playwright e emite o veredito final.
+> Este QA **documenta** e roda o verificável no Node local. Fatos deste ciclo (executados por mim,
+> não relato do DEV):
 
 | Comando | Exit | Resultado |
 |---|---|---|
 | `npx tsc --noEmit` | **0** | nenhum erro de tipo em `src/` |
 | `npx tsc -p e2e/tsconfig.json --noEmit` | **0** | specs + `base.ts` + `vite.config.ts` sem erro |
-| `npx vitest run` | **0** | **8 arquivos · 90/90** (9,84 s) |
-| `npm run build` | **0** | `tsc -p .` + `vite build` · 2303 módulos · PWA `generateSW` · 11 precache · 1.018,63 KiB · 901 ms |
-| `npx vitest run src/lib/relatorio.test.ts --reporter=verbose` | **0** | **3/3** — nomes dos `it()` conferidos (nenhum de filtro) |
-| `npx playwright test --list` | **0** | **171 testes em 17 arquivos** |
-| `npm run lint` | **1** | `Missing script: "lint"` — script inexistente, **não** é erro de código |
-| `npx playwright test` (execução real) | — | **não executado por este QA**: depende do `webServer` + PGlite de `e2e/preparar.ts`; fica no gate externo `qa_gate.py` |
+| `npx vitest run` | **0** | **8 arquivos · 90/90** (10,63 s de parede; tests 86%) |
+| `npm run build` | **0** | `tsc -p .` + `vite build` · 2303 módulos · PWA `generateSW` · 11 precache · 1.018,59 KiB · 1,06 s |
+| `npx playwright test --list` | **0** | **171 testes / 17 arquivos** |
+| `npx playwright test` (execução real) | — | **NÃO executado por mim**: depende do `webServer` + PGlite de `e2e/preparar.ts`; fica no gate externo |
+| `npm run lint` | — | **não existe** neste projeto (`Missing script: "lint"`) — não é erro de código |
 
-> ⚠️ **Divergência registrada sem maquiar:** o relatório de entrega de T-016/T-017 afirma **4 `it()`
-> novos** em `src/lib/relatorio.test.ts`, **2 casos novos** em `e2e/app/painel-estoque.spec.ts` e
-> **1 caso novo** em `e2e/app/relatorios.spec.ts`, além de citar `Estoque.tsx` já com
-> `<LinkExportar>`/`juntarFiltros` e `Relatorios.tsx` com `FiltrosRecebidos`.
-> **O disco não confirma nada disso:**
-> - `src/lib/relatorio.test.ts` → **3 `it()`**: `traz só os produtos no ponto de pedido…`,
->   `sem produtos no ponto de pedido a lista vem vazia`, `respeita o filtro de produto`.
->   Nenhum de `filtroPosicao`.
-> - `e2e/app/painel-estoque.spec.ts` → **6** casos `Estoque` (nenhum lê `href` do Exportar, nenhum
->   mede chip Repor × `[data-reposicao]`).
-> - `e2e/app/relatorios.spec.ts` → **5** casos (nenhum de "Filtros recebidos"/"Limpar filtros").
-> - `src/pages/Estoque.tsx:187` → `<Link to="/relatorios" className="btn btn-secundario">` **fixo**,
->   sem `juntarFiltros`, sem `situacao=`, sem `aria-label`.
-> - `src/pages/Relatorios.tsx` → só lê `de`/`ate` (`periodoDaUrl`) + `produtoId`; **não** lê
->   `q`/`categoria`/`situacao`, não existe `FiltrosRecebidos`, não existe `Vazio` na aba Posição.
-> - `src/lib/relatorio.ts` → `montarRelatorio` com **6 parâmetros** (sem `filtroPosicao`).
+> ⚠️ **Achado factual (reconfirmado neste ciclo, sem maquiar):** T-021 **não está no código** e a
+> cobertura prometida no relatório de entrega **não está no disco**:
 >
-> Suíte total continua **90** em vitest e **171** no Playwright. Ou seja: **a feature T-016/T-017
-> não está no código, e a cobertura dela não está no disco.** O quadro critério-a-critério está em
-> §2.2. Nada aqui aprova nem reprova — isso é do `qa_gate.py`.
+> - `src/pages/Relatorios.tsx` → `const [produtoId, setProdutoId] = useState('')`;
+>   `refletirNaUrl(p, i)` só grava `de`/`ate` com `new URLSearchParams`; o `<select id="r-produto">`
+>   tem apenas `onChange={e => setProdutoId(e.target.value)}`. **Não há** leitura de `?produto=`,
+>   `produtoDaUrl`, `escolherProduto`, `limparProduto`, `Aviso` de recorte nem `data-filtro="produto"`.
+> - `src/lib/periodos.ts` → termina em `juntarFiltros()`; **não existe** `produtoDaUrl`/`paramsDoPeriodo`.
+> - `src/lib/estoque.ts` → **não existe** `filtrarRecorte` (T-019 também não entrou).
+> - `src/lib/relatorio.test.ts` → **3 `it()`** (os de T-001); nenhum de id inexistente.
+> - `src/lib/regras.test.ts` → 27 `it()`; nenhuma asserção de `produto: ''` em `juntarFiltros`.
+> - `e2e/app/relatorios.spec.ts` → **5 casos**; nenhum de `?produto=`/reload/limpar.
+>
+> Suíte total segue **90** (vitest) e **171** (Playwright) — **idêntica** a T-009/T-016/T-021 anterior.
+> Quadro critério-a-critério em §2.2. **Nada aqui aprova nem reprova** — isso é do `qa_gate.py`.
+
+---
 
 ## 1. Comandos obrigatórios (ordem)
 
@@ -50,14 +48,14 @@ Regra de aceite: **tsc (src + e2e) e vitest verdes**; build/Playwright pelo gate
 > **Não existe `npm run lint`** neste projeto (`package.json` sem script `lint`). Quem chamar
 > `npm run lint` recebe `exit=1`/`Missing script: "lint"` — não é falha de código.
 
-## 2. Última verificação (QA) — ciclo T-016 / T-017
+## 2. Última verificação (QA) — reenvio de T-021
 
-Distribuição da suíte (**inalterada** em relação a T-009):
+Distribuição da suíte (**inalterada** — nenhum teste novo entrou no disco neste ciclo):
 
 | Arquivo | Testes |
 |---|---|
 | `src/lib/regras.test.ts` | 27 |
-| `src/lib/relatorio.test.ts` | **3** (era 3) |
+| `src/lib/relatorio.test.ts` | 3 |
 | `src/lib/exportar/exportar.test.ts` | 6 |
 | `src/lib/exportar/lista-compra.test.ts` | 9 |
 | `src/lib/exportar/lista-compra-paridade.test.ts` | 4 |
@@ -67,38 +65,39 @@ Distribuição da suíte (**inalterada** em relação a T-009):
 | **Total** | **90** |
 
 E2E (`npx playwright test --list` → **171 testes / 17 arquivos**): `app/painel-estoque.spec.ts`
-(9 casos × 2 projetos), `app/relatorios.spec.ts` (5 × 2), `app/navegacao.spec.ts`,
+(9 casos × 2 projetos), `app/relatorios.spec.ts` (**5** × 2), `app/navegacao.spec.ts`,
 `app/historico.spec.ts`, `app/produtos.spec.ts`, `app/movimentar.spec.ts`, `app/pdv.spec.ts`,
 `app/equipe-empresa.spec.ts`, `acesso/api.spec.ts`, `acesso/conta.spec.ts`,
 `acesso/equipe-papeis.spec.ts`, `servidor-local/compartilhado.spec.ts`, `camera/*`,
 `camera-sem-codigo/*`, `pdv/*`, `pwa/*`.
 
-### 2.1 O que o código de produção tem hoje (conferido por leitura)
+### 2.1 O que o código de produção tem hoje (conferido por leitura nesta rodada)
 
 | Arquivo | O que está lá |
 |---|---|
-| `src/pages/Estoque.tsx:187` | ❌ `<Link to="/relatorios" className="btn btn-secundario"><FileSpreadsheet/> Exportar</Link>` — **href fixo**. Não existe `LinkExportar`, `juntarFiltros`, `situacao`, nem `aria-label` no link. **T-016 não está no código.** |
-| `src/pages/Relatorios.tsx` | ❌ Lê apenas `de`/`ate` via `periodoDaUrl` + `produtoId` (estado local). Não há `lerFiltroRecebido`, `FiltrosRecebidos`, "Limpar filtros", nem `Vazio` na aba Posição (`relatorio.posicao.map` renderiza `<table>` mesmo vazio). **T-017 não está no código.** |
-| `src/lib/relatorio.ts` | ❌ `montarRelatorio(intervalo, produtos, lotes, movsDesdeInicio, nomeCategoria, produtoId?)` — **6 parâmetros**, sem `FiltroPosicao`, sem recorte em `posicao`/`compras`. |
-| `src/lib/relatorio.test.ts` | 3 `it()` (T-001): ponto de pedido ordenado por cobertura, lista vazia, filtro `produtoId`. |
+| `src/pages/Relatorios.tsx` | ❌ `useState('')` para `produtoId`; `refletirNaUrl(p, i)` só grava `de`/`ate` via `new URLSearchParams` + `setParams(…, { replace: true })`; `<select id="r-produto" … onChange={e => setProdutoId(e.target.value)}>`. Sem `produtoDaUrl`, sem `escolherProduto`, sem botão Limpar, sem `Aviso` de recorte, sem `data-filtro="produto"`. **T-021 não está no código.** |
+| `src/lib/periodos.ts` | ❌ `periodoDaUrl` + `chaveIntervalo` + `juntarFiltros` apenas. **Sem** `produtoDaUrl`/`paramsDoPeriodo`. O helper para reaproveitar (`juntarFiltros`) já existe e é testado. |
+| `src/lib/estoque.ts` | ❌ Sem `filtrarRecorte` (T-019 não entrou). `Estoque.tsx` continua filtrando à mão. |
+| `src/lib/relatorio.ts` | `montarRelatorio(intervalo, produtos, lotes, movsDesdeInicio, nomeCategoria, produtoId?)` — `doFiltro` já ignora id inexistente (base para o critério 3 de T-021). |
+| `src/lib/relatorio.test.ts` | 3 `it()`; o de filtro por produto existe e passa. **Nenhum** caso de id inexistente. |
+| `src/lib/regras.test.ts` | 27 `it()`; `juntarFiltros` coberto (remove `tipo` nulo, remove `q` só de espaços, preserva acento) — **sem** asserção de `produto`. |
 
-Consequência prática para o operador (**o bug do T-016 continua vivo**): filtrar **"Repor"** +
-categoria no `/estoque` e clicar **Exportar** abre `/relatorios` sem filtro nenhum → o arquivo sai
-com o estoque inteiro e o operador confere linha a linha no Excel.
+Consequência prática para o operador (**o bug de T-021 continua vivo**): escolher **"Glifosato 480 SL"**
+no Relatório, copiar o link (ou apertar F5 no galpão) abre **"Todos os produtos"** — o recorte por
+produto não sobrevive ao link nem ao reload, e o arquivo exportado sai com o estoque inteiro.
 
-### 2.2 Critérios de aceite de T-016 / T-017 — veredito por evidência de disco
+### 2.2 Critérios de aceite de T-021 — veredito por evidência de disco
 
 | # | Critério do plano | Evidência | Veredito |
 |---|---|---|---|
-| 1 | Link Exportar monta URL com `juntarFiltros` ({categoria, q, situacao}) | `Estoque.tsx:187` com `to="/relatorios"` fixo | **NÃO CUMPRIDO** |
-| 2 | `filtro === 'abaixo'` exporta `situacao=abaixo` | nenhuma menção a `situacao=` no link | **NÃO CUMPRIDO** |
-| 3 | `Relatorios.tsx` lê os 3 params e passa `filtroPosicao` | só `de`/`ate` + `produtoId` | **NÃO CUMPRIDO** |
-| 4 | `montarRelatorio` aplica em `posicao` e `compras` sem reordenar | assinatura de 6 parâmetros | **NÃO CUMPRIDO** |
-| 5 | Teste puro em `relatorio.test.ts` (com e sem filtro) | 3 `it()`, nenhum de filtro | **NÃO CUMPRIDO** |
-| 6 | Sem regressão: tsc/vitest/build verdes | tsc 0 · tsc e2e 0 · vitest 90/90 · build 0 | **CUMPRIDO (baseline)** |
-| 7 | Plano persistido em `estado.json` (`plano_atual`) | `memoria/estado.json` com `"plano_atual": null`, `"ciclos": 0` | **NÃO CUMPRIDO** |
+| 1 | `?produto=<id>` no mount seleciona o produto e o relatório já sai filtrado | `useState('')` fixo; nenhuma leitura de `params.get('produto')` | **NÃO CUMPRIDO** |
+| 2 | Trocar o select escreve a URL com `juntarFiltros` (`replace`), sem params vazios | `onChange` só faz `setProdutoId`; `refletirNaUrl` não conhece produto | **NÃO CUMPRIDO** |
+| 3 | `produto=` inexistente é ignorado (select em "Todos os produtos"), sem lançar | não há código que leia o param — só existe por omissão | **NÃO CUMPRIDO** |
+| 4 | `refletirNaUrl` usa `juntarFiltros` em vez de `new URLSearchParams`/`delete` à mão | `Relatorios.tsx` ainda monta `URLSearchParams` manualmente | **NÃO CUMPRIDO** |
+| 5 | Teste de filtro por produto mantido + novo caso de id inexistente | `relatorio.test.ts` 3/3; nenhum de id inexistente | **PARCIAL** |
+| 6 | Sem regressão: `npx tsc --noEmit` e `npm run test` verdes | tsc 0 · tsc e2e 0 · vitest **90/90** · build 0 | **CUMPRIDO (baseline)** |
 
-### 2.3 Regressão conferida (nada caiu em relação a T-009)
+### 2.3 Regressão conferida (nada caiu em relação a T-016/T-009)
 
 - `regras.test.ts` 27/27 — domínio de reposição, períodos/`juntarFiltros`, `totaisPorGrupo` intactos.
 - `relatorio.test.ts` 3/3, `exportar.test.ts` 6/6 (4 abas na ordem, `A5='Código'`, `FF047857`, aba
@@ -112,105 +111,87 @@ com o estoque inteiro e o operador confere linha a linha no Excel.
 `navegacao.spec.ts`, `painel-estoque.spec.ts`, `pdv.spec.ts`, `produtos.spec.ts`,
 `relatorios.spec.ts`. **Não existe `e2e/app/estoque-repor.spec.ts`** (pendência herdada de T-009).
 
-| Spec | Esperado para T-016/T-017 | Estado no disco |
+| Spec | Esperado para T-021 | Estado no disco |
 |---|---|---|
-| `e2e/app/painel-estoque.spec.ts` | +2 casos: (a) `href` do Exportar (`/estoque` puro → `href === '/relatorios'`; `?filtro=abaixo` + categoria → `situacao=abaixo`, `categoria=`, sem `q=`, sem `filtro=`; busca → `q=`); (b) chip `Repor` × `[data-reposicao]` com `N` medido | ❌ 6 casos `Estoque`, nenhum do Exportar/Repor |
-| `e2e/app/relatorios.spec.ts` | +1 caso: aviso "Filtros recebidos do estoque", chips `span[aria-label^="Categoria:"]`/`span[aria-label="Situação: Repor"]`, Posição recortada (< 13), "Limpar filtros" → `toHaveURL(/\/relatorios$/)` e volta a 13/2/3 | ❌ 5 casos, nenhum de filtro recebido |
-| `e2e/app/estoque-repor.spec.ts` | **criar** — paridade chip × `[data-reposicao]` × lista de compras | ❌ arquivo não existe |
-| `navegacao.spec.ts`, `historico.spec.ts`, `produtos.spec.ts`, `movimentar.spec.ts`, `pdv.spec.ts`, `equipe-empresa.spec.ts`, `acesso/api.spec.ts`, `acesso/conta.spec.ts`, `acesso/equipe-papeis.spec.ts`, `servidor-local/compartilhado.spec.ts`, `camera/*`, `camera-sem-codigo/*`, `pdv/*`, `pwa/*` | **nenhuma edição** (contrato: `/estoque` só escreve `?filtro=`; `/relatorios` só lê params; `h1` e `aria-label` congelados) | ✅ intocados, como esperado |
+| `e2e/app/relatorios.spec.ts` | **+3 casos**: (a) `goto('/relatorios?produto=<id do Glifosato>')` → `combobox` com `toHaveValue(id)` + `main table tbody tr` = 1, e **repetir após `reload()`**; (b) `goto('/relatorios?produto=00000000-0000-0000-0000-000000000000')` → `combobox` `toHaveValue('')` e período padrão; (c) escolher no select → `toHaveURL(/[?&]produto=/)`; botão `Limpar filtro de produto` → `toHaveURL(/\/relatorios$/)` | ❌ 5 casos (os de T-001); nenhum de `?produto=`/reload/limpar |
+| `e2e/app/navegacao.spec.ts` | revisar, **sem mudança esperada** (`/relatorios$` no menu + `semRolagemHorizontal`) | ✅ intocado |
+| `e2e/acesso/api.spec.ts` | revisar, **sem mudança esperada** (fluxo `de`/`ate` e `ocorrido_em gte.` inalterado) | ✅ intocado |
+| `e2e/app/painel-estoque.spec.ts` | fora de escopo (T-016/T-020) | ✅ intocado |
 
-**Specs prontos para colar** (números medidos pela fixture `criar_empresa_exemplo()` /
-`e2e/preparar.ts`, já usados pelos specs existentes: **13 linhas** de estoque, **2**
-`tr.linha-vencido`, **3** `tr.linha-vencendo`, **12** linhas em `main table tbody tr` com
-"Últimos 30 dias"):
-
-```ts
-// e2e/app/painel-estoque.spec.ts › test.describe('Estoque') — ADICIONAR (não alterar os 6 atuais)
-
-test('Exportar leva os filtros da tela para o relatório', async ({ page }) => {
-  await page.goto('/estoque')
-  // Sem filtro: href EXATAMENTE /relatorios (nem ?filtro=todos, nem ?q=)
-  await expect(page.getByRole('link', { name: 'Exportar' })).toHaveAttribute('href', '/relatorios')
-
-  await page.goto('/estoque?filtro=abaixo')
-  await page.getByLabel('Categoria').selectOption({ label: 'Fertilizante' })
-  const href = await page.getByRole('link', { name: 'Exportar' }).getAttribute('href')
-  expect(href).toContain('situacao=abaixo')
-  expect(href).toContain('categoria=')
-  expect(href).not.toContain('q=')      // busca vazia ⇒ param omitido (juntarFiltros)
-  expect(href).not.toContain('filtro=') // chave do Estoque NÃO vaza no link
-
-  await page.getByLabel('Buscar').fill('  map  ')
-  await expect(page.getByRole('link', { name: 'Exportar' })).toHaveAttribute('href', /q=map/)
-  await expect(page.getByRole('link', { name: 'Exportar' })).not.toHaveAttribute('href', /q=%20/)
-})
-
-test('chip Repor mostra a mesma contagem da lista de compras', async ({ page }) => {
-  await page.goto('/estoque?filtro=abaixo')
-  const chip = page.getByRole('button', { name: /^Repor/ })
-  // N vem do chip (mesma fonte da tela) — nunca de um count() inventado no teste.
-  const N = Number((await chip.innerText()).replace(/\D+/g, ''))
-  expect(N).toBeGreaterThan(0)
-  await expect(page.locator('[data-reposicao]:visible')).toHaveCount(N) // toHaveCount, não count()
-
-  await page.getByLabel('Categoria').selectOption({ label: 'Fertilizante' })
-  const M = Number((await chip.innerText()).replace(/\D+/g, ''))
-  expect(M).toBeLessThanOrEqual(N)
-  await expect(page.locator('[data-reposicao]:visible')).toHaveCount(M)
-})
-```
+**Specs prontos para colar** (fixture `criar_empresa_exemplo()` / `e2e/preparar.ts`; números já
+usados pelos specs existentes: **1** linha em `?produto=<Glifosato>` com período personalizado de
+-60 dias, **12** linhas em "Últimos 30 dias", **13** linhas na Posição):
 
 ```ts
-// e2e/app/relatorios.spec.ts — ADICIONAR (não alterar os 5 atuais: são a rede de "sem params = hoje")
-test('filtros recebidos do estoque aparecem, recortam e podem ser limpos', async ({ page }) => {
-  await page.goto('/estoque?filtro=abaixo')
-  await page.getByLabel('Categoria').selectOption({ label: 'Fertilizante' })
-  const href = await page.getByRole('link', { name: 'Exportar' }).getAttribute('href')
-  await page.goto(href!)
+// e2e/app/relatorios.spec.ts › test.describe('Relatórios') — ADICIONAR (não alterar os 5 atuais)
 
-  await expect(page.getByText('Filtros recebidos do estoque')).toBeVisible()
-  await expect(page.locator('span[aria-label^="Categoria:"]')).toBeVisible()
-  await expect(page.locator('span[aria-label="Situação: Repor"]')).toBeVisible()
+test('abrir o relatório por link com ?produto= mantém o recorte', async ({ page, conta }) => {
+  const [p] = await conta.servidor.sql(
+    'select id from public.produtos where empresa_id = $1 and nome = $2',
+    [conta.empresaId, 'Glifosato 480 SL'],
+  )
+  await page.goto(`/relatorios?produto=${p.id}`)
+  const combo = page.getByRole('combobox', { name: 'Produto' })
+  await expect(combo).toHaveValue(p.id)
+  await expect(page.locator('main table tbody tr')).toHaveCount(1)
+  await page.reload()                       // ← é o ponto do item: o recorte sobrevive ao F5
+  await expect(combo).toHaveValue(p.id)
+  await expect(page.locator('main table tbody tr')).toHaveCount(1)
+})
 
-  // Posição recortada é subconjunto REAL do total sem filtro (13 na fixture)
-  await page.getByRole('button', { name: 'Posição', exact: true }).click()
-  await expect.poll(() => page.locator('main table tbody tr').count()).toBeLessThan(13)
+test('produto inexistente na URL não quebra e cai em Todos os produtos', async ({ page }) => {
+  await page.goto('/relatorios?produto=00000000-0000-0000-0000-000000000000')
+  await expect(page.getByRole('combobox', { name: 'Produto' })).toHaveValue('')
+  await expect(page.locator('main table tbody tr')).toHaveCount(12)   // período padrão = últimos 7 dias
+})
 
-  // Limpar volta ao comportamento de hoje, sem params
-  await page.getByRole('button', { name: 'Limpar filtros' }).first().click()
+test('trocar o produto escreve ?produto= na URL e Limpar remove', async ({ page }) => {
+  await page.goto('/relatorios')
+  await page.getByRole('combobox', { name: 'Produto' }).selectOption({ label: 'Glifosato 480 SL' })
+  await expect(page).toHaveURL(/[?&]produto=/)
+  await page.getByRole('button', { name: 'Limpar filtro de produto' }).click()
   await expect(page).toHaveURL(/\/relatorios$/)
-  await expect(page.getByText('Filtros recebidos do estoque')).toHaveCount(0)
-  await expect(page.locator('main table tbody tr')).toHaveCount(13)
-  await expect(page.locator('main table tbody tr.linha-vencido')).toHaveCount(2)
-  await expect(page.locator('main table tbody tr.linha-vencendo')).toHaveCount(3)
+  await expect(page.getByRole('combobox', { name: 'Produto' })).toHaveValue('')
 })
 ```
 
-> Regras de `REGRAS_E2E.md` aplicadas: asserção de contagem sempre `toHaveCount`/`toHaveAttribute`
-> (o único `expect(await …count())` é **leitura do chip**, fonte da tela; e o `expect.poll`, que a
-> Regra 2 permite explicitamente); `N` derivado da própria tela/fixture, nunca inventado; nenhum
-> `aria-label`/`data-*`/texto de chip inventado além dos contratos de §2.5.
+```ts
+// src/lib/relatorio.test.ts — ADICIONAR ao describe atual
+it('id de produto inexistente é ignorado (relatório completo)', () => {
+  const produtos = [produto('p1', { estoque_minimo: 20 }), produto('p2', { estoque_minimo: 20 })]
+  const lotes = [lote('p1', 1), lote('p2', 2)]
+  const semFiltro = montarRelatorio(intervalo, produtos, lotes, [mov], () => 'Cat')
+  const comIdFantasma = montarRelatorio(intervalo, produtos, lotes, [mov], () => 'Cat', 'nao-existe')
+  expect(comIdFantasma.compras).toEqual(semFiltro.compras)   // não recorta nada
+  expect(comIdFantasma.resumo).toEqual(semFiltro.resumo)
+})
+```
+
+> Regras de `REGRAS_E2E.md` aplicadas: contagem sempre com `toHaveCount`; `toHaveURL` com regex
+> ancorada (`/\/relatorios$/`); **nenhum** seletor existente renomeado (`getByLabel('De', { exact: true })`
+> e `getByRole('combobox', { name: 'Produto' })` são contrato).
 
 ### 2.5 Contratos que estes specs impõem ao Programador (falha aqui = bug de código)
 
-1. `/estoque` sem filtro ⇒ `href` **exatamente** `'/relatorios'`.
-2. `q=` nunca aparece com só espaços (`juntarFiltros` de `lib/periodos.ts` já cobre; **não** montar
-   `?q=` à mão).
-3. `filtro=` **nunca** no `href` de destino (chave da tela Estoque).
-4. Link do Exportar continua `role=link` com **texto visível `Exportar`** — a contagem vai no
-   `aria-label`, nunca no texto (senão `getByRole('link', { name: 'Exportar' })` deixa de casar).
-5. `Relatorios.tsx` mantém `h1` `Relatórios`, KPIs (`main .cartao:has(span.text-2xl)` → 3), abas
-   `'Resumo'|'Movimentações'|'Posição'|'Compras'` com `exact: true`, rótulos `De`/`Até`/`Produto` e
-   os 4 checkboxes de seção — **congelados**.
-6. O aviso "Filtros recebidos do estoque" **não** pode usar `<table>`/`<tr>` (quebraria
-   `toHaveCount(12)` de `acesso/api.spec.ts`) nem `aria-live` (anunciaria a cada troca de aba).
+1. `<label className="rotulo" htmlFor="r-produto">Produto</label>` **não muda** ⇒ nome acessível do
+   combobox continua `Produto` (`relatorios.spec.ts:52` depende disso).
+2. `<option value="">Todos os produtos</option>` e `<option value={p.id}>{p.nome}</option>` **congelados**.
+3. `?produto=` inválido **não** gera toast nem erro de console (`base.ts` escaneia `errosConsole`) —
+   a tela cai em "Todos os produtos".
+4. Aviso de recorte **não** pode usar `<table>`/`<tr>` (quebraria `toHaveCount(12)` de
+   `acesso/api.spec.ts`) nem `aria-live` (o `toast()` do E2E usa `[aria-live="polite"]`; um segundo
+   `aria-live` na página cria ambiguidade).
+5. `Limpar filtro de produto` é `aria-label` **novo e único** — não colidir com `Limpar filtros` do
+   Histórico nem com `Baixar PDF`/`Baixar Excel (.xlsx)`.
+6. `refletirNaUrl` continua sendo o **único** escritor de URL; `''` ⇒ `null` ⇒ parâmetro **removido**
+   (contrato de `juntarFiltros`). Não montar `?produto=` à mão.
 
 ## 3. Cobertura atual dos testes
 
 | Arquivo | Testes | Escopo |
 |---|---|---|
 | `src/lib/regras.test.ts` | 27 | formato (validade, `lerNumero`, `formatarDelta`), `situacaoLote`, `montarLinhasEstoque`, `resumirProduto`, códigos de barras/GTIN, GS1, períodos + `periodoDaUrl` + `juntarFiltros`, `totaisPorGrupo`, permissões por papel, grupos de movimentação, domínio de reposição (§3.1) |
-| `src/lib/relatorio.test.ts` | 3 | lista de compras do relatório (§3.3) — **sem** cobertura de filtro categoria/termo/situação (§3.6) |
+| `src/lib/relatorio.test.ts` | 3 | lista de compras do relatório (§3.3) — **sem** cobertura de id de produto inexistente (§3.6) |
 | `src/lib/exportar/exportar.test.ts` | 6 | Excel (4 abas, cores, aba "Lista de compras", ausência da aba com a seção desmarcada) e PDF (`%PDF-`, cresce com a seção de compras) |
 | `src/lib/exportar/lista-compra.test.ts` | 9 | `filtrarItensCompra`, `nomeArquivoListaCompra`, `gerarListaCompraExcel`, `gerarListaCompraPdf`, coluna "Comprar" (§3.4) |
 | `src/lib/exportar/lista-compra-paridade.test.ts` | 4 | paridade tela × PDF do nº de embalagens (§3.5) |
@@ -218,8 +199,8 @@ test('filtros recebidos do estoque aparecem, recortam e podem ser limpos', async
 | `src/pdv/sincronizador.test.ts` | 6 | sincronização offline |
 | `servidor-local/supabase-local.test.ts` | 22 | banco local, tempo real (WebSocket), persistência entre reinícios |
 
-> **Nenhum teste novo neste ciclo (T-016/T-017).** A suíte continua **90** em vitest e **171** no
-> Playwright. As lacunas estão em §2.4 (E2E) e §3.6 (unitário).
+> **Nenhum teste novo neste ciclo.** A suíte continua **90** em vitest e **171** no Playwright.
+> Lacunas em §2.4 (E2E) e §3.6 (unitário).
 
 ### 3.1 Domínio de reposição — coberto
 
@@ -234,9 +215,9 @@ test('filtros recebidos do estoque aparecem, recortam e podem ser limpos', async
 - `sugerirCompra` sem embalagem (saldo 5, mínimo 12 → 7)
 - `montarReposicao` ignora `ativo=false` e `controla_estoque=false`
 
-> **Contrato de T-009 que nenhum teste unitário ainda trava:** que `precisaRepor(montarReposicao(…))`
-> seja a **única** contagem usada pela tela e que `contagem.abaixo === itensRepor.length`. Depende do
-> E2E pendente (§2.4) — registrado de novo neste ciclo.
+> **Contratos que nenhum teste unitário ainda trava:** (a) `contagem.abaixo === itensRepor.length`
+> na tela (T-020); (b) `filtrarRecorte()` como porta única do recorte (T-019) — a função **não existe**.
+> Dependem do E2E pendente (§2.4).
 
 ### 3.2 Filtros na URL e totais da lista (T-006) — coberto
 
@@ -250,18 +231,19 @@ test('filtros recebidos do estoque aparecem, recortam e podem ser limpos', async
 - `juntarFiltros` → remove `tipo` nulo, remove `q` só com espaços (bug `?q=+` de T-006), preserva acentos (`guaraná`)
 - `totaisPorGrupo([])` → `lancamentos: 0`; `ENTRADA/DEVOLUCAO` → entradas, `SAIDA/VENDA` → saídas, `AJUSTE/CORRECAO` → ajustes
 
-> `juntarFiltros` é o helper que T-016 **deveria** usar para montar o `href` do Exportar. Já está
-> testado e remove valor vazio — é o que garantiria `href === '/relatorios'` sem filtro.
+> `juntarFiltros` é o helper que **T-021 precisa** para escrever `?produto=`. Já testado e remove
+> valor vazio — o contrato `'' ⇒ parâmetro removido` é exatamente o do botão "Limpar filtro de produto".
+> Falta só a asserção explícita de `produto` (§3.6).
 
 ### 3.3 Lista de compras (reposição) no relatório (T-001) — coberto
 
-`src/lib/relatorio.test.ts` — os 3 `it()` conferidos com `--reporter=verbose`:
+`src/lib/relatorio.test.ts` — os 3 `it()` conferidos:
 
 - `'traz só os produtos no ponto de pedido, do mais crítico ao menos crítico'` — entram **apenas**
   `abaixo`/`no_minimo`; ordenação por cobertura asc (`p2` 0,25 → `p1` 0,50 → `p3` 1,00);
   `sugestaoCompra === sugerirCompra(...)` e `cobertura === calcularCobertura(...)`
 - `'sem produtos no ponto de pedido a lista vem vazia'` → `compras === []`
-- `'respeita o filtro de produto'` → `produtoId` aplicado
+- `'respeita o filtro de produto'` → `produtoId` aplicado **e** `compras` recortada
 
 `src/lib/exportar/exportar.test.ts` (Excel/PDF):
 
@@ -292,17 +274,18 @@ Fixture: mínimo 10, saldo 3, `conteudo_embalagem` 4, `kg` → `sugestaoCompra =
 > `regras.test.ts` (ou num `*.test.ts` próprio do módulo) no mesmo commit, **verde**. Texto que
 > aparece nas duas pontas (tela e exportação) precisa de teste de **paridade**.
 
-### 3.6 Filtro recebido do Estoque no Relatório (T-016/T-017) — **NÃO coberto**
+### 3.6 Filtro de produto na URL do Relatório (T-021) — **NÃO coberto**
 
-O que **deveria** existir em `src/lib/relatorio.test.ts` (e não existe no disco — 3 `it()`, nenhum
-com "filtro"):
+O que **deveria** existir e não existe no disco:
 
-- sem filtro (`{}` ou `undefined`): `posicao`/`compras` com as **mesmas** linhas de hoje (regressão zero);
-- `{ categoria: 'cat-a' }` reduz `posicao` **e** `compras`, e **não** toca `resumo`/`movimentacoes`;
-- `{ termo: '  oleo  ' }` usa `produtoCombina` (sem acento) e apara o termo;
-- `situacao: 'abaixo'` na **posição** usa saldo consolidado (`saldosPorProduto` + `estoque_minimo`),
-  **nunca** `l.situacao` do lote (a pegadinha nº 1 do item) e `compras` acompanha;
-- `situacao: 'vencido'` filtra a posição pela situação do **lote** e **não** recorta `compras`.
+- `src/lib/relatorio.test.ts`: **+1 `it()`** — id de produto inexistente é ignorado (`compras`/`resumo`
+  iguais ao relatório sem filtro). O `doFiltro` já ignora, mas sem teste a garantia é acidental.
+- `src/lib/regras.test.ts`: **+1 asserção** em `juntarFiltros` —
+  `expect(juntarFiltros(base, { produto: '' }).has('produto')).toBe(false)`.
+- Se `produtoDaUrl()` for criado em `periodos.ts`: **exige caso próprio** (id válido ⇒ devolve o id;
+  id fora do catálogo ⇒ `''`; catálogo vazio ⇒ `''`; param ausente ⇒ `''`) — mesma regra de
+  `periodoDaUrl`: "link quebrado não derruba a tela".
+- `e2e/app/relatorios.spec.ts`: os **3 casos de §2.4**.
 
 ## 4. Como rodar um teste isolado
 
@@ -312,7 +295,7 @@ npx vitest run src/lib/relatorio.test.ts
 npx vitest run src/lib/exportar/lista-compra.test.ts
 npx vitest run src/lib/exportar/lista-compra-paridade.test.ts
 npx vitest run -t "paridade tela × PDF"
-npx vitest run -t "Excel: 1 aba"
+npx vitest run -t "id de produto inexistente"
 npx tsc -p e2e/tsconfig.json --noEmit        # tipagem dos specs, sem rodar Playwright
 ```
 
@@ -320,7 +303,8 @@ Playwright:
 
 ```bash
 npx playwright test --list                                            # inventário sem rodar
-npx playwright test e2e/app/painel-estoque.spec.ts e2e/app/relatorios.spec.ts
+npx playwright test e2e/app/relatorios.spec.ts e2e/app/navegacao.spec.ts
+npx playwright test -g "produto=" e2e/app/relatorios.spec.ts          # só os casos de T-021
 npx playwright test e2e/app/estoque-repor.spec.ts                     # só depois de criar o arquivo
 ```
 
@@ -329,15 +313,19 @@ npx playwright test e2e/app/estoque-repor.spec.ts                     # só depo
 - [x] `npx tsc --noEmit` exit 0
 - [x] `npx tsc -p e2e/tsconfig.json --noEmit` exit 0
 - [x] `npx vitest run` 0 falhas (90/90)
-- [x] `npm run build` exit 0 (2303 módulos, PWA ok, 901 ms)
+- [x] `npm run build` exit 0 (2303 módulos, PWA ok, 1,06 s)
 - [ ] `npx playwright test` verde (**não executado neste ciclo** — gate externo + PGlite)
-- [ ] **T-016:** `href` do Exportar via `juntarFiltros` com `categoria`/`q`/`situacao` (não existe em `Estoque.tsx:187`)
+- [ ] **T-021:** `?produto=` lido no mount + reconciliação pós-catálogo (não existe em `Relatorios.tsx`)
+- [ ] **T-021:** `escolherProduto` escrevendo a URL via `juntarFiltros` (não existe)
+- [ ] **T-021:** botão `Limpar filtro de produto` + `Aviso` de recorte ativo (não existe)
+- [ ] **T-021:** `refletirNaUrl` sem `new URLSearchParams` manual (não existe)
+- [ ] **T-021:** `relatorio.test.ts` com caso de id inexistente (não existe)
+- [ ] **T-021:** `regras.test.ts` com asserção `produto: '' ⇒ remove` (não existe)
+- [ ] **T-021:** 3 casos E2E de `?produto=` em `relatorios.spec.ts` (não existem)
+- [ ] **T-016:** `href` do Exportar via `juntarFiltros` com `categoria`/`q`/`situacao` (não existe em `Estoque.tsx`)
 - [ ] **T-017:** leitura de `q`/`categoria`/`situacao` + `filtroPosicao` em `montarRelatorio` (não existe)
-- [ ] **T-017:** `Aviso "Filtros recebidos do estoque"` + chips `span[aria-label]` + "Limpar filtros" (não existe)
-- [ ] **T-017:** `Vazio` na aba Posição quando o filtro zera a lista (não existe)
-- [ ] Teste puro de `filtroPosicao` em `relatorio.test.ts` (§3.6) — **não existe**
-- [ ] `e2e/app/painel-estoque.spec.ts`: `href` do Exportar e chip `Repor` × `[data-reposicao]` — **não existe**
-- [ ] `e2e/app/relatorios.spec.ts`: filtros recebidos + "Limpar filtros" — **não existe**
+- [ ] **T-019:** `filtrarRecorte()` em `lib/estoque.ts` (não existe)
+- [ ] **T-020:** teste de contagem chip `Repor` × tabela × compras (não existe)
 - [ ] `e2e/app/estoque-repor.spec.ts` (novo, herdado de T-009): paridade chip × lista × arquivo — **não existe**
 - [ ] Filtros de URL sem teste de componente (só unidade em `periodos.ts`) — pendente de T-006
 - [ ] Checkbox "Lista de compras (reposição)" e toast "Escolha pelo menos uma seção do relatório."

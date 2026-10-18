@@ -215,3 +215,41 @@ Achado factual (sem maquiar) — a feature NÃO está no código:
 
 Backlog: NÃO alterado (ciclo reprovado).
 VEREDITO: REPROVADO — feature de filtros/relatórios não implementada (Estoque.tsx:187 link fixo, Relatorios.tsx sem FiltrosRecebidos/Limpar filtros/Vazio, relatorio.ts sem filtroPosicao, estoque-repor.spec.ts inexistente).
+
+## [2026-10-18 17:43] Ciclo
+Ciclo T-021 (?produto= do Relatórios na URL) — ciclo de DOCUMENTAÇÃO (gate mecânico é o qa_gate.py). Comandos que EU rodei neste ambiente Node: npx tsc --noEmit exit 0; npx tsc -p e2e/tsconfig.json --noEmit exit 0; npx vitest run exit 0 (8 arquivos, 90/90, 9,90 s); npm run build exit 0 (2303 módulos, PWA generateSW, 11 precache, 1.018,63 KiB, 939 ms); npx playwright test --list exit 0 (171 testes / 17 arquivos). NÃO executei npx playwright test (depende de webServer + PGlite de e2e/preparar.ts) e registrei isso como não verificado; npm run lint não existe (Missing script). ACHADO FACTUAL: T-021 NÃO está no código — src/pages/Relatorios.tsx tem useState('') para produtoId, onChange={e => setProdutoId(e.target.value)} e refletirNaUrl(p,i) que só grava de/ate com new URLSearchParams (nada de produtoDaUrl/escolherProduto/limparProduto/Aviso/data-filtro); src/lib/periodos.ts termina em juntarFiltros (sem produtoDaUrl/paramsDoPeriodo); src/lib/estoque.ts sem filtrarRecorte (T-019); src/lib/relatorio.test.ts segue com 3 it() (nenhum de id inexistente); src/lib/regras.test.ts 27 it() sem asserção de produto em juntarFiltros; e2e/app/relatorios.spec.ts com 5 casos, nenhum de ?produto=/reload/limpar. Suíte total inalterada em 90 (vitest) e 171 (playwright) — igual a T-009/T-016, ou seja, a cobertura prometida no relatório do DEV (1 it() em relatorio.test.ts, 1 asserção em regras.test.ts, 3 casos E2E) NÃO está no disco. Docs atualizados: GUIA_DE_TESTES.md reescrito (tabela de comandos com exit reais, aviso da divergência entre relatório de entrega e disco, distribuição 90/171, §2.1 estado real de Relatorios.tsx/periodos.ts/estoque.ts/relatorio.test.ts, §2.2 critérios 1-4 NÃO CUMPRIDOS / 5 PARCIAL / 6 CUMPRIDO como baseline, §2.3 regressão, §2.4 dívida E2E com 3 specs prontos para colar em relatorios.spec.ts + o it() de id inexistente, §2.5 contratos congelados: label Produto, options Todos os produtos, sem aria-live no aviso, aria-label único 'Limpar filtro de produto', §3.6 lacuna unitária de T-021, checklist de PR) e DOCUMENTACAO_ERP.md (status verde 0/90-90/0, seção T-021 com o defeito do ponto de vista do operador — F5/link compartilhado volta para 'Todos os produtos' e o arquivo sai com o estoque inteiro —, contrato de UI e o que NÃO muda, tabela de verificação, ordem de dependência T-021 como pré-requisito de T-016, nova tabela de params da URL do Relatórios, backlog por prioridade com T-016/T-021 ainda abertos, nota de que estado.json tem plano_atual null e ciclos 0 divergindo do historico.md). Nenhum arquivo de src/ ou e2e/ alterado por este QA. Backlog NÃO alterado neste ciclo de documentação.
+
+## [2026-10-18 17:46] Ciclo
+[2026-10-18 17:52] Ciclo T-021 (reenvio, ?produto= do Relatórios na URL) — QA/DOCUMENTAÇÃO: repositório VERDE, feature AUSENTE
+
+Comandos executados por MIM neste ambiente (fatos, não relato de DEV):
+
+| Comando | Exit | Resultado |
+|---|---|---|
+| npx tsc --noEmit | 0 | sem erros de tipo em src/ |
+| npx tsc -p e2e/tsconfig.json --noEmit | 0 | specs + base.ts + vite.config.ts ok |
+| npx vitest run | 0 | 8 arquivos · 90/90 (10,63 s de parede) |
+| npm run build | 0 | 2303 módulos · PWA generateSW · 11 precache · 1.018,59 KiB · 1,06 s |
+| npx playwright test --list | 0 | 171 testes / 17 arquivos |
+| npx playwright test (execução) | — | NÃO executado: depende do webServer + PGlite de e2e/preparar.ts; fica no gate externo |
+| npm run lint | — | não existe (Missing script: "lint") — não é erro de código |
+
+Distribuição (inalterada): regras 27 · relatorio 3 · exportar 6 · lista-compra 9 · lista-compra-paridade 4 · venda 13 · sincronizador 6 · supabase-local 22 = 90.
+
+ACHADO FACTUAL (sem maquiar) — T-021 NÃO está no código e a cobertura prometida NÃO está no disco:
+- src/pages/Relatorios.tsx → const [produtoId, setProdutoId] = useState(''); refletirNaUrl(p,i) só grava de/ate com new URLSearchParams + setParams({replace:true}); <select id="r-produto"> só tem onChange={e => setProdutoId(e.target.value)}. Não há leitura de ?produto=, produtoDaUrl, escolherProduto, limparProduto, Aviso de recorte nem data-filtro="produto".
+- src/lib/periodos.ts → termina em juntarFiltros(); sem produtoDaUrl/paramsDoPeriodo.
+- src/lib/estoque.ts → sem filtrarRecorte (T-019 também fora).
+- src/lib/relatorio.test.ts → 3 it() (os de T-001); nenhum de id inexistente.
+- src/lib/regras.test.ts → 27 it(); nenhuma asserção de produto: '' em juntarFiltros.
+- e2e/app/relatorios.spec.ts → 5 casos; nenhum de ?produto=/reload/limpar. e2e/app/estoque-repor.spec.ts NÃO existe.
+- memoria/estado.json → plano_atual null, ciclos 0 (divergente do historico.md).
+Suíte total segue 90 (vitest) e 171 (Playwright) — idêntica a T-009/T-016.
+
+Critérios de aceite de T-021: 1 NÃO CUMPRIDO, 2 NÃO CUMPRIDO, 3 NÃO CUMPRIDO, 4 NÃO CUMPRIDO, 5 PARCIAL (o teste de filtro por produto existe e passa; o de id inexistente não existe), 6 CUMPRIDO como baseline (tsc 0/0, vitest 90/90, build 0).
+
+Docs atualizados via escrever_arquivo: GUIA_DE_TESTES.md (tabela de comandos com exits reais deste ciclo; aviso da divergência relatório-de-entrega × disco; distribuição 90/171; §2.1 estado real de Relatorios.tsx/periodos.ts/estoque.ts/relatorio.ts/relatorio.test.ts/regras.test.ts; §2.2 critérios 1-4 NÃO CUMPRIDOS / 5 PARCIAL / 6 CUMPRIDO; §2.3 regressão; §2.4 dívida E2E com 3 specs prontos para colar em relatorios.spec.ts + o it() de id inexistente; §2.5 contratos congelados — label Produto, options Todos os produtos, aviso sem <table>/aria-live, aria-label único 'Limpar filtro de produto', refletirNaUrl como único escritor de URL; §3.6 lacuna unitária; checklist de PR com os itens de T-021 desmarcados) e DOCUMENTACAO_ERP.md (status verde 0/90-90/0 com build 1,06 s; seção T-021 com o defeito do ponto de vista do operador — F5/link compartilhado volta para 'Todos os produtos' e o arquivo sai com o estoque inteiro —, contrato de UI e o que NÃO muda, tabela de verificação, ordem de dependência T-021 como pré-requisito de T-016, tabela de params da URL do Relatórios com estado real, backlog por prioridade com T-016/T-021 ainda abertos, nota de estado.json divergente).
+
+Nenhum arquivo de src/ ou e2e/ foi alterado por este QA. Backlog NÃO alterado: T-021 não entregue (decisão idêntica ao gate mecânico e ao ciclo anterior).
+
+VEREDITO: REPROVADO — T-021 não implementada: Relatorios.tsx mantém produtoId em useState('') e nunca escreve/lê ?produto= (refletirNaUrl só grava de/ate com new URLSearchParams à mão); não existem produtoDaUrl/paramsDoPeriodo em periodos.ts, filtrarRecorte em estoque.ts, caso de id inexistente em relatorio.test.ts, asserção de produto em regras.test.ts nem os 3 casos E2E em relatorios.spec.ts. Mecânica verde (tsc 0/0, vitest 90/90, build 0) — o bloqueio é de funcionalidade e cobertura, não de tipos.

@@ -1,75 +1,71 @@
 # Documentação do ERP Galpão
 
-## Status do repositório (verificado por este QA no ciclo T-016 / T-017)
+## Status do repositório (verificado por este QA no reenvio de T-021)
 
 **Compilação: OK** — `npx tsc --noEmit` → **exit 0** · `npx tsc -p e2e/tsconfig.json --noEmit` → **exit 0**.
-Testes: **90/90 passando** em 8 arquivos (`npx vitest run` → **exit 0**, 9,84 s).
+Testes: **90/90 passando** em 8 arquivos (`npx vitest run` → **exit 0**, 10,63 s de parede).
 Build: **OK** (`npm run build` → exit 0, 2303 módulos, PWA `generateSW`, 11 entradas precache,
-1.018,63 KiB, 901 ms). Playwright: `--list` → **171 testes / 17 arquivos** (execução real fica no
+1.018,59 KiB, 1,06 s). Playwright: `--list` → **171 testes / 17 arquivos** (execução real fica no
 gate externo `qa_gate.py`; `npm run lint` **não existe** — `Missing script: "lint"`).
-Backlog: **T-016/T-017 NÃO entregues** — ver "Item do ciclo" abaixo. Último concluído: T-009.
+Backlog: **T-021 NÃO entregue** — ver "Item do ciclo". Últimos concluídos: T-001/T-006/T-009/T-011.
 
 ---
 
-## Item do ciclo: T-016 + T-017 — "Exportar" do Estoque não levava os filtros para o Relatório
+## Item do ciclo: T-021 — link do Relatório perde o filtro de produto (`?produto=`)
 
-### Situação: **NÃO ENTREGUE no código** (critérios 1–5 e 7 do plano sem evidência; sem plano persistido)
+### Situação: **NÃO ENTREGUE no código** (critérios 1–4 sem evidência; 5 parcial; 6 cumprido como baseline)
 
 ### O que o operador vê hoje (o defeito continua vivo)
 
-1. Em **Estoque**, o operador toca no chip **"Repor"** e escolhe a categoria **Fertilizante**.
-   A tela mostra só o que precisa ser comprado *daquela* categoria.
-2. Toca em **Exportar** (cabeçalho). O app abre **`/relatorios` sem nenhum filtro** — o link é
-   `<Link to="/relatorios">` fixo (`src/pages/Estoque.tsx:187`).
-3. O Excel/PDF sai com o **estoque inteiro**, não com o recorte. O operador confere linha a linha
-   na planilha para achar o que interessava — ou leva ao fornecedor uma lista com produto a mais.
+1. Em **Relatórios**, o operador escolhe **"Glifosato 480 SL"** no select **Produto**. A tela mostra
+   1 linha; a conta fecha.
+2. Ele **recarrega a página** (F5 no computador do galpão) ou **copia o link** para o dono conferir no
+   celular. O link é só `/relatorios`.
+3. A tela reabre em **"Todos os produtos"** — o recorte por produto **não sobrevive** ao link nem ao
+   reload, e o Excel/PDF baixado sai com o **estoque inteiro**, não com o produto que interessava.
 
-É o defeito que T-016 descreve. **A correção não está no código** (ver §"O que foi verificado").
+**A correção não está no código:** `src/pages/Relatorios.tsx` guarda o produto em `useState('')`, o
+`<select id="r-produto">` só chama `setProdutoId`, e `refletirNaUrl` só escreve `de`/`ate` montando
+`URLSearchParams` à mão.
 
 ### O que deveria mudar (contrato com o usuário, para o próximo ciclo)
 
-> **Clicar em "Exportar" no Estoque abre o Relatório já recortado pelos MESMOS filtros da tela**, e o
-> Relatório **avisa** de onde veio o recorte, com um botão **"Limpar filtros"** para voltar ao
-> relatório completo.
+> **Escolher um produto no Relatório passa a deixar o recorte na URL** (`?produto=<id>`), então
+> **recarregar ou compartilhar o link abre a mesma tela** — mesmo produto, mesmo arquivo.
 
-Regras que o usuário percebe:
-
-- **Sem filtro nenhum** em `/estoque`, o link leva a `/relatorios` **exatamente** — a tela de destino
-  se comporta byte a byte como hoje (3 KPIs, 13 linhas na Posição da fixture, 2 vencidos, 3 vencendo,
-  4 abas no Excel, PDF > 20 000 bytes).
-- **Chip de situação** (Vencidos / Zerados / Vencem em N dias / Repor / Em dia) vira `situacao=` no
-  destino; **"Repor"** vira `situacao=abaixo` ("Repor" é a palavra que o operador vê nas duas telas).
-- **Busca** vira `q=` (aparada — busca só com espaços **não** gera `?q=`); **categoria** vira
-  `categoria=<id>`. A chave interna `filtro=` da tela Estoque **não** vaza para o link.
-- No Relatório, o recorte vale para as abas **Posição** e **Compras**; o aviso diz isso com todas as
-  letras ("Valem para **Posição** e **Compras** · N linhas"). **Resumo** e **Movimentações** continuam
-  completos: são totais do período, não uma posição de estoque.
-- **Compras** só entende o recorte "Repor" (produto abaixo do mínimo); "Vencidos"/"Zerados"/"Em dia"
-  são situação de **lote** e não se aplicam a produto — nesses casos a aba Compras fica só com
-  busca/categoria, e o aviso continua verdadeiro.
-- **Posição** com 0 linhas mostra "Nada encontrado — Ajuste os filtros recebidos do estoque."
-  (sem botão duplicado; "Limpar filtros" fica no aviso, uma vez só).
-- **"Limpar filtros"** tira `q`/`categoria`/`situacao` da URL (`replace`, sem sujar o histórico),
-  devolve o foco ao `<h1>` e a tela volta a 13 linhas / 2 vencidas / 3 vencendo.
-- Link quebrado/compartilhado com `categoria` inexistente ou `situacao` desconhecida **não filtra e
-  não quebra a tela** (mesma filosofia de `periodoDaUrl`: "link quebrado não derruba a tela").
-- O link "Exportar" continua sendo **um link** com texto visível **"Exportar"** (não vira botão, não
-  ganha contagem no rótulo visível); a contagem, quando existir, vai no `aria-label` (WCAG 2.5.3
-  "Label in Name"). Continua **clicável mesmo com 0 produtos** (link desabilitado no galpão vira
-  chamado de suporte).
+- Abrir `/relatorios?produto=<id>` já mostra o produto selecionado e o relatório **filtrado**; vale
+  também após **F5**, e para as abas **Resumo**, **Movimentações**, **Posição** e **Compras**
+  (`montarRelatorio` já recorta tudo pelo `produtoId`).
+- Trocar o select grava `produto=` na URL **sem sujar o histórico** (`replace`) e **sem params
+  vazios** (voltar para "Todos os produtos" **remove** o parâmetro — contrato de `juntarFiltros`).
+- Escolher um período (ex.: "Últimos 30 dias") **preserva** `produto=`: um recorte não apaga o outro.
+- Link velho com produto **excluído** (id inexistente) **não quebra a tela** e não mostra erro: cai em
+  **"Todos os produtos"** — mesma filosofia de `periodoDaUrl` ("link quebrado não derruba a tela").
+- Um aviso discreto informa o recorte ativo ("Relatório e arquivos exportados mostram só
+  **Glifosato 480 SL**") com atalho **"ver todos os produtos"** (e um `x` ao lado do select) que volta
+  ao relatório completo e **devolve o foco ao select** — quem usa teclado não se perde.
 
 ### O que **não** muda (contrato com quem já usa e com o E2E)
 
-- Heading `Estoque atual` / `Relatórios`; `aria-label` `Buscar`, `Categoria`, `Ordenar por`, `De`,
-  `Até`, `Produto`; os 4 checkboxes de seção; botões `Baixar Excel (.xlsx)`/`Baixar PDF`; abas
-  `Resumo`/`Movimentações`/`Posição`/`Compras`; chips de situação e suas cores; `data-linha-estoque`,
-  `data-situacao`, classes `linha-*`; o `[aria-live="polite"]` de toast e da barra de seleção; cores
-  e breakpoints (`sm`/`md`/`lg`) — T-016/T-017 é **navegação**, não redesenho.
-- `lib/estoque.ts`, `lib/periodos.ts`, `lib/formato.ts` e `src/index.css` **não** precisam de mudança:
-  `juntarFiltros`, `produtoCombina`, `montarReposicao`, `abaixoDoMinimo` já existem e já são testados.
+- `<label className="rotulo" htmlFor="r-produto">Produto</label>` e o texto das opções
+  (`Todos os produtos`, `p.nome`): o `getByRole('combobox', { name: 'Produto' })` de
+  `e2e/app/relatorios.spec.ts` **não pode ser renomeado**.
+- `getByLabel('De', { exact: true })`, KPIs (`main .cartao:has(span.text-2xl)` → 3), abas
+  `Resumo`/`Movimentações`/`Posição`/`Compras` (`exact: true`), 4 checkboxes de seção, botões
+  `Baixar Excel (.xlsx)`/`Baixar PDF`, texto `"Nenhuma movimentação no período."`, toast
+  `"Escolha pelo menos uma seção do relatório."` — **todos congelados**.
+- Nenhum `data-testid`/`aria-label`/texto existente muda; o único nome novo é
+  `aria-label="Limpar filtro de produto"` (não colide com `Limpar filtros` do Histórico).
+- O aviso de recorte **não** usa `aria-live`: `e2e/base.ts` escaneia `[aria-live="polite"]` para os
+  toasts e um segundo `aria-live` na página cria ambiguidade nos specs.
+- `lib/relatorio.ts` **não muda**: `doFiltro` já ignora id inexistente. `lib/periodos.ts` ganha no
+  máximo helpers puros (`produtoDaUrl`, `paramsDoPeriodo`) — `periodoDaUrl`, `chaveIntervalo` e
+  `juntarFiltros` **não** mudam.
+- Breakpoint do grid (`grid gap-3 sm:grid-cols-3`) e ausência de rolagem horizontal
+  (`navegacao.spec.ts › semRolagemHorizontal`) — T-021 é **estado/URL**, não redesenho.
 - ⚠️ **`@/` não é alias válido** neste projeto: `tsconfig.json` usa `moduleResolution: bundler` e
-  **não** declara `paths`; `vite.config.ts` **não** tem `resolve.alias`. Escrever `@/lib/...` quebra
-  `tsc` e `vite` na hora. Use caminhos relativos (padrão em 100% de `src/`).
+  **não** declara `paths`; `vite.config.ts` **não** tem `resolve.alias`. Use caminhos relativos
+  (padrão em 100% de `src/`).
 
 ### O que foi verificado neste ciclo (por leitura + comandos, sem maquiar)
 
@@ -78,24 +74,45 @@ Regras que o usuário percebe:
 | `npx tsc --noEmit` | exit 0 |
 | `npx tsc -p e2e/tsconfig.json --noEmit` | exit 0 |
 | `npx vitest run` | 8 arquivos · **90/90** |
-| `npx vitest run src/lib/relatorio.test.ts --reporter=verbose` | **3/3**, nenhum de filtro |
-| `npm run build` | exit 0 · 2303 módulos · PWA ok |
+| `npm run build` | exit 0 · 2303 módulos · PWA ok · 1,06 s |
 | `npx playwright test --list` | **171 testes / 17 arquivos** |
-| `src/pages/Estoque.tsx:187` | `<Link to="/relatorios">` **fixo** — sem `juntarFiltros`, sem `situacao=`, sem `aria-label` |
-| `src/pages/Relatorios.tsx` | lê só `de`/`ate` + `produtoId`; **sem** `FiltrosRecebidos`, **sem** "Limpar filtros", **sem** `Vazio` na Posição |
-| `src/lib/relatorio.ts` | `montarRelatorio` com **6 parâmetros** (sem `filtroPosicao`) |
-| `src/lib/relatorio.test.ts` | **3** `it()`; nenhum caso de `filtroPosicao`/categoria/termo/situação |
-| `e2e/app/painel-estoque.spec.ts` / `relatorios.spec.ts` | **6** e **5** casos — nenhum de Exportar/filtros recebidos |
+| `src/pages/Relatorios.tsx` | ❌ `useState('')`; `onChange={e => setProdutoId(e.target.value)}`; `refletirNaUrl(p, i)` só grava `de`/`ate` com `new URLSearchParams`; **sem** leitura de `?produto=`, sem Limpar, sem Aviso de recorte, sem `data-filtro="produto"` |
+| `src/lib/periodos.ts` | ❌ sem `produtoDaUrl`/`paramsDoPeriodo`; `juntarFiltros` (o helper a reaproveitar) existe e é testado |
+| `src/lib/estoque.ts` | ❌ sem `filtrarRecorte` (T-019 não entrou) |
+| `src/lib/relatorio.ts` | `montarRelatorio(…, produtoId?)` com 6 parâmetros; `doFiltro` já ignora id inexistente |
+| `src/lib/relatorio.test.ts` | **3** `it()`; nenhum de id inexistente |
+| `src/lib/regras.test.ts` | 27 `it()`; `juntarFiltros` coberto, **sem** asserção de `produto` |
+| `e2e/app/relatorios.spec.ts` | **5** casos; nenhum de `?produto=`/reload/limpar |
 | `e2e/app/estoque-repor.spec.ts` | **não existe** (dívida herdada de T-009) |
-| `memoria/estado.json` | `"plano_atual": null`, `"ciclos": 0` — **sem plano do Arquiteto** |
+| `memoria/estado.json` | `"plano_atual": null`, `"ciclos": 0` — plano do Arquiteto **não persistido** no arquivo |
 
-Conclusão factual: o repositório está **verde** (tsc/vitest/build), mas **a correção de T-016/T-017
-não foi aplicada e a cobertura dela não está no disco**. O relatório de entrega do ciclo afirmava 4
-`it()` novos e 3 casos E2E novos; o disco mostra 3 `it()` e 0 casos novos. Registrado.
+Conclusão factual: o repositório está **verde** (tsc/vitest/build), mas **a correção de T-021 não foi
+aplicada e a cobertura dela não está no disco**. O relatório de entrega afirmava `filtrarRecorte` em
+`estoque.ts`, `produtoDaUrl`/`paramsDoPeriodo` em `periodos.ts`, 1 `it()` novo em `relatorio.test.ts`,
+1 asserção nova em `regras.test.ts` e 3 casos E2E novos em `relatorios.spec.ts`; o disco mostra
+**0 de todos eles**. Registrado sem maquiar.
 
 ---
 
 ## Itens anteriores aprovados
+
+### T-016 / T-017 — "Exportar" do Estoque levando filtros para o Relatório
+
+**NÃO ENTREGUE no código** (mesma evidência dos ciclos anteriores, reconfirmada agora).
+
+O defeito do operador segue vivo: chip **"Repor"** + categoria **Fertilizante** em `/estoque`, toca
+**Exportar** → abre `/relatorios` **sem filtro nenhum** porque `src/pages/Estoque.tsx` tem
+`<Link to="/relatorios" className="btn btn-secundario">Exportar</Link>` fixo. O Excel/PDF sai com o
+estoque inteiro e o operador confere linha a linha na planilha.
+
+Contrato (inalterado): link carrega `categoria=`, `q=` e `situacao=` via `juntarFiltros` (a chave
+interna `filtro=` **não** vaza); `Relatorios.tsx` lê os três, mostra um aviso com os filtros ativos e
+um **"Limpar filtros"** que volta a `/relatorios` limpo; o recorte vale para **Posição** e
+**Compras**; `Resumo` e `Movimentações` continuam completos. Sem filtro, o link leva a
+`/relatorios` **exatamente** (tela de destino byte a byte como hoje).
+
+> **Ordem de dependência:** T-021 é **pré-requisito** de T-016 — sem `?produto=` na URL via
+> `juntarFiltros`, o link de T-016 perde o recorte de produto ao recarregar/compartilhar.
 
 ### T-009 — A tela Estoque mostrava dois números diferentes para "Repor"
 
@@ -115,7 +132,7 @@ const itensRepor        = useMemo(() => ordenarReposicao(visiveisReposicao, orde
 // contagem.abaixo = visiveisReposicao.length   ← MESMA lista que a tabela desenha
 ```
 
-Decisões registradas: `saldosPorProduto` **permaneceu** (é consumida por `Painel.tsx`, KPI "Para
+Decisões registradas: `saldosPorProduto` **permaneceu** (consumida por `Painel.tsx`, KPI "Para
 repor"); `ordem` é **ignorada** (não `disabled`) no filtro Repor; "Vencidos"/"Zerados" continuam
 vindo de `montarLinhasEstoque` (visão por lote) — só o filtro Repor é por produto.
 
@@ -167,7 +184,8 @@ totaisPorGrupo(movs): TotaisMov
 ```
 
 Defeito corrigido naquele ciclo: `juntarFiltros` gravava `?q=+` com busca só de espaços — `trim()`
-antes do teste de presença em `periodos.ts`. **É o helper que T-016 deve usar no `href` do Exportar.**
+antes do teste de presença em `periodos.ts`. **É o helper que T-016 e T-021 devem usar** (na
+primeira escrita de qualquer filtro do Relatórios, para `de`/`ate`/`produto`).
 
 ### T-002 — Estoque mínimo / ponto de pedido
 
@@ -203,21 +221,33 @@ Reposição **não** colore a linha (o fundo segue a pior situação de lote); o
 
 > **Pegadinha registrada para T-017:** `situacao=abaixo` no relatório deve ser decidido pelo
 > **saldo consolidado do produto** (`saldosPorProduto` + `estoque_minimo`), **nunca** por
-> `l.situacao` do lote. Um produto abaixo do mínimo com 2 lotes apareceria como 2 linhas "Repor"
-> se a regra de lote fosse usada — é exatamente o defeito que T-009 corrigiu na tela.
+> `l.situacao` do lote. Um produto abaixo do mínimo com 2 lotes apareceria como 2 linhas "Repor" se a
+> regra de lote fosse usada — é exatamente o defeito que T-009 corrigiu na tela.
+
+## Filtros do Relatórios e a URL (estado real, após T-021 não entregue)
+
+| Param | Origem | Escrita | Leitura |
+|---|---|---|---|
+| `de` / `ate` | chips de período / input de data | `refletirNaUrl` (hoje com `URLSearchParams` à mão; **deve** migrar para `juntarFiltros`) | `periodoDaUrl(params, hojeISO())` |
+| `produto` | `<select id="r-produto">` | **não escreve hoje** (T-021) | **não lê hoje** (T-021) |
+| `q` / `categoria` / `situacao` | link do Estoque | — | **não lê** (T-016/T-017) |
+
+Regra única que o Relatórios deve manter: **um só escritor de URL** (`refletirNaUrl`), sempre com
+`juntarFiltros` e `{ replace: true }`; valor `''` ⇒ `null` ⇒ parâmetro **removido**. Produto
+inexistente é ignorado (`doFiltro` do `montarRelatorio` já garante), **sem** toast de erro.
 
 ## Estado do backlog (persistido em `memoria/estado.json`)
 
 Aberto após este ciclo (ordem de prioridade):
 
 - **T-016** (prio 1, bug) — "Exportar" do Estoque abre `/relatorios` sem os filtros da tela.
-  **Não entregue neste ciclo** (evidência em §"O que foi verificado").
+  **Não entregue.**
 - **T-021** (prio 1, bug) — `?produto=` do Relatórios não vai para a URL; link compartilhado abre
-  "Todos os produtos".
+  "Todos os produtos". **Não entregue** (pré-requisito de T-016).
 - **T-019** (prio 2, refatoração) — recorte único reutilizável (produto+termo+categoria+situação)
-  entre Estoque e Relatórios.
+  entre Estoque e Relatórios. `filtrarRecorte` **não existe**.
 - **T-017** (prio 2, melhoria) — aba Posição ignora busca/categoria e não avisa que os filtros vieram
-  no link. **Não entregue neste ciclo.**
+  no link. **Não entregue.**
 - **T-020** (prio 2, teste) — falta teste de aceite da contagem chip "Repor" × tabela × compras.
 - **T-018** (prio 3, refatoração) — duplicação da geração/entrega de arquivo (import dinâmico +
   `baixarArquivo` + toast + estado "gerando").
@@ -240,5 +270,6 @@ Pendências verificadas no código e ainda não abertas como item:
   projeto sem `@testing-library`; verificação por revisão + Playwright.
 - **Processo:** `atualizar_backlog` com ação `reordenar` **apagou** o backlog no ciclo T-009 — não
   usar `reordenar` como ferramenta de priorização; recadastrar item a item.
-- **Processo:** `plano_atual` continua `null` em `memoria/estado.json` — o passo `definir_plano`
-  precisa rodar antes do próximo ciclo, senão Designer/DEV/QA trabalham sem contrato de escopo.
+- **Processo:** `plano_atual` continua `null` em `memoria/estado.json` e `"ciclos": 0`, mas os ciclos
+  estão registrados em `memoria/historico.md` — o `estado.json` não reflete o histórico (divergência
+  de ferramenta, não de código).
