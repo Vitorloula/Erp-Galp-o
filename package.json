@@ -12,6 +12,7 @@
     "dev:servidor": "vite --mode servidor",
     "dev:servidor:celular": "vite --mode servidor-celular",
     "build": "tsc -p . && vite build",
+    "lint": "tsc -p . --noEmit",
     "preview": "vite preview",
     "test": "vitest run",
     "test:sql": "node scripts/testar-sql.mjs",

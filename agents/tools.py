@@ -2,13 +2,13 @@
 """Tools sandboxed. Leitura ampla; escrita restrita a whitelist."""
 import json
 import re
-import shutil
 import subprocess
-import sys
 from datetime import datetime
 from pathlib import Path
 
 from crewai.tools import tool
+
+from core import resolver_executavel as _resolver_exe
 
 RAIZ_PROJETO = Path(__file__).resolve().parent.parent
 DIR_MEMORIA = RAIZ_PROJETO / "memoria"
@@ -78,15 +78,6 @@ def _contem_segredo(texto: str) -> str | None:
         if re.search(padrao, texto):
             return padrao
     return None
-
-
-def _resolver_exe(cmd: str) -> str:
-    """Windows: npx → npx.cmd, npm → npm.cmd. Linux/Mac: path normal."""
-    if sys.platform == "win32":
-        r = shutil.which(cmd)
-        if r:
-            return r
-    return shutil.which(cmd) or cmd
 
 
 def _comando_permitido(partes: list[str]) -> bool:

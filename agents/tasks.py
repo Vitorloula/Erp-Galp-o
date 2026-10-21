@@ -47,18 +47,38 @@ class TarefasERP:
             Task(
                 description=(
                     "Leia o plano via 'ler_estado_projeto' (campo plano_atual).\n\n"
-                    "Defina: estrutura de componentes, props TS, classes "
-                    "Tailwind, breakpoints, a11y (aria-labels, foco, "
-                    "contraste).\n\n"
+                    "Defina diretrizes visuais concretas para o item:\n"
+                    "  • Componentes: reutilize os de 'src/components/ui.tsx' "
+                    "(.btn, .campo, .cartao, Kpi, Modal, Segmentado, Badge*, "
+                    "Cabecalho, Aviso, Vazio, Carregando) — NÃO proponha novo "
+                    "componente se um existente serve.\n"
+                    "  • Responsividade: mobile-first; verifique breakpoints "
+                    "sm/md/lg e garanta que NÃO há rolagem horizontal em "
+                    "nenhuma largura; no celular use toque >= 44px e "
+                    "safe-area (pb-seguro).\n"
+                    "  • Estados: loading, erro, vazio e desabilitado para "
+                    "cada interação.\n"
+                    "  • A11y: aria-label, foco visível, contraste WCAG AA, "
+                    "texto alternativo de ícone.\n"
+                    "  • Visual atual: classes Tailwind consistentes com "
+                    "src/index.css (cores emerald/slate, bordas, sombras, "
+                    "ícones lucide-react, fonte Inter).\n\n"
                     "IMPORTANTE — Antes de propor mudanças na UI, LEIA a "
                     "pasta 'e2e/' e verifique se o componente/tela que será "
                     "alterado tem testes E2E. Se tiver, liste quais .spec.ts "
                     "precisarão ser atualizados.\n\n"
                     "NUNCA altere IDs, data-testid, aria-labels ou textos "
-                    "que os testes E2E dependem SEM avisar neste plano."
+                    "que os testes E2E dependem SEM avisar neste plano.\n\n"
+                    "MELHORIA CONTÍNUA — Se notar dívida de design fora do "
+                    "escopo do item (tela inconsistente, falta de "
+                    "responsividade, problema de acessibilidade), registre um "
+                    "item no backlog com 'atualizar_backlog' acao='adicionar', "
+                    "tipo='design', prioridade e 'arquivos_que_toca'."
                 ),
                 expected_output=(
-                    "Diretrizes de UI/UX + lista de .spec.ts afetados."
+                    "Diretrizes de UI/UX (componentes reutilizados, "
+                    "breakpoints, estados, a11y) + lista de .spec.ts afetados "
+                    "+ eventuais itens de design adicionados ao backlog."
                 ),
                 agent=designer,
             ),
@@ -216,4 +236,46 @@ class TarefasERP:
                 "Features válidas adicionadas (ou 'backlog já satisfeito')."
             ),
             agent=po,
+        )
+
+    # ================================================================
+    # Task de auditoria de design (melhoria contínua do visual/responsivo)
+    # ================================================================
+    def tarefa_auditoria_design(self, designer):
+        return Task(
+            description=(
+                "Faça uma auditoria de design em TODO o sistema para mantê-lo "
+                "atual e 100% responsivo. Leia 'src/components/ui.tsx', "
+                "'src/index.css', 'src/components/Layout.tsx' e varra as telas "
+                "de 'src/pages/' com 'listar_arquivos' e 'buscar_no_codigo'.\n\n"
+                "Procure problemas concretos (com evidência 'arquivo:linha'):\n"
+                "  1. RESPONSIVIDADE — rolagem horizontal, tabelas/larguras "
+                "     fixas sem overflow, grids que quebram em 390px, alvo de "
+                "     toque < 44px, falta de safe-area (pb-seguro) na "
+                "     navegação inferior.\n"
+                "  2. CONSISTÊNCIA — componente reinventado no lugar dos de "
+                "     ui.tsx (.btn/.campo/.cartao/Kpi/Modal), cores fora do "
+                "     padrão emerald/slate, espaçamentos divergentes, badge "
+                "     sem ícone.\n"
+                "  3. ACESSIBILIDADE — botão de ícone sem aria-label, "
+                "     contraste abaixo de WCAG AA, foco não visível, estado "
+                "     sem texto além da cor.\n"
+                "  4. ATUALIDADE — estados vazios/loading inexistentes, "
+                "     feedback ausente, tipografia/escala inconsistente.\n\n"
+                "Para CADA problema real, registre um item no backlog com "
+                "'atualizar_backlog' acao='adicionar':\n"
+                "  • id D-001, D-002, ...\n"
+                "  • titulo (≤80 chars), prioridade (1=alta), tipo='design'\n"
+                "  • evidencia: 'arquivo.tsx:linha — descrição'\n"
+                "  • arquivos_que_toca: paths EXISTENTES (máx 5)\n"
+                "  • criterios: o que conta como pronto\n\n"
+                "Ancore CADA item em evidência real do código. Sem evidência = "
+                "não proponha. Não invente problemas; se a UI já estiver "
+                "consistente, retorne 'auditoria de design: nada a melhorar'."
+            ),
+            expected_output=(
+                "Itens de design (D-*) adicionados ao backlog, ou 'nada a "
+                "melhorar'."
+            ),
+            agent=designer,
         )
