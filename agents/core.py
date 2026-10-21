@@ -44,7 +44,7 @@ class Config:
         self.max_correcoes = int(os.getenv("MAX_CORRECOES", "2"))
         self.timeout_global_s = int(os.getenv("TIMEOUT_GLOBAL_S", str(50 * 60)))
         self.max_ciclos_sem_progresso = int(os.getenv("MAX_CICLOS_SEM_PROGRESSO", "2"))
-        self.base_branch = os.getenv("BASE_BRANCH", "saas")
+        self.base_branch = os.getenv("BASE_BRANCH", "main")
         # Modelo padrão dos agentes. None = usa o default do CrewAI (OPENAI_MODEL_NAME).
         self.modelo = os.getenv("LLM_MODEL") or os.getenv("OPENAI_MODEL_NAME") or None
 
@@ -115,8 +115,8 @@ def validar_ambiente(raiz: Path | None = None) -> None:
 # ------------------------------------------------------------------ #
 # Git
 # ------------------------------------------------------------------ #
-def detectar_branch(repo, base_preferida: str = "saas") -> str:
-    """Prefere a base configurada ('saas'), senão a ativa, senão main/master."""
+def detectar_branch(repo, base_preferida: str = "main") -> str:
+    """Prefere a base configurada ('main'), senão a ativa, senão main/master."""
     heads = [h.name for h in repo.heads]
     if base_preferida in heads:
         return base_preferida
@@ -129,7 +129,7 @@ def detectar_branch(repo, base_preferida: str = "saas") -> str:
         return "main"
 
 
-def preparar_git(repo, base_preferida: str = "saas") -> tuple[str, str]:
+def preparar_git(repo, base_preferida: str = "main") -> tuple[str, str]:
     """Cria (ou reseta) a branch de trabalho da sessão. Retorna (nova, original)."""
     original = detectar_branch(repo, base_preferida)
     repo.git.checkout(original)

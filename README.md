@@ -1,6 +1,6 @@
 # Controle de Estoque (PDV por assinatura — em desenvolvimento)
 
-> **Branch `saas` — fases 1 e 2 do plano: base multiempresa e caixa (PDV) que vende sem internet.**
+> **Branch `main` — fases 1 e 2 do plano: base multiempresa e caixa (PDV) que vende sem internet.**
 > O sistema atende várias empresas, cada uma com suas lojas, equipe e assinatura, isoladas pelo próprio banco (RLS).
 > A versão entregue ao cliente galpão fica no branch `galpao-1.x` (tags `v1.0.0-galpao`, `v1.0.1-galpao`).
 

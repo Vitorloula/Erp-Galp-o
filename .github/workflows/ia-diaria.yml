@@ -81,7 +81,7 @@ jobs:
         run: |
           $BRANCH = (git branch -r --sort=-committerdate | Select-String 'ia-autonoma/' | Select-Object -First 1).ToString().Trim() -replace 'origin/', ''
           if ($BRANCH) {
-            gh pr create --title "🤖 Evolução IA: $(Get-Date -Format 'dd/MM/yyyy')" --body "PR gerado automaticamente. E2E aprovado no Edge." --base saas --head $BRANCH
+            gh pr create --title "🤖 Evolução IA: $(Get-Date -Format 'dd/MM/yyyy')" --body "PR gerado automaticamente. E2E aprovado no Edge." --base main --head $BRANCH
           } else {
             echo "⚠️ Nenhuma branch nova encontrada."
           }
