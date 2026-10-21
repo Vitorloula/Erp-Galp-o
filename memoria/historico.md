@@ -253,26 +253,3 @@ Docs atualizados via escrever_arquivo: GUIA_DE_TESTES.md (tabela de comandos com
 Nenhum arquivo de src/ ou e2e/ foi alterado por este QA. Backlog NÃO alterado: T-021 não entregue (decisão idêntica ao gate mecânico e ao ciclo anterior).
 
 VEREDITO: REPROVADO — T-021 não implementada: Relatorios.tsx mantém produtoId em useState('') e nunca escreve/lê ?produto= (refletirNaUrl só grava de/ate com new URLSearchParams à mão); não existem produtoDaUrl/paramsDoPeriodo em periodos.ts, filtrarRecorte em estoque.ts, caso de id inexistente em relatorio.test.ts, asserção de produto em regras.test.ts nem os 3 casos E2E em relatorios.spec.ts. Mecânica verde (tsc 0/0, vitest 90/90, build 0) — o bloqueio é de funcionalidade e cobertura, não de tipos.
-
-## [2026-10-21 20:07] Ciclo
-[2025-01-01] QA T-023 — recorte de Estoque e Relatórios na URL: NÃO ENTREGUE
-
-Status do repositório verificado neste ciclo:
-- Compilação: OK — `npx tsc --noEmit` → exit 0; `npx tsc -p e2e/tsconfig.json --noEmit` → exit 0.
-- Testes: 90/90 passando em 8 arquivos (`npx vitest run` → exit 0, 11,54 s).
-- Build: OK (`npm run build` → exit 0, 2303 módulos, PWA generateSW, 11 entradas precache, 1.018,62 KiB, 1,56 s).
-- Playwright: `--list` → 171 testes / 17 arquivos (execução real no gate externo qa_gate.py).
-- Lint: `npm run lint` NÃO existe — `Missing script: "lint"`. Não é possível validar lint neste repo.
-- Backlog persistido: 1 item (T-034). Últimos concluídos: T-001/T-002/T-005/T-006/T-007/T-009/T-011.
-
-Item do ciclo: T-023 — recorte do Estoque e do Relatórios na URL.
-Situação: NÃO ENTREGUE no código. Critérios 1–3 sem evidência; 4 e 5 parciais; 6 cumprido apenas como baseline.
-
-Defeito ainda reproduzível no produto:
-1. Estoque: estoquista busca "dipirona", escolhe categoria "Fertilizante" e ordena por validade; abre um produto para conferir o lote.
-2. Ao voltar pelo navegador (ou recarregar no celular), a lista volta com centenas de linhas — busca, categoria e ordenação evaporam; recorte precisa ser refeito à mão.
-3. Relatórios: ao escolher "Glifosato 480 SL" e copiar o link, a URL gerada é apenas `/relatorios`, sem nenhum parâmetro — o dono abre o link e não vê o mesmo relatório.
-
-Ações executadas: histórico append-only atualizado; backlog NÃO alterado (item não aprovado / item_id de conclusão desconhecido).
-
-VEREDITO: REPROVADO — T-023 não implementado: estado de filtros/ordenação de Estoque e de Relatórios não é serializado na URL; critérios 1–3 sem evidência (4 e 5 parciais). Repo compila (tsc exit 0) e testes passam (90/90), mas isso não cobre o requisito.

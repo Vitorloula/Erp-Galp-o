@@ -132,6 +132,12 @@ def executar_ciclo(equipe, tarefas, num_ciclo: int, raiz: Path, config: Config) 
         print(diff_problemas)
         return False, f"Diff inválido: {diff_problemas[:500]}", {"gate_diff": diff_problemas}
 
+    # 1b. Gate de implementação: houve mudança real de código?
+    impl_ok, impl_msg = qa_gate.gate_implementacao(raiz)
+    if not impl_ok:
+        log(f"❌ Gate de implementação reprovou: {impl_msg}")
+        return False, impl_msg, {"gate_implementacao": impl_msg}
+
     # 2. npm ci só se lockfile mudou
     if not instalar_deps(raiz):
         return False, "npm ci falhou.", {"erro": "npm_ci"}

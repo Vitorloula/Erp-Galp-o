@@ -104,3 +104,28 @@ def gate_mecanico(raiz: Path) -> tuple[bool, str]:
     if problemas:
         return False, "\n".join(problemas)
     return True, ""
+
+
+def _tem_mudanca(raiz: Path, alvos: list[str]) -> bool:
+    """True se há mudança (rastreada ou não) nos paths alvo desde HEAD."""
+    try:
+        r = subprocess.run(
+            ["git", "diff", "HEAD", "--", *alvos],
+            cwd=raiz, capture_output=True, text=True, timeout=30, shell=False,
+        )
+        if (r.stdout or "").strip():
+            return True
+        r2 = subprocess.run(
+            ["git", "ls-files", "--others", "--exclude-standard", "--", *alvos],
+            cwd=raiz, capture_output=True, text=True, timeout=30, shell=False,
+        )
+        return bool((r2.stdout or "").strip())
+    except Exception:
+        return True  # em dúvida, não bloqueia
+
+
+def gate_implementacao(raiz: Path) -> tuple[bool, str]:
+    """Garante que o ciclo de fato mexeu no código (src/e2e/public)."""
+    if _tem_mudanca(raiz, ["src", "e2e", "public"]):
+        return True, ""
+    return False, "Nenhuma mudança de código (src/e2e/public) — o item não foi implementado."

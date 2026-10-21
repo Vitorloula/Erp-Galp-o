@@ -206,7 +206,7 @@ def ler_estado_projeto() -> str:
 
 @tool("atualizar_backlog")
 def atualizar_backlog(acao: str, item_id: str = "", dados_json: str = "{}") -> str:
-    """Atualiza o backlog persistente. Ações: 'adicionar' (dados_json=item), 'concluir' (item_id), 'remover' (item_id), 'reordenar' (dados_json=array de ids)."""
+    """Atualiza o backlog persistente. Ações: 'adicionar' (dados_json=item ou lista de itens), 'concluir' (item_id), 'remover' (item_id), 'reordenar' (dados_json=array de ids). 'reordenar' NUNCA apaga: move os ids citados para a frente e mantém o resto no fim."""
     DIR_MEMORIA.mkdir(exist_ok=True)
     arq = DIR_MEMORIA / "estado.json"
     estado = {"backlog": [], "concluidos": [], "ciclos": 0, "plano_atual": None}
@@ -221,24 +221,40 @@ def atualizar_backlog(acao: str, item_id: str = "", dados_json: str = "{}") -> s
         return f"❌ dados_json inválido: {dados_json}"
 
     if acao == "adicionar":
-        dados.setdefault("id", item_id)
-        dados.setdefault("criado_em", datetime.now().isoformat())
-        estado["backlog"] = [b for b in estado["backlog"] if b.get("id") != item_id] + [dados]
+        itens = dados if isinstance(dados, list) else [dados]
+        for d in itens:
+            if not isinstance(d, dict):
+                continue
+            d.setdefault("id", item_id)
+            if not d.get("id"):
+                continue  # sem id não adiciona
+            d.setdefault("criado_em", datetime.now().isoformat())
+            # dedupe por id e append — nunca reduz o backlog
+            estado["backlog"] = [b for b in estado["backlog"] if b.get("id") != d["id"]] + [d]
     elif acao == "concluir":
+        if not item_id:
+            return "❌ concluir exige item_id."
         item = next((b for b in estado["backlog"] if b.get("id") == item_id), None)
         estado["backlog"] = [b for b in estado["backlog"] if b.get("id") != item_id]
         if item:
             item["concluido_em"] = datetime.now().isoformat()
             estado["concluidos"].append(item)
     elif acao == "remover":
+        if not item_id:
+            return "❌ remover exige item_id."
         estado["backlog"] = [b for b in estado["backlog"] if b.get("id") != item_id]
     elif acao == "reordenar":
         try:
             nova_ordem = json.loads(dados_json)
-            mapa = {b["id"]: b for b in estado["backlog"]}
-            estado["backlog"] = [mapa[i] for i in nova_ordem if i in mapa]
+            if not isinstance(nova_ordem, list):
+                return "❌ reordenar: dados_json deve ser uma lista de ids."
         except Exception as e:
             return f"❌ reordenar falhou: {e}"
+        mapa = {b["id"]: b for b in estado["backlog"]}
+        citados = [mapa[i] for i in nova_ordem if i in mapa]
+        vistos = set(nova_ordem)
+        restantes = [b for b in estado["backlog"] if b.get("id") not in vistos]
+        estado["backlog"] = citados + restantes  # NUNCA apaga
     else:
         return f"❌ ação desconhecida: {acao}"
 
