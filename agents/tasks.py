@@ -217,12 +217,18 @@ class TarefasERP:
     # ================================================================
     # Task do Product Owner
     # ================================================================
-    def gerar_features(self, po):
+    def gerar_features(self, po, forcar: bool = False):
+        limite = (
+            "MODO FORÇADO: gere features novas mesmo que o backlog já tenha "
+            "itens pendentes. Ainda assim ancore cada uma em evidência real."
+            if forcar
+            else "Antes de gerar features, leia 'ler_estado_projeto' e "
+            "verifique se o backlog já tem 3+ itens pendentes. Se "
+            "tiver, NÃO adicione nada e retorne 'backlog já satisfeito'."
+        )
         return Task(
             description=(
-                "Antes de gerar features, leia 'ler_estado_projeto' e "
-                "verifique se o backlog já tem 3+ itens pendentes. Se "
-                "tiver, NÃO adicione nada e retorne 'backlog já satisfeito'.\n\n"
+                f"{limite}\n\n"
                 "Para cada feature nova (id PO-001, PO-002, ...), use "
                 "'atualizar_backlog' com acao='adicionar' e dados_json "
                 "contendo:\n"

@@ -92,7 +92,7 @@ def main():
     log("📋 Fase 1: Product Owner")
     log("=" * 60)
     if args.forcar_po:
-        sucesso_po = executar_product_owner(backlog_minimo=999)
+        sucesso_po = executar_product_owner(forcar=True)
     else:
         sucesso_po = executar_product_owner()
 
@@ -107,7 +107,7 @@ def main():
     log("\n" + "=" * 60)
     log("🎨 Auditoria de design")
     log("=" * 60)
-    executar_auditoria_design(backlog_minimo=999 if args.forcar_po else 3)
+    executar_auditoria_design(forcar=args.forcar_po)
     log("\n📊 Backlog após auditoria de design:")
     preview_backlog()
 

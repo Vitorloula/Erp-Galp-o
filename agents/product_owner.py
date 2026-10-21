@@ -81,15 +81,15 @@ def validar_features_po() -> list[str]:
     return problemas
 
 
-def executar_product_owner(backlog_minimo: int = PO_BACKLOG_MINIMO) -> bool:
-    """Roda o PO somente se backlog < mínimo. Retorna True se OK."""
+def executar_product_owner(backlog_minimo: int = PO_BACKLOG_MINIMO, forcar: bool = False) -> bool:
+    """Roda o PO somente se backlog < mínimo (ou forcar=True). Retorna True se OK."""
     antes = backlog_tamanho()
-    if antes >= backlog_minimo:
+    if not forcar and antes >= backlog_minimo:
         print(f"⏭️ Backlog já tem {antes} itens (mínimo {backlog_minimo}). Pulando PO.")
         return True
 
     print("\n" + "=" * 60)
-    print(f"📋 PRODUCT OWNER — backlog {antes}/{backlog_minimo}, gerando features")
+    print(f"📋 PRODUCT OWNER — backlog {antes}/{backlog_minimo}, gerando features" + (" (forçado)" if forcar else ""))
     print("=" * 60)
 
     equipe = EquipeERP()
@@ -97,7 +97,7 @@ def executar_product_owner(backlog_minimo: int = PO_BACKLOG_MINIMO) -> bool:
 
     try:
         po = equipe.product_owner()
-        task = tarefas.gerar_features(po)
+        task = tarefas.gerar_features(po, forcar=forcar)
         Crew(
             agents=[po],
             tasks=[task],
@@ -120,6 +120,8 @@ def executar_product_owner(backlog_minimo: int = PO_BACKLOG_MINIMO) -> bool:
     depois = backlog_tamanho()
     delta = depois - antes
     print(f"\n📊 Backlog: {antes} → {depois} (Δ = {delta:+d})")
+    if forcar:
+        return True
     return depois >= backlog_minimo
 
 

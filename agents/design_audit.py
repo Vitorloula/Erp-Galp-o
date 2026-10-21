@@ -79,15 +79,15 @@ def validar_itens_design() -> list[str]:
     return problemas
 
 
-def executar_auditoria_design(backlog_minimo: int = DESIGN_BACKLOG_MINIMO) -> bool:
-    """Roda o Designer (auditoria) somente se há poucos itens de design. Retorna True se OK."""
+def executar_auditoria_design(backlog_minimo: int = DESIGN_BACKLOG_MINIMO, forcar: bool = False) -> bool:
+    """Roda o Designer (auditoria) somente se há poucos itens de design (ou forcar=True)."""
     antes = backlog_design_tamanho()
-    if antes >= backlog_minimo:
+    if not forcar and antes >= backlog_minimo:
         print(f"⏭️ Backlog de design já tem {antes} itens (mínimo {backlog_minimo}). Pulando auditoria.")
         return True
 
     print("\n" + "=" * 60)
-    print(f"🎨 AUDITORIA DE DESIGN — {antes}/{backlog_minimo} itens, varrendo o front")
+    print(f"🎨 AUDITORIA DE DESIGN — {antes}/{backlog_minimo} itens, varrendo o front" + (" (forçada)" if forcar else ""))
     print("=" * 60)
 
     equipe = EquipeERP()
