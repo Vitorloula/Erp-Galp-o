@@ -14,13 +14,16 @@ begin
   if v_id is null then
     insert into public.produtos (empresa_id, codigo_interno, nome, categoria_id, unidade, conteudo_embalagem,
                                  preco_venda, custo_ultimo, rastreio, fabricante, observacao, ativo,
-                                 pesavel, codigo_balanca, controla_estoque)
+                                 pesavel, codigo_balanca, controla_estoque,
+                                 ncm, cfop, cst_csosn, origem, unidade_tributavel, cest)
     values (p_empresa, coalesce(p_dados ->> 'codigo_interno', ''), p_dados ->> 'nome', (p_dados ->> 'categoria_id')::uuid,
             p_dados ->> 'unidade', (p_dados ->> 'conteudo_embalagem')::numeric, (p_dados ->> 'preco_venda')::numeric,
             (p_dados ->> 'custo_ultimo')::numeric, coalesce(p_dados ->> 'rastreio', 'nenhum'), p_dados ->> 'fabricante',
             p_dados ->> 'observacao', coalesce((p_dados ->> 'ativo')::boolean, true),
             coalesce((p_dados ->> 'pesavel')::boolean, false), p_dados ->> 'codigo_balanca',
-            coalesce((p_dados ->> 'controla_estoque')::boolean, true))
+            coalesce((p_dados ->> 'controla_estoque')::boolean, true),
+            nullif(p_dados ->> 'ncm', ''), nullif(p_dados ->> 'cfop', ''), nullif(p_dados ->> 'cst_csosn', ''),
+            (p_dados ->> 'origem')::smallint, nullif(p_dados ->> 'unidade_tributavel', ''), nullif(p_dados ->> 'cest', ''))
     returning id into v_id;
   else
     update public.produtos set
@@ -37,7 +40,13 @@ begin
       ativo              = coalesce((p_dados ->> 'ativo')::boolean, true),
       pesavel            = coalesce((p_dados ->> 'pesavel')::boolean, false),
       codigo_balanca     = p_dados ->> 'codigo_balanca',
-      controla_estoque   = coalesce((p_dados ->> 'controla_estoque')::boolean, true)
+      controla_estoque   = coalesce((p_dados ->> 'controla_estoque')::boolean, true),
+      ncm                = nullif(p_dados ->> 'ncm', ''),
+      cfop               = nullif(p_dados ->> 'cfop', ''),
+      cst_csosn          = nullif(p_dados ->> 'cst_csosn', ''),
+      origem             = (p_dados ->> 'origem')::smallint,
+      unidade_tributavel = nullif(p_dados ->> 'unidade_tributavel', ''),
+      cest               = nullif(p_dados ->> 'cest', '')
     where id = v_id and empresa_id = p_empresa;
     if not found then
       raise exception 'Produto não encontrado ou sem permissão para editá-lo.' using errcode = '42501';
