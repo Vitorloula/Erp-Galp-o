@@ -155,6 +155,15 @@ export function produtoCombina(produto: Produto, termo: string): boolean {
     .some(campo => normalizarBusca(campo).includes(t))
 }
 
+/**
+ * Recorte reutilizável de produtos (T-019): filtra por busca (termo) e categoria.
+ * É a mesma lógica que a tela Estoque usa, compartilhada com o Relatório para que
+ * "exportar o estoque filtrado" não divirja da tela.
+ */
+export function filtrarProdutos(produtos: Produto[], termo: string, categoria: string): Produto[] {
+  return produtos.filter(p => (!categoria || p.categoria_id === categoria) && produtoCombina(p, termo))
+}
+
 export interface ProdutoLido {
   produto: Produto
   /** Unidades que a leitura representa (ex.: código da caixa com 12 = 12). */

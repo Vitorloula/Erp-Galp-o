@@ -3,6 +3,7 @@ import {
   abaixoDoMinimo,
   calcularCobertura,
   encontrarPorCodigo,
+  filtrarProdutos,
   montarLinhasEstoque,
   montarReposicao,
   precisaRepor,
@@ -156,6 +157,29 @@ describe('leitura GS1', () => {
   })
   it('mantém EAN-13 comum', () => {
     expect(lerCodigo('7891000000014')).toEqual({ codigo: '7891000000014', gs1: false })
+  })
+})
+
+describe('filtrarProdutos (recorte T-019)', () => {
+  const p1 = produto('1', { nome: 'Glifosato 480 SL', categoria_id: 'cat-a', fabricante: 'Marca X' })
+  const p2 = produto('2', { nome: 'Óleo mineral', categoria_id: 'cat-b' })
+  const p3 = produto('3', { nome: 'Enxofre', categoria_id: 'cat-a' })
+
+  it('busca sem acento, por nome, código e fabricante', () => {
+    expect(filtrarProdutos([p1, p2, p3], 'glifosato', '').map(p => p.id)).toEqual(['1'])
+    expect(filtrarProdutos([p1, p2, p3], 'oleo', '').map(p => p.id)).toEqual(['2'])
+    expect(filtrarProdutos([p1, p2, p3], 'P2', '').map(p => p.id)).toEqual(['2'])
+    expect(filtrarProdutos([p1, p2, p3], 'marca x', '').map(p => p.id)).toEqual(['1'])
+  })
+  it('filtra por categoria', () => {
+    expect(filtrarProdutos([p1, p2, p3], '', 'cat-a').map(p => p.id)).toEqual(['1', '3'])
+  })
+  it('combina termo + categoria no mesmo recorte', () => {
+    expect(filtrarProdutos([p1, p2, p3], 'glifosato', 'cat-a').map(p => p.id)).toEqual(['1'])
+    expect(filtrarProdutos([p1, p2, p3], 'oleo', 'cat-a')).toEqual([])
+  })
+  it('sem termo e sem categoria devolve tudo', () => {
+    expect(filtrarProdutos([p1, p2, p3], '', '')).toHaveLength(3)
   })
 })
 

@@ -87,12 +87,16 @@ export function montarRelatorio(
   movsDesdeInicio: Movimentacao[],
   nomeCategoria: (id: string | null) => string,
   produtoId?: string,
+  /** Produtos já recortados por busca/categoria (aplicados só a Posição e Compras). */
+  recorteProdutos?: Produto[],
 ): Relatorio {
   // Compara instantes (e não textos): o banco pode devolver "…Z" ou "…-03:00".
   const fim = Date.parse(intervaloParaInstantes(intervalo).ate)
   const produtoPorId = new Map(produtos.map(p => [p.id, p]))
   const lotePorId = new Map(lotes.map(l => [l.lote_id, l]))
   const doFiltro = (pid: string) => !produtoId || pid === produtoId
+  // Posição e Compras respeitam o recorte (busca/categoria); Resumo e Movimentações ficam completos.
+  const produtosRecorte = recorteProdutos ?? produtos
 
   const noPeriodo = movsDesdeInicio
     .filter(m => Date.parse(m.ocorrido_em) <= fim && doFiltro(m.produto_id))
@@ -148,7 +152,7 @@ export function montarRelatorio(
     })
   }
 
-  const posicao: LinhaPosicaoRel[] = montarLinhasEstoque(produtos.filter(p => doFiltro(p.id)), lotes).map(l => ({
+  const posicao: LinhaPosicaoRel[] = montarLinhasEstoque(produtosRecorte.filter(p => doFiltro(p.id)), lotes).map(l => ({
     codigo: l.produto.codigo_interno,
     produto: l.produto.nome,
     categoria: nomeCategoria(l.produto.categoria_id),
@@ -164,7 +168,7 @@ export function montarRelatorio(
   // Sem `incluirSemMinimo`: só quem está no ponto de pedido (abaixo/no mínimo), já ordenado
   // do mais crítico (menor cobertura) para o menos crítico.
   const compras: LinhaCompraRel[] = montarReposicao(
-    produtos.filter(p => doFiltro(p.id)),
+    produtosRecorte.filter(p => doFiltro(p.id)),
     lotes,
     undefined,
     { incluirSemMinimo: false },

@@ -11,15 +11,16 @@ import {
   DIAS_ALERTA,
   PRIORIDADE,
   filtrarItensCompra,
+  filtrarProdutos,
   montarLinhasEstoque,
   montarReposicao,
   precisaRepor,
-  produtoCombina,
   type LinhaEstoque,
   type ReposicaoProduto,
   type Situacao,
 } from '../lib/estoque'
 import { formatarData, formatarEmbalagens, formatarNumero, formatarValidade } from '../lib/formato'
+import { juntarFiltros } from '../lib/periodos'
 import { baixarArquivo, tituloEmpresa } from '../lib/relatorio'
 import type { Produto } from '../lib/tipos'
 
@@ -77,19 +78,17 @@ export function Estoque() {
 
   // Linhas por lote: alimentam os chips Vencidos/Zerados/Vencem/Em dia e o filtro "Todos".
   const todas = useMemo(() => montarLinhasEstoque(produtos, lotes), [produtos, lotes])
-  const base = useMemo(
-    () => todas.filter(l => (!categoria || l.produto.categoria_id === categoria) && produtoCombina(l.produto, termo)),
-    [todas, categoria, termo],
-  )
+  // Recorte compartilhado (busca + categoria) — o mesmo que o Relatório usa (T-019).
+  const recorte = useMemo(() => new Set(filtrarProdutos(produtos, termo, categoria).map(p => p.id)), [produtos, termo, categoria])
+  const base = useMemo(() => todas.filter(l => recorte.has(l.produto.id)), [todas, recorte])
 
   // ── Lista de compras: fonte ÚNICA (T-009) ──────────────────────────────────────────────
   // A decisão de compra vem inteira de lib/estoque.ts e é calculada UMA vez; o chip "Repor",
   // a lista e o arquivo exportado leem exatamente este array (filtrado depois, pela tela).
   const reposicao = useMemo(() => montarReposicao(produtos, lotes), [produtos, lotes])
   const visiveisReposicao = useMemo(
-    () =>
-      precisaRepor(reposicao).filter(i => (!categoria || i.produto.categoria_id === categoria) && produtoCombina(i.produto, termo)),
-    [reposicao, categoria, termo],
+    () => precisaRepor(reposicao).filter(i => recorte.has(i.produto.id)),
+    [reposicao, recorte],
   )
   const itensSelecionados = useMemo(
     () => filtrarItensCompra(visiveisReposicao, selecionados, nomeCategoria),
@@ -188,13 +187,24 @@ export function Estoque() {
   const todosMarcados = itensRepor.length > 0 && marcadosVisiveis === itensRepor.length
   const semFiltro = !termo && !categoria
 
+  // "Exportar" leva o recorte da tela para o Relatório (T-016): categoria, busca e situação.
+  const linkRelatorios = useMemo(() => {
+    const p = juntarFiltros(new URLSearchParams(), {
+      categoria: categoria || '',
+      q: termo || '',
+      situacao: filtro === 'todos' ? '' : filtro,
+    })
+    const qs = p.toString()
+    return qs ? `/relatorios?${qs}` : '/relatorios'
+  }, [categoria, termo, filtro])
+
   return (
     <div>
       <Cabecalho
         titulo="Estoque atual"
         subtitulo="Saldo consolidado em tempo real a cada entrada ou saída."
         acoes={
-          <Link to="/relatorios" className="btn btn-secundario">
+          <Link to={linkRelatorios} className="btn btn-secundario">
             <FileSpreadsheet className="size-4.5" /> Exportar
           </Link>
         }
