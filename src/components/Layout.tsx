@@ -6,6 +6,7 @@ import {
   Building2,
   Check,
   ChevronsUpDown,
+  ClipboardList,
   Ellipsis,
   FileSpreadsheet,
   History,
@@ -125,6 +126,7 @@ export function Layout() {
     { para: '/vendas', rotulo: 'Vendas', icone: Banknote },
     ...(pode.verDivergencias ? [{ para: '/divergencias', rotulo: 'Divergências', icone: AlertOctagon, contador: divergencias }] : []),
     { para: '/relatorios', rotulo: 'Relatórios', icone: FileSpreadsheet },
+    ...(pode.movimentar ? [{ para: '/inventario', rotulo: 'Inventário', icone: ClipboardList }] : []),
     ...(pode.convidar || pode.gerenciarEquipe ? [{ para: '/equipe', rotulo: 'Equipe', icone: Users }] : []),
     { para: '/empresa', rotulo: 'Empresa', icone: Building2 },
   ]
@@ -238,7 +240,9 @@ export function Layout() {
       </div>
 
       <main className="mx-auto max-w-7xl px-4 pb-28 pt-4 sm:px-6 lg:px-8 lg:pb-10 lg:pt-6">
-        <Outlet />
+        <div key={local.pathname} className="animar-entrada">
+          <Outlet />
+        </div>
       </main>
 
       {/* Navegação inferior (celular) */}
@@ -264,7 +268,7 @@ export function Layout() {
             </NavLink>
           )}
           <ItemInferior para="/historico" rotulo="Histórico" icone={History} />
-          <ItemInferior para="/mais" rotulo="Mais" icone={Ellipsis} ativoEm={['/mais', '/produtos', '/relatorios', '/equipe', '/empresa', '/vendas', '/divergencias']} />
+          <ItemInferior para="/mais" rotulo="Mais" icone={Ellipsis} ativoEm={['/mais', '/produtos', '/relatorios', '/inventario', '/equipe', '/empresa', '/vendas', '/divergencias']} />
         </div>
       </nav>
 
