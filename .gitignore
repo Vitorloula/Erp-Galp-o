@@ -12,6 +12,7 @@ playwright-report
 servidor-local/dados.json
 servidor-local/*.tmp
 servidor-local/banco/
+servidor-local/backup/
 
 # Ambiente dos agentes de IA: venv e cache NÃO vão para o repo.
 # O código da fábrica (agents/*.py) É versionado — é ele que roda no CI.

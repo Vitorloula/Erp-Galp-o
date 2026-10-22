@@ -16,6 +16,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:sql": "node scripts/testar-sql.mjs",
+    "backup": "node scripts/backup.mjs",
     "test:e2e": "tsc -p e2e && playwright test",
     "test:e2e:relatorio": "playwright show-report",
     "test:tudo": "npm run build && npm test && npm run test:sql && npm run test:e2e"
