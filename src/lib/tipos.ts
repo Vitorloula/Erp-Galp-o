@@ -112,6 +112,9 @@ export interface Produto {
   origem: number | null
   unidade_tributavel: string | null
   cest: string | null
+  /** Reforma Tributária: alíquotas de IBS e CBS (%) — opcionais. */
+  ibs_aliquota: number | null
+  cbs_aliquota: number | null
   rastreio: Rastreio
   /** Vendido por peso (etiqueta de balança). */
   pesavel: boolean
@@ -148,6 +151,8 @@ export type ProdutoDados = Pick<
   | 'origem'
   | 'unidade_tributavel'
   | 'cest'
+  | 'ibs_aliquota'
+  | 'cbs_aliquota'
 >
 
 /** Lote com saldo na loja ativa (visão vw_estoque). */

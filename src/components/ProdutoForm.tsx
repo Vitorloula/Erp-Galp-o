@@ -52,6 +52,8 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
     origem: produto?.origem ?? null,
     unidade_tributavel: produto?.unidade_tributavel ?? null,
     cest: produto?.cest ?? null,
+    ibs_aliquota: produto?.ibs_aliquota ?? null,
+    cbs_aliquota: produto?.cbs_aliquota ?? null,
   }))
   const [codigos, setCodigos] = useState<CodigoProduto[]>(produto?.codigos ?? [])
   const [novoCodigo, setNovoCodigo] = useState(codigoInicial ?? '')
@@ -344,6 +346,14 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
             <div>
               <label className="rotulo" htmlFor="p-utrib">Unidade tributável</label>
               <input id="p-utrib" className="campo" value={dados.unidade_tributavel ?? ''} onChange={e => muda('unidade_tributavel', e.target.value)} placeholder="Opcional" />
+            </div>
+            <div>
+              <label className="rotulo" htmlFor="p-ibs">IBS (%)</label>
+              <input id="p-ibs" className="campo" inputMode="decimal" value={dados.ibs_aliquota ?? ''} onChange={e => muda('ibs_aliquota', e.target.value === '' ? null : Number(e.target.value.replace(',', '.')))} placeholder="Reforma — opcional" />
+            </div>
+            <div>
+              <label className="rotulo" htmlFor="p-cbs">CBS (%)</label>
+              <input id="p-cbs" className="campo" inputMode="decimal" value={dados.cbs_aliquota ?? ''} onChange={e => muda('cbs_aliquota', e.target.value === '' ? null : Number(e.target.value.replace(',', '.')))} placeholder="Reforma — opcional" />
             </div>
           </div>
           <p className="text-xs text-slate-500">Necessários para emitir a NFC-e na venda. Preencha com a orientação do contador.</p>
