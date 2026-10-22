@@ -94,6 +94,37 @@
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* ── Animações sutis (interface mais viva) ── */
+@keyframes aparecer {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes surgir {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes piscar-suave {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.animar-entrada { animation: aparecer 0.28s ease-out both; }
+.animar-modal { animation: surgir 0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* Botões e chips já têm transição no @apply; cards ganham um leve "lift" no hover. */
+.cartao { transition: box-shadow 0.18s ease, border-color 0.18s ease; }
+@media (hover: hover) {
+  .cartao:hover { box-shadow: 0 8px 20px -8px rgb(15 23 42 / 0.14); }
+}
+
+/* Ponto "vivo" nos itens que pedem atenção (Painel). */
+.ponto-atencao { animation: piscar-suave 2.4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animar-entrada, .animar-modal, .ponto-atencao { animation: none; }
+  .cartao { transition: none; }
+}
+
 /* Área de vídeo do leitor de código de barras */
 .leitor-video video {
   width: 100% !important;

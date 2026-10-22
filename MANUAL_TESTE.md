@@ -61,6 +61,38 @@ Para testar **no celular** (mesmo Wi-Fi): use o endereço `Network` do terminal
 5. Aparece o aviso *"Relatório e arquivos exportados mostram só `<produto>`"* com o botão **ver todos os produtos** — toque nele e o filtro some da URL.
 6. Link com produto excluído (id inexistente) → cai em **Todos os produtos** sem erro.
 
+## 5.1. "Exportar" do Estoque levando os filtros (fix T-016/T-017)
+
+**Objetivo:** o operador que filtrou o estoque exporta exatamente o que viu.
+
+1. Em **Estoque**, filtre por categoria e/ou busca (e/ou um filtro como "Vencidos"/"Repor").
+2. Clique em **Exportar** (canto superior direito).
+3. ✅ O Relatório abre com um aviso *"Filtros do Estoque aplicados…"* e o recorte vale para **Posição** e **Compras**.
+4. **Limpar filtros** remove o recorte e volta ao relatório completo.
+
+## 5.2. Conferência de inventário cego (T-024)
+
+**Objetivo:** contar o estoque físico sem ver o saldo do sistema e apontar divergências.
+
+1. Vá em **Inventário** (menu lateral, ou **Mais** no celular).
+2. A lista mostra nome/código do produto **sem o saldo** — preencha o **Contado**.
+3. **Finalizar contagem** revela o saldo do sistema e a **diferença** (verde = confere, azul/vermelho = divergência).
+4. **Gerar ajustes** cria um lançamento de **Ajuste** (motivo "Conferência de inventário") por produto divergente.
+5. ✅ Confira em **Histórico** os ajustes gerados.
+
+## 5.3. Backup do banco (T-025)
+
+**Objetivo:** não perder os dados do servidor local.
+
+1. Pare o `npm run dev` e rode:
+   ```bash
+   npm run backup          # cria servidor-local/backup/backup-<data>.tar
+   ```
+2. ✅ A mensagem confirma o caminho do arquivo.
+3. Para restaurar: `node scripts/backup.mjs --restore <arquivo.tar>`.
+
+> **Animações:** as telas agora têm transição suave de entrada, modais com "pop" e cartões com leve elevação no hover — tudo desligado automaticamente para quem prefere menos movimento (`prefers-reduced-motion`).
+
 ---
 
 ## 6. Lista de compras / exportação (regressão)
@@ -97,7 +129,5 @@ Todos devem terminar com **exit 0**.
 
 ## Pendências conhecidas (próximas entregas)
 
-- **T-016/T-017** — botão "Exportar" do Estoque levar os filtros (categoria/busca/situação) para o Relatório, e o Relatório aplicá-los (depende da refatoração `filtrarRecorte`, T-019). *O `?produto=` (T-021) já foi entregue.*
-- **T-024** — inventário cego (contagem física).
-- **T-025** — backup automático do banco.
-- **NFC-e real e Asaas real** — só plugar as keys/API (scaffolding pronto).
+- **NFC-e real e Asaas real** — só plugar as keys/API (scaffolding pronto em `src/lib/nfce.ts` e `src/lib/cobranca.ts`).
+- **T-019 (parcial)** — o `filtrarRecorte`/`filtrarProdutos` já é compartilhado entre Estoque e Relatórios; a situação `abaixo` na Posição usa a lista de compras (por produto, nunca por lote).

@@ -183,7 +183,7 @@ export function Painel() {
                     <p className="text-xs opacity-75">{item.detalhe}</p>
                   </div>
                   {item.situacao === 'abaixo' ? (
-                    <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 ring-1 ring-inset ring-amber-200">
+                    <span className="ponto-atencao inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 ring-1 ring-inset ring-amber-200">
                       <ShoppingBasket className="size-3.5" />
                       Repor
                     </span>
