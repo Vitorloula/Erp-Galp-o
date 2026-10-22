@@ -182,11 +182,6 @@ export function Estoque() {
     }
   }
 
-  if (carregando) return <Carregando />
-
-  const todosMarcados = itensRepor.length > 0 && marcadosVisiveis === itensRepor.length
-  const semFiltro = !termo && !categoria
-
   // "Exportar" leva o recorte da tela para o Relatório (T-016): categoria, busca e situação.
   const linkRelatorios = useMemo(() => {
     const p = juntarFiltros(new URLSearchParams(), {
@@ -197,6 +192,11 @@ export function Estoque() {
     const qs = p.toString()
     return qs ? `/relatorios?${qs}` : '/relatorios'
   }, [categoria, termo, filtro])
+
+  if (carregando) return <Carregando />
+
+  const todosMarcados = itensRepor.length > 0 && marcadosVisiveis === itensRepor.length
+  const semFiltro = !termo && !categoria
 
   return (
     <div>
