@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpFromLine, FileSpreadsheet, FileText, LoaderCircle, RotateCcw, ShoppingCart } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, FileSpreadsheet, FileText, LoaderCircle, RotateCcw, ShoppingCart, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { useToast } from '../components/Toast'
@@ -8,7 +8,7 @@ import { useAtiva } from '../contexto/Empresa'
 import { movimentos } from '../lib/dados'
 import type { Secoes } from '../lib/exportar/excel'
 import { formatarDataHora, formatarEmbalagens, formatarNumero, formatarValidade, hojeISO } from '../lib/formato'
-import { PERIODOS, intervaloParaInstantes, intervaloRapido, periodoDaUrl, type Intervalo, type PeriodoRapido } from '../lib/periodos'
+import { PERIODOS, intervaloParaInstantes, intervaloRapido, juntarFiltros, periodoDaUrl, produtoDaUrl, type Intervalo, type PeriodoRapido } from '../lib/periodos'
 import { baixarArquivo, montarRelatorio, nomeArquivo, tituloEmpresa, type LinhaCompraRel } from '../lib/relatorio'
 import type { Movimentacao } from '../lib/tipos'
 
@@ -99,7 +99,7 @@ export function Relatorios() {
   const [inicial] = useState(() => periodoDaUrl(params, hojeISO()))
   const [periodo, setPeriodo] = useState<PeriodoRapido>(inicial.periodo)
   const [personalizado, setPersonalizado] = useState<Intervalo>(inicial.intervalo)
-  const [produtoId, setProdutoId] = useState('')
+  const [produtoId, setProdutoId] = useState(() => produtoDaUrl(params))
   const [movs, setMovs] = useState<Movimentacao[] | null>(null)
   const [erro, setErro] = useState('')
   const [aba, setAba] = useState<Aba>('resumo')
@@ -124,6 +124,21 @@ export function Relatorios() {
     setPeriodo(p)
     refletirNaUrl(p, p === 'personalizado' ? personalizado : intervaloRapido(p))
   }
+
+  // O select de produto é fonte da URL (?produto=): trocar grava com replace; vazio remove o param.
+  function escolherProduto(id: string) {
+    setProdutoId(id)
+    setParams(juntarFiltros(params, { produto: id || '' }), { replace: true })
+  }
+
+  // Produto excluído no link (id inexistente): cai em "Todos os produtos", sem quebrar nem avisar.
+  useEffect(() => {
+    if (!produtoId || carregando) return
+    if (!produtos.some(p => p.id === produtoId)) {
+      setProdutoId('')
+      setParams(juntarFiltros(params, { produto: '' }), { replace: true })
+    }
+  }, [produtos, carregando, produtoId])
 
   useEffect(() => {
     let ativo = true
@@ -231,12 +246,29 @@ export function Relatorios() {
           </div>
           <div>
             <label className="rotulo" htmlFor="r-produto">Produto</label>
-            <select id="r-produto" className="campo" value={produtoId} onChange={e => setProdutoId(e.target.value)}>
+            <select id="r-produto" className="campo" value={produtoId} onChange={e => escolherProduto(e.target.value)}>
               <option value="">Todos os produtos</option>
               {produtos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
             </select>
           </div>
         </div>
+        {produtoId && (
+          <Aviso tom="info">
+            <span className="flex flex-wrap items-center justify-between gap-2">
+              <span>
+                Relatório e arquivos exportados mostram só <strong>{produtos.find(p => p.id === produtoId)?.nome}</strong>.
+              </span>
+              <button
+                type="button"
+                className="btn btn-fantasma -m-1 shrink-0 px-2 py-1 text-xs"
+                aria-label="Limpar filtro de produto"
+                onClick={() => escolherProduto('')}
+              >
+                <X className="size-3.5" /> ver todos os produtos
+              </button>
+            </span>
+          </Aviso>
+        )}
         <div role="group" aria-labelledby="r-secoes">
           <p className="rotulo" id="r-secoes">Incluir no arquivo</p>
           <div className="flex flex-wrap gap-x-5 gap-y-2.5 text-sm text-slate-700">

@@ -14,7 +14,7 @@ import {
 import { canonizarCodigo, exibirCodigo, formatarValidade, grupoDoTipo, lerNumero, totaisPorGrupo } from './formato'
 import { permissoes } from './permissoes'
 import { lerCodigo } from './gs1'
-import { chaveIntervalo, intervaloRapido, juntarFiltros, periodoDaUrl } from './periodos'
+import { chaveIntervalo, intervaloRapido, juntarFiltros, periodoDaUrl, produtoDaUrl } from './periodos'
 import type { Lote, Movimentacao, Produto } from './tipos'
 
 const HOJE = '2026-10-03'
@@ -203,6 +203,14 @@ describe('períodos', () => {
     expect(juntarFiltros(base, { tipo: null, q: ' ' }).toString()).toBe('de=2026-10-01&ate=2026-10-03')
     expect(juntarFiltros(base, { de: null, ate: null, tipo: 'ENTRADA' }).toString()).toBe('tipo=ENTRADA&q=coca')
     expect(juntarFiltros(base, { q: 'guaraná' }).get('q')).toBe('guaraná')
+  })
+
+  it('produtoDaUrl: lê ?produto= do link (ausente/vazio → "")', () => {
+    expect(produtoDaUrl(new URLSearchParams('produto=p1&de=2026-10-01'))).toBe('p1')
+    expect(produtoDaUrl(new URLSearchParams('de=2026-10-01'))).toBe('')
+    expect(produtoDaUrl(new URLSearchParams('produto=   '))).toBe('')
+    expect(produtoDaUrl({ produto: ' p2 ' })).toBe('p2')
+    expect(produtoDaUrl({})).toBe('')
   })
 })
 
