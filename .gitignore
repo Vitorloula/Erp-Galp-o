@@ -7,6 +7,7 @@ dist
 .DS_Store
 test-results
 playwright-report
+.vitest
 .e2e
 servidor-local/dados.json
 servidor-local/*.tmp

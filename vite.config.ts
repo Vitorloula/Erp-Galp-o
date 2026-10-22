@@ -44,6 +44,11 @@ export default defineConfig(({ command, mode }) => {
     
     // CONFIGURAÇÃO DE TESTES E COBERTURA
     test: {
+      // vmThreads: roda os testes no processo principal (Node VM) em vez de
+      // spawnar workers 'forks'/'threads'. Evita falha ao carregar os binários
+      // nativos (.node) do Rolldown/LightningCSS no worker em ambientes com PATH
+      // incompleto no Windows. Mesmo resultado, mais determinístico.
+      pool: 'vmThreads',
       include: ['src/**/*.test.ts', 'servidor-local/**/*.test.ts'],
       coverage: {
         provider: 'v8',
