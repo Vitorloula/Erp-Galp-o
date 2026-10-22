@@ -28,6 +28,7 @@ export interface Venda {
   nfce_status: 'pendente' | 'emitida' | 'cancelada' | 'erro'
   nfce_chave: string | null
   nfce_qrcode: string | null
+  cliente_cpf: string | null
 }
 
 export interface ItemVenda {
@@ -78,6 +79,7 @@ const paraVenda = (r: Record<string, unknown>): Venda => ({
   nfce_status: (r.nfce_status as Venda['nfce_status']) ?? 'pendente',
   nfce_chave: (r.nfce_chave as string | null) ?? null,
   nfce_qrcode: (r.nfce_qrcode as string | null) ?? null,
+  cliente_cpf: (r.cliente_cpf as string | null) ?? null,
 })
 
 export async function listarCaixas(empresaId: string, lojaId?: string): Promise<Caixa[]> {
@@ -99,7 +101,7 @@ export function listarVendas(empresaId: string, lojaId: string, f: { desde: stri
     (de, ate) =>
       sb
         .from('vendas')
-        .select('id, caixa_id, numero, ocorrido_em, operador_nome, subtotal, desconto, total, troco, status, cancelada_em, cancelada_por_nome, motivo_cancelamento, relogio_suspeito, nfce_status, nfce_chave, nfce_qrcode')
+        .select('id, caixa_id, numero, ocorrido_em, operador_nome, subtotal, desconto, total, troco, status, cancelada_em, cancelada_por_nome, motivo_cancelamento, relogio_suspeito, nfce_status, nfce_chave, nfce_qrcode, cliente_cpf')
         .eq('empresa_id', empresaId)
         .eq('loja_id', lojaId)
         .gte('ocorrido_em', f.desde)
@@ -153,6 +155,13 @@ export async function salvarNFCe(vendaId: string, dados: { status: 'emitida' | '
   )
 }
 
+/** Estado da NFC-e de uma venda, para o cancelamento. */
+export async function buscarVendaParaCancelamento(vendaId: string): Promise<{ nfce_status: Venda['nfce_status']; nfce_chave: string | null } | null> {
+  const r = await sb.from('vendas').select('nfce_status, nfce_chave').eq('id', vendaId).single()
+  if (r.error) return null
+  return { nfce_status: (r.data.nfce_status as Venda['nfce_status']) ?? 'pendente', nfce_chave: (r.data.nfce_chave as string | null) ?? null }
+}
+
 /** Venda aguardando emissão da NFC-e (para a fila). */
 export interface VendaPendenteNFCe {
   id: string
@@ -160,6 +169,7 @@ export interface VendaPendenteNFCe {
   numero: number
   total: number
   ocorrido_em: string
+  cliente_cpf: string | null
 }
 
 /** Vendas com NFC-e pendente, na ordem em que aconteceram. */
@@ -168,13 +178,13 @@ export function listarVendasPendentes(empresaId: string, lojaId: string): Promis
     (de, ate) =>
       sb
         .from('vendas')
-        .select('id, caixa_id, numero, total, ocorrido_em')
+        .select('id, caixa_id, numero, total, ocorrido_em, cliente_cpf')
         .eq('empresa_id', empresaId)
         .eq('loja_id', lojaId)
         .eq('nfce_status', 'pendente')
         .order('ocorrido_em')
         .range(de, ate),
-    r => ({ id: r.id as string, caixa_id: r.caixa_id as string, numero: num(r.numero), total: num(r.total), ocorrido_em: r.ocorrido_em as string }),
+    r => ({ id: r.id as string, caixa_id: r.caixa_id as string, numero: num(r.numero), total: num(r.total), ocorrido_em: r.ocorrido_em as string, cliente_cpf: (r.cliente_cpf as string | null) ?? null }),
   )
 }
 

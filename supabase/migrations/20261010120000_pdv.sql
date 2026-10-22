@@ -528,10 +528,10 @@ begin
     end if;
 
     insert into public.vendas (empresa_id, id, loja_id, caixa_id, sessao_id, numero, ocorrido_em, operador_id, operador_nome, dispositivo_id,
-                               subtotal, desconto, total, troco, relogio_suspeito)
+                               subtotal, desconto, total, troco, relogio_suspeito, cliente_cpf)
     values (c.empresa_id, (d ->> 'venda_id')::uuid, c.loja_id, c.id, v_sessao.id, (d ->> 'numero')::bigint, v_hora.quando, p_usuario, p_nome,
             p_dispositivo, (d ->> 'subtotal')::numeric, coalesce((d ->> 'desconto')::numeric, 0), (d ->> 'total')::numeric,
-            coalesce((d ->> 'troco')::numeric, 0), v_hora.suspeita)
+            coalesce((d ->> 'troco')::numeric, 0), v_hora.suspeita, nullif(trim(coalesce(d ->> 'cliente_cpf', '')), ''))
     returning * into v_venda;
 
     if v_hora.suspeita then

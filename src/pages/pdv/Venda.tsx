@@ -7,6 +7,7 @@ import { useAuth } from '../../contexto/Auth'
 import { useAtualizacao } from '../../lib/atualizacao'
 import { useAtiva } from '../../contexto/Empresa'
 import { formatarNumero, lerNumero } from '../../lib/formato'
+import { formatarCpf, validarCpf } from '../../lib/cpf'
 import { usePdv, type Leitura } from '../../pdv/contexto'
 import type { ProdutoLocal } from '../../pdv/local'
 import {
@@ -116,13 +117,13 @@ export function TelaVenda({ abrirMenu }: { abrirMenu: () => void }) {
     setAlerta(null)
   }
 
-  async function finalizar(pagamentos: Pagamento[]) {
+  async function finalizar(pagamentos: Pagamento[], clienteCpf?: string | null) {
     const caixa = pdv.caixa!
     const sessao = pdv.sessao!
     const numero = await pdv.proximoNumero()
     const agora = pdv.sinc.agora()
     const vendaId = uuidv7(agora.getTime())
-    const dados = dadosDaVenda({ caixaId: caixa.caixa_id, sessaoId: sessao.id, vendaId, numero, ocorridoEm: agora.toISOString(), itens, descontoVenda, pagamentos })
+    const dados = dadosDaVenda({ caixaId: caixa.caixa_id, sessaoId: sessao.id, vendaId, numero, ocorridoEm: agora.toISOString(), itens, descontoVenda, pagamentos, clienteCpf })
     const numeroExibicao = numeroVenda(caixa.numero, numero)
     await pdv.banco.vendas.put({ id: vendaId, sessao_id: sessao.id, numero, numero_exibicao: numeroExibicao, ocorrido_em: dados.ocorrido_em, total: dados.total, dados, status: 'concluida', sincronizada: false })
     await pdv.sinc.enfileirar('venda', dados)
@@ -582,13 +583,16 @@ function EditarItem({ item, aoFechar, aoSalvar, aoRemover }: { item: ItemCarrinh
 }
 
 /** Pagamento: F5 dinheiro, F6 Pix, F7 débito, F8 crédito, F9 outros. Enter sem valor = o que falta. */
-function TelaPagamento({ total, aoVoltar, aoConcluir }: { total: number; aoVoltar: () => void; aoConcluir: (p: Pagamento[]) => Promise<void> }) {
+function TelaPagamento({ total, aoVoltar, aoConcluir }: { total: number; aoVoltar: () => void; aoConcluir: (p: Pagamento[], clienteCpf?: string | null) => Promise<void> }) {
   const [pagos, setPagos] = useState<Pagamento[]>([])
   const [forma, setForma] = useState<FormaPagamento>('01')
   const [valor, setValor] = useState('')
+  const [cpf, setCpf] = useState('')
   const [concluindo, setConcluindo] = useState(false)
   const conf = conferirPagamentos(total, pagos)
   const campo = useRef<HTMLInputElement>(null)
+
+  const cpfInvalido = !!cpf.trim() && !validarCpf(cpf)
 
   useEffect(() => {
     campo.current?.focus()
@@ -603,10 +607,10 @@ function TelaPagamento({ total, aoVoltar, aoConcluir }: { total: number; aoVolta
   }
 
   async function concluir() {
-    if (conf.erro || concluindo) return
+    if (conf.erro || concluindo || cpfInvalido) return
     setConcluindo(true)
     try {
-      await aoConcluir(pagos)
+      await aoConcluir(pagos, cpf.trim() ? formatarCpf(cpf) : null)
     } finally {
       setConcluindo(false)
     }
@@ -660,6 +664,11 @@ function TelaPagamento({ total, aoVoltar, aoConcluir }: { total: number; aoVolta
           <label className="rotulo" htmlFor="valor-pago">Valor recebido (deixe vazio para o valor que falta)</label>
           <input id="valor-pago" ref={campo} className="campo text-lg" inputMode="decimal" value={valor} onChange={e => setValor(e.target.value)} placeholder={formatarReais(conf.falta)} />
         </div>
+        <div>
+          <label className="rotulo" htmlFor="cpf-nota">CPF na nota (opcional)</label>
+          <input id="cpf-nota" className="campo" inputMode="numeric" value={cpf} onChange={e => setCpf(e.target.value)} placeholder="000.000.000-00" />
+          {cpfInvalido && <p className="mt-1 text-xs text-red-600">CPF inválido.</p>}
+        </div>
         {pagos.length > 0 && (
           <ul className="space-y-1 text-sm">
             {pagos.map(p => (
@@ -676,7 +685,7 @@ function TelaPagamento({ total, aoVoltar, aoConcluir }: { total: number; aoVolta
           </ul>
         )}
         {conf.erro && pagos.length > 0 && conf.falta === 0 && <Aviso tom="erro">{conf.erro}</Aviso>}
-        <button className="btn btn-primario btn-grande w-full" disabled={!!conf.erro || concluindo} onClick={concluir}>
+        <button className="btn btn-primario btn-grande w-full" disabled={!!conf.erro || concluindo || cpfInvalido} onClick={concluir}>
           <Check className="size-5" /> Concluir venda (Enter)
         </button>
       </div>
