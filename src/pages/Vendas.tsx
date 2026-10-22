@@ -9,6 +9,7 @@ import type { Caixa, ItemVenda, PagamentoVenda, Sessao, Venda } from '../lib/dad
 import { formatarData, formatarDataHora, formatarHora, formatarNumero, hojeISO } from '../lib/formato'
 import { PERIODOS, intervaloParaInstantes, intervaloRapido, type Intervalo, type PeriodoRapido } from '../lib/periodos'
 import { NOME_FORMA, centavos, formatarReais, numeroVenda, type FormaPagamento } from '../pdv/venda'
+import { cancelarNFCeDaVenda } from '../lib/emissao'
 
 export function Vendas() {
   const { empresa, loja, pode } = useAtiva()
@@ -206,6 +207,11 @@ function DetalheVenda({ venda, rotulo, podeCancelar, aoFechar }: { venda: Venda 
   async function cancelar() {
     try {
       await dados.cancelarVenda(venda!.id, motivo)
+      try {
+        await cancelarNFCeDaVenda(venda!.id, motivo)
+      } catch (e) {
+        console.warn('Falha ao cancelar a NFC-e:', e)
+      }
       toast.sucesso(`Venda ${rotulo} cancelada.`)
       await recarregar()
       aoFechar()
