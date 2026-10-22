@@ -24,6 +24,9 @@ export interface Venda {
   cancelada_por_nome: string | null
   motivo_cancelamento: string | null
   relogio_suspeito: boolean
+  nfce_status: 'pendente' | 'emitida' | 'cancelada' | 'erro'
+  nfce_chave: string | null
+  nfce_qrcode: string | null
 }
 
 export interface ItemVenda {
@@ -71,6 +74,9 @@ const paraVenda = (r: Record<string, unknown>): Venda => ({
   desconto: num(r.desconto),
   total: num(r.total),
   troco: num(r.troco),
+  nfce_status: (r.nfce_status as Venda['nfce_status']) ?? 'pendente',
+  nfce_chave: (r.nfce_chave as string | null) ?? null,
+  nfce_qrcode: (r.nfce_qrcode as string | null) ?? null,
 })
 
 export async function listarCaixas(empresaId: string, lojaId?: string): Promise<Caixa[]> {
@@ -92,7 +98,7 @@ export function listarVendas(empresaId: string, lojaId: string, f: { desde: stri
     (de, ate) =>
       sb
         .from('vendas')
-        .select('id, caixa_id, numero, ocorrido_em, operador_nome, subtotal, desconto, total, troco, status, cancelada_em, cancelada_por_nome, motivo_cancelamento, relogio_suspeito')
+        .select('id, caixa_id, numero, ocorrido_em, operador_nome, subtotal, desconto, total, troco, status, cancelada_em, cancelada_por_nome, motivo_cancelamento, relogio_suspeito, nfce_status, nfce_chave, nfce_qrcode')
         .eq('empresa_id', empresaId)
         .eq('loja_id', lojaId)
         .gte('ocorrido_em', f.desde)
@@ -132,6 +138,18 @@ export async function detalheDaVenda(vendaId: string): Promise<{ itens: ItemVend
 export async function cancelarVenda(vendaId: string, motivo: string) {
   if (motivo.trim().length < 3) throw new Error('Informe o motivo do cancelamento.')
   exigir(await sb.rpc('cancelar_venda', { p_venda: vendaId, p_motivo: motivo.trim() }))
+}
+
+/** Registra o resultado da emissão da NFC-e numa venda (chave/QR Code/estado). */
+export async function salvarNFCe(vendaId: string, dados: { status: 'emitida' | 'cancelada' | 'erro'; chave?: string | null; qrcode?: string | null }) {
+  exigir(
+    await sb
+      .from('vendas')
+      .update({ nfce_status: dados.status, nfce_chave: dados.chave ?? null, nfce_qrcode: dados.qrcode ?? null })
+      .eq('id', vendaId)
+      .select('id')
+      .single(),
+  )
 }
 
 export async function listarSessoes(empresaId: string, lojaId: string, f: { desde: string; ate: string }): Promise<Sessao[]> {

@@ -35,12 +35,13 @@ function paraProduto(r: Record<string, unknown>): Produto {
     estoque_minimo: numOuNulo(r.estoque_minimo),
     preco_venda: numOuNulo(r.preco_venda),
     custo_ultimo: numOuNulo(r.custo_ultimo),
+    origem: numOuNulo(r.origem),
     codigos: [],
   }
 }
 
 const COLUNAS_PRODUTO_BASE =
-  'id, codigo_interno, nome, categoria_id, unidade, conteudo_embalagem, preco_venda, custo_ultimo, rastreio, pesavel, codigo_balanca, controla_estoque, fabricante, observacao, ativo, criado_em'
+  'id, codigo_interno, nome, categoria_id, unidade, conteudo_embalagem, preco_venda, custo_ultimo, rastreio, pesavel, codigo_balanca, controla_estoque, fabricante, observacao, ativo, ncm, cfop, cst_csosn, origem, unidade_tributavel, cest, criado_em'
 const COLUNAS_PRODUTO = `${COLUNAS_PRODUTO_BASE}, estoque_minimo`
 
 /** true quando o banco ainda não tem a coluna do estoque mínimo (migration pendente). */
@@ -90,6 +91,11 @@ export async function salvarProduto(empresaId: string, dados: ProdutoDados, codi
         codigo_balanca: dados.codigo_balanca?.trim() || null,
         fabricante: dados.fabricante?.trim() || null,
         observacao: dados.observacao?.trim() || null,
+        ncm: dados.ncm?.trim() || null,
+        cfop: dados.cfop?.trim() || null,
+        cst_csosn: dados.cst_csosn?.trim() || null,
+        unidade_tributavel: dados.unidade_tributavel?.trim() || null,
+        cest: dados.cest?.trim() || null,
       },
       // Envia como na embalagem (o banco normaliza): mensagens de erro mostram o código que a pessoa conhece.
       p_codigos: codigos.map(c => ({ codigo: exibirCodigo(c.codigo.trim()), fator: c.fator })),
