@@ -25,6 +25,9 @@ export interface ItemNFCe {
   cfop: string | null
   cst: string | null
   origem: number | null
+  /** Reforma Tributária: alíquotas de IBS e CBS (%) — opcionais. */
+  ibs: number | null
+  cbs: number | null
   unidade: string
   quantidade: number
   /** Valor total do item (quantidade × unitário − rateio do desconto). */
@@ -55,7 +58,7 @@ export function serieNFCe(numeroCaixa: number): string {
 }
 
 interface ItemVenda {
-  produto: Pick<Produto, 'codigo_interno' | 'nome' | 'unidade' | 'ncm' | 'cfop' | 'cst_csosn' | 'origem'>
+  produto: Pick<Produto, 'codigo_interno' | 'nome' | 'unidade' | 'ncm' | 'cfop' | 'cst_csosn' | 'origem' | 'ibs_aliquota' | 'cbs_aliquota'>
   quantidade: number
   valor: number
 }
@@ -82,11 +85,28 @@ export function montarDadosNFCe(args: {
       cfop: i.produto.cfop ?? null,
       cst: i.produto.cst_csosn ?? null,
       origem: i.produto.origem ?? null,
+      ibs: i.produto.ibs_aliquota ?? null,
+      cbs: i.produto.cbs_aliquota ?? null,
       unidade: i.produto.unidade,
       quantidade: i.quantidade,
       valor: i.valor,
     })),
   }
+}
+
+/** Resultado da emissão de uma venda (para a fila). */
+export interface ResultadoEmissao {
+  vendaId: string
+  status: 'emitida' | 'nao_configurado' | 'erro'
+  chave?: string
+  qrcode?: string
+  mensagem?: string
+}
+
+/** Emite uma venda pelo emissor e devolve o resultado (puro em relação ao emissor). */
+export async function emitirVenda(emissor: EmissorNFCe, dados: DadosNFCe): Promise<ResultadoEmissao> {
+  const r = await emissor.emitir(dados)
+  return { vendaId: dados.vendaId, status: r.status, chave: r.chave, qrcode: r.qrcode, mensagem: r.mensagem }
 }
 
 // ───────────────────────── Configuração / emissor ─────────────────────────

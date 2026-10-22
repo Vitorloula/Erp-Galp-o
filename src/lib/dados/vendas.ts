@@ -1,4 +1,5 @@
-import { buscarTudo, exigir, num, sb, traduzirErro } from './cliente'
+import { buscarTudo, exigir, num, numOuNulo, sb, traduzirErro } from './cliente'
+import type { Produto } from '../tipos'
 
 export interface Caixa {
   id: string
@@ -150,6 +151,72 @@ export async function salvarNFCe(vendaId: string, dados: { status: 'emitida' | '
       .select('id')
       .single(),
   )
+}
+
+/** Venda aguardando emissão da NFC-e (para a fila). */
+export interface VendaPendenteNFCe {
+  id: string
+  caixa_id: string
+  numero: number
+  total: number
+  ocorrido_em: string
+}
+
+/** Vendas com NFC-e pendente, na ordem em que aconteceram. */
+export function listarVendasPendentes(empresaId: string, lojaId: string): Promise<VendaPendenteNFCe[]> {
+  return buscarTudo(
+    (de, ate) =>
+      sb
+        .from('vendas')
+        .select('id, caixa_id, numero, total, ocorrido_em')
+        .eq('empresa_id', empresaId)
+        .eq('loja_id', lojaId)
+        .eq('nfce_status', 'pendente')
+        .order('ocorrido_em')
+        .range(de, ate),
+    r => ({ id: r.id as string, caixa_id: r.caixa_id as string, numero: num(r.numero), total: num(r.total), ocorrido_em: r.ocorrido_em as string }),
+  )
+}
+
+/** Item da venda com os campos fiscais do produto (para montar a NFC-e). */
+export interface ItemFiscalVenda {
+  produto: Pick<Produto, 'codigo_interno' | 'nome' | 'unidade' | 'ncm' | 'cfop' | 'cst_csosn' | 'origem' | 'ibs_aliquota' | 'cbs_aliquota'> | null
+  quantidade: number
+  valor: number
+}
+
+/** Itens da venda já cruzados com o produto (NCM/CFOP/CST/origem/IBS/CBS). */
+export async function itensFiscaisDaVenda(vendaId: string): Promise<ItemFiscalVenda[]> {
+  const itens = exigir(await sb.from('vendas_itens').select('produto_id, quantidade, total').eq('venda_id', vendaId)) as {
+    produto_id: string
+    quantidade: number
+    total: number
+  }[]
+  const ids = [...new Set(itens.map(i => i.produto_id))]
+  const produtos = ids.length
+    ? (exigir(await sb.from('produtos').select('id, codigo_interno, nome, unidade, ncm, cfop, cst_csosn, origem, ibs_aliquota, cbs_aliquota').in('id', ids)) as Record<string, unknown>[])
+    : []
+  const porId = new Map(produtos.map(p => [p.id as string, p]))
+  return itens.map(i => {
+    const p = porId.get(i.produto_id)
+    return {
+      produto: p
+        ? {
+            codigo_interno: p.codigo_interno as string,
+            nome: p.nome as string,
+            unidade: p.unidade as Produto['unidade'],
+            ncm: (p.ncm as string | null) ?? null,
+            cfop: (p.cfop as string | null) ?? null,
+            cst_csosn: (p.cst_csosn as string | null) ?? null,
+            origem: numOuNulo(p.origem),
+            ibs_aliquota: numOuNulo(p.ibs_aliquota),
+            cbs_aliquota: numOuNulo(p.cbs_aliquota),
+          }
+        : null,
+      quantidade: num(i.quantidade),
+      valor: num(i.total),
+    }
+  })
 }
 
 export async function listarSessoes(empresaId: string, lojaId: string, f: { desde: string; ate: string }): Promise<Sessao[]> {
