@@ -18,17 +18,19 @@ describe('NFC-e', () => {
     expect(serieNFCe(999)).toBe('999')
   })
 
-  it('montarDadosNFCe: monta a nota com série, total e itens fiscais', () => {
+  it('montarDadosNFCe: monta a nota com série, total, CPF e itens fiscais', () => {
     const dados = montarDadosNFCe({
       vendaId: 'v1',
       numero: '02-000123',
       caixaNumero: 2,
       total: 25.9,
       emitidaEm: '2026-10-21',
+      cpf: '529.982.247-25',
       itens: [{ produto: produto({ nome: 'Glifosato 480 SL', ncm: '38089199', cfop: '5102', cst_csosn: '102', origem: 0, ibs_aliquota: 0.5, cbs_aliquota: 1.2 }), quantidade: 1, valor: 25.9 }],
     })
     expect(dados.serie).toBe('002')
     expect(dados.total).toBe(25.9)
+    expect(dados.cpf).toBe('529.982.247-25')
     expect(dados.itens[0]).toEqual({
       codigo: 'P1', nome: 'Glifosato 480 SL', ncm: '38089199', cfop: '5102', cst: '102', origem: 0,
       ibs: 0.5, cbs: 1.2, unidade: 'L', quantidade: 1, valor: 25.9,

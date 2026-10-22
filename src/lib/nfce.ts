@@ -43,6 +43,8 @@ export interface DadosNFCe {
   serie: string
   total: number
   emitidaEm: string
+  /** CPF do consumidor (quando pediu "CPF na nota"); null = sem identificação. */
+  cpf: string | null
   itens: ItemNFCe[]
 }
 
@@ -50,6 +52,8 @@ export interface EmissorNFCe {
   /** true quando as keys/API do emissor estão configuradas. */
   configurado: boolean
   emitir(venda: DadosNFCe): Promise<{ status: 'emitida' | 'nao_configurado' | 'erro'; chave?: string; qrcode?: string; mensagem?: string }>
+  /** Cancela uma nota já emitida (ao cancelar a venda). */
+  cancelar(chave: string, motivo: string): Promise<{ status: 'cancelada' | 'nao_configurado' | 'erro'; mensagem?: string }>
 }
 
 /** Série da NFC-e: o número do caixa, sempre com 3 dígitos (001…999). */
@@ -70,6 +74,7 @@ export function montarDadosNFCe(args: {
   caixaNumero: number
   total: number
   emitidaEm: string
+  cpf?: string | null
   itens: ItemVenda[]
 }): DadosNFCe {
   return {
@@ -78,6 +83,7 @@ export function montarDadosNFCe(args: {
     serie: serieNFCe(args.caixaNumero),
     total: args.total,
     emitidaEm: args.emitidaEm,
+    cpf: args.cpf ?? null,
     itens: args.itens.map(i => ({
       codigo: i.produto.codigo_interno,
       nome: i.produto.nome,
@@ -144,6 +150,9 @@ export function criarEmissorNFCe(): EmissorNFCe {
         console.info(`[NFC-e] não configurada — venda ${venda.numero} de ${formatarData(venda.emitidaEm)} não emitida.`)
         return { status: 'nao_configurado', mensagem: 'NFC-e não configurada' }
       },
+      async cancelar() {
+        return { status: 'nao_configurado', mensagem: 'NFC-e não configurada' }
+      },
     }
   }
   return {
@@ -151,6 +160,10 @@ export function criarEmissorNFCe(): EmissorNFCe {
     async emitir(_venda) {
       // TODO(integração NFC-e): chamar a API do emissor com cfg.url/token/csc/cscId.
       // Retorno real: { status: 'emitida', chave: '...', qrcode: '...' } ou { status: 'erro', mensagem }.
+      return { status: 'nao_configurado', mensagem: 'Integração NFC-e pendente' }
+    },
+    async cancelar(_chave, _motivo) {
+      // TODO(integração NFC-e): chamar o endpoint de cancelamento do emissor.
       return { status: 'nao_configurado', mensagem: 'Integração NFC-e pendente' }
     },
   }
