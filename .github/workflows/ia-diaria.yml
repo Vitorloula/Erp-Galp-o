@@ -53,8 +53,8 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # Se usar DeepSeek (ou outro endpoint OpenAI-compatível), adicione os
           # secrets OPENAI_API_BASE e OPENAI_MODEL_NAME abaixo:
-          # OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
-          # OPENAI_MODEL_NAME: ${{ secrets.OPENAI_MODEL_NAME }}
+          OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
+          OPENAI_MODEL_NAME: ${{ secrets.OPENAI_MODEL_NAME }}
           # Modelo por papel (opcional): LLM_MODEL, LLM_MODEL_ARQUITETO, LLM_MODEL_PO...
           MAX_CICLOS: '2'
           AGENT_MAX_ITER: '12'
