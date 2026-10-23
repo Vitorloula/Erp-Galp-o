@@ -1,5 +1,6 @@
 import { Banknote, Check, Minus, Percent, Plus, Printer, ScanBarcode, Search, ShoppingCart, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { LeitorCodigo } from '../../components/LeitorCodigo'
 import { useToast } from '../../components/Toast'
 import { Aviso, Modal, cx } from '../../components/ui'
@@ -60,6 +61,16 @@ export function TelaVenda({ abrirMenu }: { abrirMenu: () => void }) {
   useEffect(() => {
     if (!modal && !editando && !concluida) campo.current?.focus()
   }, [modal, editando, concluida, itens])
+
+  // Bloqueia a página atrás do resumo de venda concluída (é um modal independente).
+  useEffect(() => {
+    if (!concluida) return
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = overflow
+    }
+  }, [concluida])
 
   const adicionar = useCallback(
     async (l: Leitura) => {
@@ -366,33 +377,35 @@ export function TelaVenda({ abrirMenu }: { abrirMenu: () => void }) {
         }}
       />
 
-      {concluida && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 p-4" role="dialog" aria-modal="true" aria-label="Venda concluída">
-          <div className="w-full max-w-sm space-y-4 rounded-3xl bg-white p-6 text-center shadow-2xl">
-            <span className="mx-auto grid size-14 place-items-center rounded-full bg-emerald-100 text-emerald-700">
-              <Check className="size-8" />
-            </span>
-            <div>
-              <p className="text-sm text-slate-500">Venda {concluida.numeroExibicao} concluída</p>
-              <p className="text-lg font-semibold text-slate-900">Total {formatarReais(concluida.total)}</p>
-            </div>
-            {concluida.troco > 0 && (
-              <div className="rounded-2xl bg-amber-50 p-3 text-amber-900">
-                <p className="text-sm font-semibold">Troco</p>
-                <p className="text-4xl font-black tabular-nums" data-troco>{formatarReais(concluida.troco)}</p>
+      {concluida &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4" role="dialog" aria-modal="true" aria-label="Venda concluída" data-modal>
+            <div className="max-h-[calc(100dvh-2rem)] w-full max-w-sm space-y-4 overflow-y-auto overscroll-contain rounded-3xl bg-white p-6 text-center shadow-2xl" data-modal-painel>
+              <span className="mx-auto grid size-14 place-items-center rounded-full bg-emerald-100 text-emerald-700">
+                <Check className="size-8" />
+              </span>
+              <div>
+                <p className="text-sm text-slate-500">Venda {concluida.numeroExibicao} concluída</p>
+                <p className="text-lg font-semibold text-slate-900">Total {formatarReais(concluida.total)}</p>
               </div>
-            )}
-            <div className="grid grid-cols-2 gap-2">
-              <button className="btn btn-secundario" onClick={() => window.print()}>
-                <Printer className="size-4.5" /> Cupom (F12)
-              </button>
-              <button className="btn btn-primario" onClick={novaVenda} autoFocus>
-                Nova venda
-              </button>
+              {concluida.troco > 0 && (
+                <div className="rounded-2xl bg-amber-50 p-3 text-amber-900">
+                  <p className="text-sm font-semibold">Troco</p>
+                  <p className="text-4xl font-black tabular-nums" data-troco>{formatarReais(concluida.troco)}</p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" className="btn btn-secundario" onClick={() => window.print()}>
+                  <Printer className="size-4.5" /> Cupom (F12)
+                </button>
+                <button type="button" className="btn btn-primario" onClick={novaVenda} autoFocus>
+                  Nova venda
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
       <Cupom dados={cupom} />
     </main>
   )
@@ -598,6 +611,16 @@ function TelaPagamento({ total, aoVoltar, aoConcluir }: { total: number; aoVolta
     campo.current?.focus()
   }, [forma, pagos])
 
+  // O pagamento é um modal próprio (não usa o Modal compartilhado): bloqueia a
+  // rolagem da tela de venda enquanto estiver aberto.
+  useEffect(() => {
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = overflow
+    }
+  }, [])
+
   function adicionar(f: FormaPagamento) {
     const v = valor.trim() ? lerNumero(valor) : reais(conf.falta)
     setForma(f)
@@ -633,63 +656,78 @@ function TelaPagamento({ total, aoVoltar, aoConcluir }: { total: number; aoVolta
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-slate-900/60 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Pagamento" onKeyDown={tecla}>
-      <div className="w-full max-w-lg space-y-4 rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl">
-        <div className="flex items-center justify-between">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-2 sm:items-center sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Pagamento"
+      onKeyDown={tecla}
+      data-modal
+    >
+      <div
+        className="flex max-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl"
+        data-modal-painel
+      >
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-3.5">
           <h2 className="text-lg font-bold text-slate-900">Pagamento</h2>
-          <button className="btn btn-fantasma p-2" onClick={aoVoltar} aria-label="Voltar à venda">
+          <button type="button" className="btn btn-fantasma -mr-2 p-2" onClick={aoVoltar} aria-label="Voltar à venda">
             <X className="size-5" />
           </button>
         </div>
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <Resumo rotulo="Total" valor={formatarReais(total)} />
-          <Resumo rotulo="Pago" valor={formatarReais(conf.pago)} />
-          {conf.troco > 0 ? <Resumo rotulo="Troco" valor={formatarReais(conf.troco)} destaque /> : <Resumo rotulo="Falta" valor={formatarReais(conf.falta)} destaque />}
-        </div>
-        <div className="grid grid-cols-5 gap-1.5">
-          {FORMAS.map(f => (
-            <button
-              key={f.valor}
-              type="button"
-              onClick={() => adicionar(f.valor)}
-              className={cx('flex flex-col items-center rounded-xl border px-1 py-2 text-xs font-semibold', forma === f.valor ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-200 text-slate-700')}
-            >
-              {f.nome}
-              <span className="text-[10px] font-normal text-slate-400">{f.atalho}</span>
-            </button>
-          ))}
-        </div>
-        <div>
-          <label className="rotulo" htmlFor="valor-pago">Valor recebido (deixe vazio para o valor que falta)</label>
-          <input id="valor-pago" ref={campo} className="campo text-lg" inputMode="decimal" value={valor} onChange={e => setValor(e.target.value)} placeholder={formatarReais(conf.falta)} />
-        </div>
-        <div>
-          <label className="rotulo" htmlFor="cpf-nota">CPF na nota (opcional)</label>
-          <input id="cpf-nota" className="campo" inputMode="numeric" value={cpf} onChange={e => setCpf(e.target.value)} placeholder="000.000.000-00" />
-          {cpfInvalido && <p className="mt-1 text-xs text-red-600">CPF inválido.</p>}
-        </div>
-        {pagos.length > 0 && (
-          <ul className="space-y-1 text-sm">
-            {pagos.map(p => (
-              <li key={p.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-1.5">
-                <span>{FORMAS.find(f => f.valor === p.forma)?.nome}</span>
-                <span className="flex items-center gap-2 font-semibold tabular-nums">
-                  {formatarReais(p.valor)}
-                  <button className="text-slate-400 hover:text-red-600" onClick={() => setPagos(l => l.filter(x => x.id !== p.id))} aria-label="Remover pagamento">
-                    <X className="size-4" />
-                  </button>
-                </span>
-              </li>
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4 pb-6" data-modal-corpo>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <Resumo rotulo="Total" valor={formatarReais(total)} />
+            <Resumo rotulo="Pago" valor={formatarReais(conf.pago)} />
+            {conf.troco > 0 ? <Resumo rotulo="Troco" valor={formatarReais(conf.troco)} destaque /> : <Resumo rotulo="Falta" valor={formatarReais(conf.falta)} destaque />}
+          </div>
+          <div className="grid grid-cols-5 gap-1.5">
+            {FORMAS.map(f => (
+              <button
+                key={f.valor}
+                type="button"
+                onClick={() => adicionar(f.valor)}
+                className={cx('flex flex-col items-center rounded-xl border px-1 py-2 text-xs font-semibold', forma === f.valor ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-200 text-slate-700')}
+              >
+                {f.nome}
+                <span className="text-[10px] font-normal text-slate-400">{f.atalho}</span>
+              </button>
             ))}
-          </ul>
-        )}
-        {conf.erro && pagos.length > 0 && conf.falta === 0 && <Aviso tom="erro">{conf.erro}</Aviso>}
-        <button className="btn btn-primario btn-grande w-full" disabled={!!conf.erro || concluindo || cpfInvalido} onClick={concluir}>
-          <Check className="size-5" /> Concluir venda (Enter)
-        </button>
+          </div>
+          <div>
+            <label className="rotulo" htmlFor="valor-pago">Valor recebido (deixe vazio para o valor que falta)</label>
+            <input id="valor-pago" ref={campo} className="campo text-lg" inputMode="decimal" value={valor} onChange={e => setValor(e.target.value)} placeholder={formatarReais(conf.falta)} />
+          </div>
+          <div>
+            <label className="rotulo" htmlFor="cpf-nota">CPF na nota (opcional)</label>
+            <input id="cpf-nota" className="campo" inputMode="numeric" value={cpf} onChange={e => setCpf(e.target.value)} placeholder="000.000.000-00" />
+            {cpfInvalido && <p className="mt-1 text-xs text-red-600">CPF inválido.</p>}
+          </div>
+          {pagos.length > 0 && (
+            <ul className="space-y-1 text-sm">
+              {pagos.map(p => (
+                <li key={p.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-1.5">
+                  <span>{FORMAS.find(f => f.valor === p.forma)?.nome}</span>
+                  <span className="flex items-center gap-2 font-semibold tabular-nums">
+                    {formatarReais(p.valor)}
+                    <button type="button" className="text-slate-400 hover:text-red-600" onClick={() => setPagos(l => l.filter(x => x.id !== p.id))} aria-label="Remover pagamento">
+                      <X className="size-4" />
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {conf.erro && pagos.length > 0 && conf.falta === 0 && <Aviso tom="erro">{conf.erro}</Aviso>}
+        </div>
+        <div className="shrink-0 border-t border-slate-100 bg-white px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]" data-modal-rodape>
+          <button type="button" className="btn btn-primario btn-grande w-full" disabled={!!conf.erro || concluindo || cpfInvalido} onClick={concluir}>
+            <Check className="size-5" /> Concluir venda (Enter)
+          </button>
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

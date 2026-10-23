@@ -1,5 +1,6 @@
 import { CameraOff, Flashlight, FlashlightOff, Keyboard, LoaderCircle, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { Html5Qrcode } from 'html5-qrcode'
 import { lerCodigo, type CodigoLido } from '../lib/gs1'
 import { cx } from './ui'
@@ -151,7 +152,12 @@ function LeitorAtivo({ aoFechar, aoLer, titulo = 'Escanear código de barras' }:
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => e.key === 'Escape' && aoFechar()
     document.addEventListener('keydown', tecla)
-    return () => document.removeEventListener('keydown', tecla)
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', tecla)
+      document.body.style.overflow = overflow
+    }
   }, [aoFechar])
 
   async function alternarLanterna() {
@@ -170,16 +176,18 @@ function LeitorAtivo({ aoFechar, aoLer, titulo = 'Escanear código de barras' }:
     callback.current(lerCodigo(digitado))
   }
 
-  return (
-    <div className="fixed inset-0 z-[70] flex flex-col bg-slate-950 text-white" role="dialog" aria-modal="true" aria-label={titulo}>
-      <div className="flex items-center justify-between px-4 py-3">
+  // Portal: o leitor pode ser aberto de dentro de outro modal (ex.: produto),
+  // e precisa cobrir a janela inteira mesmo com ancestrais transformados.
+  return createPortal(
+    <div className="fixed inset-0 z-[110] flex flex-col bg-slate-950 text-white" role="dialog" aria-modal="true" aria-label={titulo} data-modal>
+      <div className="flex shrink-0 items-center justify-between px-4 py-3">
         <p className="font-semibold">{titulo}</p>
-        <button onClick={aoFechar} className="rounded-full bg-white/10 p-2 hover:bg-white/20" aria-label="Fechar leitor">
+        <button type="button" onClick={aoFechar} className="rounded-full bg-white/10 p-2 hover:bg-white/20" aria-label="Fechar leitor">
           <X className="size-5" />
         </button>
       </div>
 
-      <div className="relative flex-1 overflow-hidden">
+      <div className="relative min-h-0 flex-1 overflow-hidden">
         <div ref={area} className="absolute inset-0" />
         {estado === 'iniciando' && (
           <div className="absolute inset-0 grid place-items-center">
@@ -229,6 +237,7 @@ function LeitorAtivo({ aoFechar, aoLer, titulo = 'Escanear código de barras' }:
           </button>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

@@ -17,7 +17,8 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react'
-import { useEffect, useId, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { descreverSituacao, type Situacao, type SituacaoReposicao } from '../lib/estoque'
 import { NOME_TIPO, formatarNumero } from '../lib/formato'
 import type { TipoMov, Unidade } from '../lib/tipos'
@@ -161,9 +162,14 @@ export function Modal({
   largura?: string
 }) {
   const idTitulo = useId()
+  // Guarda o callback em uma ref para o efeito não ser refeito a cada render
+  // (as telas costumam passar `aoFechar` inline). Sem isso, o body era
+  // desbloqueado/reloqueado a cada render, permitindo a página rolar atrás.
+  const fechar = useRef(aoFechar)
+  fechar.current = aoFechar
   useEffect(() => {
     if (!aberto) return
-    const tecla = (e: KeyboardEvent) => e.key === 'Escape' && aoFechar()
+    const tecla = (e: KeyboardEvent) => e.key === 'Escape' && fechar.current()
     document.addEventListener('keydown', tecla)
     const overflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -171,23 +177,54 @@ export function Modal({
       document.removeEventListener('keydown', tecla)
       document.body.style.overflow = overflow
     }
-  }, [aberto, aoFechar])
+  }, [aberto])
 
   if (!aberto) return null
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby={idTitulo}>
-      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]" onClick={aoFechar} />
-      <div className={cx('animar-modal relative flex max-h-[92dvh] w-full flex-col rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl', largura)}>
-        <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-          <h2 id={idTitulo} className="text-base font-semibold text-slate-900">{titulo}</h2>
-          <button className="btn btn-fantasma -mr-2 p-2" onClick={aoFechar} aria-label="Fechar">
+  /*
+   * O modal é renderizado direto no <body> (portal). Isso é essencial: a entrada
+   * das páginas usava `transform`, e um ancestral transformado passa a ser o
+   * "containing block" de elementos `position: fixed` e cria um contexto de
+   * empilhamento. Sem o portal, o modal era posicionado/centralizado em relação
+   * ao conteúdo da página (que pode ser mais alto que a janela) e ficava cortado
+   * no topo, além de ficar preso atrás da sidebar. O portal mantém o modal imune
+   * a transform/overflow/stacking contexts de qualquer tela.
+   *
+   * Estrutura: container externo (posicionamento e limite de altura) > painel
+   * flexível > cabeçalho fixo + corpo com rolagem + rodapé fixo.
+   */
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={idTitulo}
+      data-modal
+    >
+      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]" onClick={aoFechar} aria-hidden="true" />
+      <div
+        className={cx(
+          'animar-modal relative flex max-h-[calc(100dvh-1rem)] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl',
+          largura,
+        )}
+        data-modal-painel
+      >
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
+          <h2 id={idTitulo} className="min-w-0 truncate text-base font-semibold text-slate-900">{titulo}</h2>
+          <button type="button" className="btn btn-fantasma -mr-2 shrink-0 p-2" onClick={aoFechar} aria-label="Fechar">
             <X className="size-5" />
           </button>
         </div>
-        <div className="overflow-y-auto px-5 py-4">{children}</div>
-        {rodape && <div className="pb-seguro flex gap-2 border-t border-slate-100 px-5 py-3">{rodape}</div>}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 pb-6" data-modal-corpo>
+          {children}
+        </div>
+        {rodape && (
+          <div className="flex shrink-0 gap-2 border-t border-slate-100 bg-white px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]" data-modal-rodape>
+            {rodape}
+          </div>
+        )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

@@ -95,13 +95,20 @@
 }
 
 /* ── Animações sutis (interface mais viva) ── */
+/* A entrada das páginas usa apenas opacidade de propósito: `transform` (mesmo
+   translateY(0), por causa do animation-fill-mode `both`) cria um containing
+   block e um contexto de empilhamento. Isso prendia os modais `fixed` ao
+   conteúdo da página em vez da janela. Modais são portais, mas manter o wrapper
+   livre de transform evita o problema na raiz para qualquer elemento fixo. */
 @keyframes aparecer {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 @keyframes surgir {
+  /* Sem `transform` no último quadro: ao terminar, o painel não fica criando
+     containing block/stacking context para elementos fixos internos. */
   from { opacity: 0; transform: scale(0.96) translateY(8px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+  to { opacity: 1; }
 }
 @keyframes piscar-suave {
   0%, 100% { opacity: 1; }
