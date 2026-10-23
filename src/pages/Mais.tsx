@@ -1,4 +1,4 @@
-import { AlertOctagon, Banknote, Building2, ChevronRight, FileSpreadsheet, LogOut, Package, Pencil, ShoppingCart, Smartphone, Users, type LucideIcon } from 'lucide-react'
+import { AlertOctagon, Banknote, Building2, ChevronRight, ClipboardList, FileSpreadsheet, LogOut, Package, Pencil, ShoppingCart, Smartphone, Users, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useToast } from '../components/Toast'
@@ -57,6 +57,7 @@ export function Mais() {
         {pode.verDivergencias && <Item para="/divergencias" icone={AlertOctagon} titulo="Divergências" texto="O que os caixas registraram sem internet e precisa de conferência" />}
         <Item para="/produtos" icone={Package} titulo="Produtos" texto="Cadastro, códigos de barras, preços e lotes" />
         <Item para="/relatorios" icone={FileSpreadsheet} titulo="Relatórios" texto="Semanais e mensais em Excel ou PDF" />
+        {pode.movimentar && <Item para="/inventario" icone={ClipboardList} titulo="Inventário" texto="Conferir o estoque físico sem ver o saldo" />}
         {(pode.convidar || pode.gerenciarEquipe) && <Item para="/equipe" icone={Users} titulo="Equipe" texto="Convidar pessoas e definir o que cada uma faz" />}
         <Item para="/empresa" icone={Building2} titulo="Empresa" texto="Dados, lojas e assinatura" />
       </div>

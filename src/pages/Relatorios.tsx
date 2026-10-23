@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpFromLine, FileSpreadsheet, FileText, LoaderCircle, RotateCcw, ShoppingCart } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, FileSpreadsheet, FileText, LoaderCircle, RotateCcw, ShoppingCart, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { useToast } from '../components/Toast'
@@ -6,9 +6,10 @@ import { Aviso, BadgeReposicao, BadgeSituacao, BadgeTipo, Cabecalho, Carregando,
 import { useDados } from '../contexto/Dados'
 import { useAtiva } from '../contexto/Empresa'
 import { movimentos } from '../lib/dados'
+import { filtrarProdutos } from '../lib/estoque'
 import type { Secoes } from '../lib/exportar/excel'
 import { formatarDataHora, formatarEmbalagens, formatarNumero, formatarValidade, hojeISO } from '../lib/formato'
-import { PERIODOS, intervaloParaInstantes, intervaloRapido, periodoDaUrl, type Intervalo, type PeriodoRapido } from '../lib/periodos'
+import { PERIODOS, intervaloParaInstantes, intervaloRapido, juntarFiltros, periodoDaUrl, produtoDaUrl, type Intervalo, type PeriodoRapido } from '../lib/periodos'
 import { baixarArquivo, montarRelatorio, nomeArquivo, tituloEmpresa, type LinhaCompraRel } from '../lib/relatorio'
 import type { Movimentacao } from '../lib/tipos'
 
@@ -28,6 +29,15 @@ const SECOES: readonly [keyof Secoes, string][] = [
   ['posicao', 'Posição de estoque (com alertas)'],
   ['compras', 'Lista de compras (reposição)'],
 ]
+
+/** Rótulo legível da situação vinda do link do Estoque. */
+const ROTULO_SITUACAO: Record<string, string> = {
+  vencido: 'Vencidos',
+  zerado: 'Zerados',
+  vencendo: 'Vencem em breve',
+  abaixo: 'Repor',
+  ok: 'Em dia',
+}
 
 interface TabelaComprasProps {
   /** Já vem montada por montarRelatorio (montarReposicao): só 'abaixo'|'no_minimo', ordenada por cobertura. */
@@ -99,7 +109,26 @@ export function Relatorios() {
   const [inicial] = useState(() => periodoDaUrl(params, hojeISO()))
   const [periodo, setPeriodo] = useState<PeriodoRapido>(inicial.periodo)
   const [personalizado, setPersonalizado] = useState<Intervalo>(inicial.intervalo)
-  const [produtoId, setProdutoId] = useState('')
+  const [produtoId, setProdutoId] = useState(() => produtoDaUrl(params))
+
+  // Filtros vindos do link "Exportar" do Estoque (T-016): busca, categoria e situação.
+  const [filtrosEstoque, setFiltrosEstoque] = useState(() => ({
+    q: params.get('q') ?? '',
+    categoria: params.get('categoria') ?? '',
+    situacao: params.get('situacao') ?? '',
+  }))
+  const temFiltroEstoque = !!(filtrosEstoque.q || filtrosEstoque.categoria || filtrosEstoque.situacao)
+
+  // Recorte compartilhado com o Estoque (T-019): produtos por busca + categoria.
+  const recorte = useMemo(
+    () => filtrarProdutos(produtos, filtrosEstoque.q, filtrosEstoque.categoria),
+    [produtos, filtrosEstoque.q, filtrosEstoque.categoria],
+  )
+
+  function limparFiltrosEstoque() {
+    setFiltrosEstoque({ q: '', categoria: '', situacao: '' })
+    setParams(juntarFiltros(params, { q: '', categoria: '', situacao: '' }), { replace: true })
+  }
   const [movs, setMovs] = useState<Movimentacao[] | null>(null)
   const [erro, setErro] = useState('')
   const [aba, setAba] = useState<Aba>('resumo')
@@ -125,6 +154,21 @@ export function Relatorios() {
     refletirNaUrl(p, p === 'personalizado' ? personalizado : intervaloRapido(p))
   }
 
+  // O select de produto é fonte da URL (?produto=): trocar grava com replace; vazio remove o param.
+  function escolherProduto(id: string) {
+    setProdutoId(id)
+    setParams(juntarFiltros(params, { produto: id || '' }), { replace: true })
+  }
+
+  // Produto excluído no link (id inexistente): cai em "Todos os produtos", sem quebrar nem avisar.
+  useEffect(() => {
+    if (!produtoId || carregando) return
+    if (!produtos.some(p => p.id === produtoId)) {
+      setProdutoId('')
+      setParams(juntarFiltros(params, { produto: '' }), { replace: true })
+    }
+  }, [produtos, carregando, produtoId])
+
   useEffect(() => {
     let ativo = true
     setMovs(null)
@@ -139,10 +183,18 @@ export function Relatorios() {
     }
   }, [intervalo.de, intervalo.ate, versao, empresa.empresa_id, loja.id])
 
-  const relatorio = useMemo(
-    () => (movs ? montarRelatorio(intervalo, produtos, lotes, movs, nomeCategoria, produtoId || undefined) : null),
-    [movs, produtos, lotes, produtoId, intervalo.de, intervalo.ate, nomeCategoria],
-  )
+  const relatorio = useMemo(() => {
+    if (!movs) return null
+    const r = montarRelatorio(intervalo, produtos, lotes, movs, nomeCategoria, produtoId || undefined, recorte)
+    const sit = filtrosEstoque.situacao
+    if (!sit) return r
+    if (sit === 'abaixo') {
+      // "abaixo" é por produto (saldo <= mínimo): só os produtos da lista de compras.
+      const codigos = new Set(r.compras.map(c => c.codigo))
+      return { ...r, posicao: r.posicao.filter(l => codigos.has(l.codigo)) }
+    }
+    return { ...r, posicao: r.posicao.filter(l => l.situacao === sit) }
+  }, [movs, produtos, lotes, produtoId, intervalo.de, intervalo.ate, nomeCategoria, recorte, filtrosEstoque.situacao])
 
   // Conteúdo por embalagem só para exibir "x emb." na aba Compras (a conta vem de lib/estoque.ts).
   const conteudos = useMemo(() => new Map(produtos.map(p => [p.codigo_interno, p.conteudo_embalagem ?? null])), [produtos])
@@ -175,6 +227,28 @@ export function Relatorios() {
         titulo="Relatórios"
         subtitulo="Escolha o período e baixe em Excel ou PDF — inclui a lista de compras (reposição) para levar ao fornecedor."
       />
+
+      {temFiltroEstoque && (
+        <Aviso tom="info">
+          <span className="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              Filtros do Estoque aplicados
+              {filtrosEstoque.categoria && <> · categoria <strong>{nomeCategoria(filtrosEstoque.categoria)}</strong></>}
+              {filtrosEstoque.q && <> · busca “<strong>{filtrosEstoque.q}</strong>”</>}
+              {filtrosEstoque.situacao && <> · <strong>{ROTULO_SITUACAO[filtrosEstoque.situacao] ?? filtrosEstoque.situacao}</strong></>}
+              {' '}— valem para Posição e Compras.
+            </span>
+            <button
+              type="button"
+              className="btn btn-fantasma -m-1 shrink-0 px-2 py-1 text-xs"
+              aria-label="Limpar filtros do estoque"
+              onClick={limparFiltrosEstoque}
+            >
+              <X className="size-3.5" /> Limpar filtros
+            </button>
+          </span>
+        </Aviso>
+      )}
 
       <div className="cartao mb-5 space-y-4 p-4">
         <div>
@@ -231,12 +305,29 @@ export function Relatorios() {
           </div>
           <div>
             <label className="rotulo" htmlFor="r-produto">Produto</label>
-            <select id="r-produto" className="campo" value={produtoId} onChange={e => setProdutoId(e.target.value)}>
+            <select id="r-produto" className="campo" value={produtoId} onChange={e => escolherProduto(e.target.value)}>
               <option value="">Todos os produtos</option>
               {produtos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
             </select>
           </div>
         </div>
+        {produtoId && (
+          <Aviso tom="info">
+            <span className="flex flex-wrap items-center justify-between gap-2">
+              <span>
+                Relatório e arquivos exportados mostram só <strong>{produtos.find(p => p.id === produtoId)?.nome}</strong>.
+              </span>
+              <button
+                type="button"
+                className="btn btn-fantasma -m-1 shrink-0 px-2 py-1 text-xs"
+                aria-label="Limpar filtro de produto"
+                onClick={() => escolherProduto('')}
+              >
+                <X className="size-3.5" /> ver todos os produtos
+              </button>
+            </span>
+          </Aviso>
+        )}
         <div role="group" aria-labelledby="r-secoes">
           <p className="rotulo" id="r-secoes">Incluir no arquivo</p>
           <div className="flex flex-wrap gap-x-5 gap-y-2.5 text-sm text-slate-700">

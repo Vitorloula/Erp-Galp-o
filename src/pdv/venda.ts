@@ -143,6 +143,7 @@ export function dadosDaVenda(v: {
   itens: ItemCarrinho[]
   descontoVenda: number
   pagamentos: Pagamento[]
+  clienteCpf?: string | null
 }) {
   const t = calcularTotais(v.itens, v.descontoVenda)
   const { troco } = conferirPagamentos(t.total, v.pagamentos)
@@ -152,6 +153,7 @@ export function dadosDaVenda(v: {
     venda_id: v.vendaId,
     numero: v.numero,
     ocorrido_em: v.ocorridoEm,
+    cliente_cpf: v.clienteCpf ?? null,
     subtotal: reais(t.subtotal),
     desconto: reais(t.desconto),
     total: reais(t.total),

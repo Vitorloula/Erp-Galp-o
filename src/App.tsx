@@ -13,6 +13,7 @@ import { Divergencias } from './pages/Divergencias'
 import { Equipe } from './pages/Equipe'
 import { Estoque } from './pages/Estoque'
 import { Historico } from './pages/Historico'
+import { Inventario } from './pages/Inventario'
 import { Login, NovaSenha } from './pages/Login'
 import { TelaCheia } from './components/TelaCheia'
 import { Mais } from './pages/Mais'
@@ -61,6 +62,7 @@ function Retaguarda({ chave }: { chave: string }) {
           <Route path="/produtos" element={<Produtos />} />
           <Route path="/produtos/:id" element={<ProdutoDetalhe />} />
           <Route path="/relatorios" element={<Relatorios />} />
+          <Route path="/inventario" element={<Inventario />} />
           <Route path="/mais" element={<Mais />} />
           <Route path="/equipe" element={<Equipe />} />
           <Route path="/empresa" element={<EmpresaConfig />} />

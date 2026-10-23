@@ -3,6 +3,7 @@ import {
   abaixoDoMinimo,
   calcularCobertura,
   encontrarPorCodigo,
+  filtrarProdutos,
   montarLinhasEstoque,
   montarReposicao,
   precisaRepor,
@@ -14,7 +15,7 @@ import {
 import { canonizarCodigo, exibirCodigo, formatarValidade, grupoDoTipo, lerNumero, totaisPorGrupo } from './formato'
 import { permissoes } from './permissoes'
 import { lerCodigo } from './gs1'
-import { chaveIntervalo, intervaloRapido, juntarFiltros, periodoDaUrl } from './periodos'
+import { chaveIntervalo, intervaloRapido, juntarFiltros, periodoDaUrl, produtoDaUrl } from './periodos'
 import type { Lote, Movimentacao, Produto } from './tipos'
 
 const HOJE = '2026-10-03'
@@ -159,6 +160,29 @@ describe('leitura GS1', () => {
   })
 })
 
+describe('filtrarProdutos (recorte T-019)', () => {
+  const p1 = produto('1', { nome: 'Glifosato 480 SL', categoria_id: 'cat-a', fabricante: 'Marca X' })
+  const p2 = produto('2', { nome: 'Óleo mineral', categoria_id: 'cat-b' })
+  const p3 = produto('3', { nome: 'Enxofre', categoria_id: 'cat-a' })
+
+  it('busca sem acento, por nome, código e fabricante', () => {
+    expect(filtrarProdutos([p1, p2, p3], 'glifosato', '').map(p => p.id)).toEqual(['1'])
+    expect(filtrarProdutos([p1, p2, p3], 'oleo', '').map(p => p.id)).toEqual(['2'])
+    expect(filtrarProdutos([p1, p2, p3], 'P2', '').map(p => p.id)).toEqual(['2'])
+    expect(filtrarProdutos([p1, p2, p3], 'marca x', '').map(p => p.id)).toEqual(['1'])
+  })
+  it('filtra por categoria', () => {
+    expect(filtrarProdutos([p1, p2, p3], '', 'cat-a').map(p => p.id)).toEqual(['1', '3'])
+  })
+  it('combina termo + categoria no mesmo recorte', () => {
+    expect(filtrarProdutos([p1, p2, p3], 'glifosato', 'cat-a').map(p => p.id)).toEqual(['1'])
+    expect(filtrarProdutos([p1, p2, p3], 'oleo', 'cat-a')).toEqual([])
+  })
+  it('sem termo e sem categoria devolve tudo', () => {
+    expect(filtrarProdutos([p1, p2, p3], '', '')).toHaveLength(3)
+  })
+})
+
 describe('períodos', () => {
   it('calcula últimos 7 dias, mês atual e mês anterior', () => {
     expect(intervaloRapido('7dias', HOJE)).toEqual({ de: '2026-09-27', ate: HOJE })
@@ -203,6 +227,14 @@ describe('períodos', () => {
     expect(juntarFiltros(base, { tipo: null, q: ' ' }).toString()).toBe('de=2026-10-01&ate=2026-10-03')
     expect(juntarFiltros(base, { de: null, ate: null, tipo: 'ENTRADA' }).toString()).toBe('tipo=ENTRADA&q=coca')
     expect(juntarFiltros(base, { q: 'guaraná' }).get('q')).toBe('guaraná')
+  })
+
+  it('produtoDaUrl: lê ?produto= do link (ausente/vazio → "")', () => {
+    expect(produtoDaUrl(new URLSearchParams('produto=p1&de=2026-10-01'))).toBe('p1')
+    expect(produtoDaUrl(new URLSearchParams('de=2026-10-01'))).toBe('')
+    expect(produtoDaUrl(new URLSearchParams('produto=   '))).toBe('')
+    expect(produtoDaUrl({ produto: ' p2 ' })).toBe('p2')
+    expect(produtoDaUrl({})).toBe('')
   })
 })
 

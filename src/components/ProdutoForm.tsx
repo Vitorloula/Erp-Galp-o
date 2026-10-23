@@ -46,6 +46,14 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
     fabricante: produto?.fabricante ?? '',
     observacao: produto?.observacao ?? '',
     ativo: produto?.ativo ?? true,
+    ncm: produto?.ncm ?? null,
+    cfop: produto?.cfop ?? null,
+    cst_csosn: produto?.cst_csosn ?? null,
+    origem: produto?.origem ?? null,
+    unidade_tributavel: produto?.unidade_tributavel ?? null,
+    cest: produto?.cest ?? null,
+    ibs_aliquota: produto?.ibs_aliquota ?? null,
+    cbs_aliquota: produto?.cbs_aliquota ?? null,
   }))
   const [codigos, setCodigos] = useState<CodigoProduto[]>(produto?.codigos ?? [])
   const [novoCodigo, setNovoCodigo] = useState(codigoInicial ?? '')
@@ -307,6 +315,50 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
           <label className="rotulo" htmlFor="p-obs">Observações</label>
           <textarea id="p-obs" className="campo min-h-20" value={dados.observacao ?? ''} onChange={e => muda('observacao', e.target.value)} placeholder="Classe toxicológica, local de armazenagem..." />
         </div>
+
+        <div className="space-y-3 rounded-xl border border-slate-200 p-3">
+          <p className="text-sm font-semibold text-slate-800">Fiscal (NFC-e) — opcional</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="rotulo" htmlFor="p-ncm">NCM</label>
+              <input id="p-ncm" className="campo" inputMode="numeric" value={dados.ncm ?? ''} onChange={e => muda('ncm', e.target.value.replace(/\D/g, '').slice(0, 8) || null)} placeholder="Ex.: 38089199" />
+            </div>
+            <div>
+              <label className="rotulo" htmlFor="p-cfop">CFOP</label>
+              <input id="p-cfop" className="campo" inputMode="numeric" value={dados.cfop ?? ''} onChange={e => muda('cfop', e.target.value.replace(/\D/g, '').slice(0, 4) || null)} placeholder="Ex.: 5102" />
+            </div>
+            <div>
+              <label className="rotulo" htmlFor="p-cst">CST / CSOSN</label>
+              <input id="p-cst" className="campo" inputMode="numeric" value={dados.cst_csosn ?? ''} onChange={e => muda('cst_csosn', e.target.value.replace(/\D/g, '').slice(0, 3) || null)} placeholder="Ex.: 102" />
+            </div>
+            <div>
+              <label className="rotulo" htmlFor="p-origem">Origem</label>
+              <select id="p-origem" className="campo" value={dados.origem ?? ''} onChange={e => muda('origem', e.target.value === '' ? null : Number(e.target.value))}>
+                <option value="">—</option>
+                <option value="0">0 — Nacional</option>
+                <option value="1">1 — Importada</option>
+              </select>
+            </div>
+            <div>
+              <label className="rotulo" htmlFor="p-cest">CEST</label>
+              <input id="p-cest" className="campo" value={dados.cest ?? ''} onChange={e => muda('cest', e.target.value)} placeholder="Opcional" />
+            </div>
+            <div>
+              <label className="rotulo" htmlFor="p-utrib">Unidade tributável</label>
+              <input id="p-utrib" className="campo" value={dados.unidade_tributavel ?? ''} onChange={e => muda('unidade_tributavel', e.target.value)} placeholder="Opcional" />
+            </div>
+            <div>
+              <label className="rotulo" htmlFor="p-ibs">IBS (%)</label>
+              <input id="p-ibs" className="campo" inputMode="decimal" value={dados.ibs_aliquota ?? ''} onChange={e => muda('ibs_aliquota', e.target.value === '' ? null : Number(e.target.value.replace(',', '.')))} placeholder="Reforma — opcional" />
+            </div>
+            <div>
+              <label className="rotulo" htmlFor="p-cbs">CBS (%)</label>
+              <input id="p-cbs" className="campo" inputMode="decimal" value={dados.cbs_aliquota ?? ''} onChange={e => muda('cbs_aliquota', e.target.value === '' ? null : Number(e.target.value.replace(',', '.')))} placeholder="Reforma — opcional" />
+            </div>
+          </div>
+          <p className="text-xs text-slate-500">Necessários para emitir a NFC-e na venda. Preencha com a orientação do contador.</p>
+        </div>
+
         {produto && (
           <label className="flex items-center gap-2.5 text-sm font-medium text-slate-700">
             <input type="checkbox" className="size-4.5 accent-emerald-700" checked={dados.ativo} onChange={e => muda('ativo', e.target.checked)} />

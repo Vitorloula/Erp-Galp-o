@@ -86,6 +86,12 @@ export function periodoDaUrl(
   return { periodo: '7dias', intervalo: intervaloRapido('7dias', hoje), personalizado: false }
 }
 
+/** Lê o produto do link (`?produto=<id>`); ausente/vazio → ''. */
+export function produtoDaUrl(query: URLSearchParams | Record<string, string | null>): string {
+  const valor = lerParam(query, 'produto')
+  return typeof valor === 'string' ? valor.trim() : ''
+}
+
 /** Chave estável do intervalo (para dependências de efeito): "2026-10-01|2026-10-15". */
 export function chaveIntervalo(i: Intervalo): string {
   return `${i.de}|${i.ate}`

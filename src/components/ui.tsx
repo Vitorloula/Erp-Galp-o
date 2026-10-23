@@ -177,7 +177,7 @@ export function Modal({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby={idTitulo}>
       <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]" onClick={aoFechar} />
-      <div className={cx('relative flex max-h-[92dvh] w-full flex-col rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl', largura)}>
+      <div className={cx('animar-modal relative flex max-h-[92dvh] w-full flex-col rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl', largura)}>
         <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
           <h2 id={idTitulo} className="text-base font-semibold text-slate-900">{titulo}</h2>
           <button className="btn btn-fantasma -mr-2 p-2" onClick={aoFechar} aria-label="Fechar">

@@ -1,53 +1,279 @@
 {
   "backlog": [
     {
-      "titulo": "Estoque.tsx calcula 'precisa repor' por três caminhos diferentes (chip, lista e tabela)",
+      "id": "T-016",
+      "titulo": "Exportar do Estoque abre /relatorios sem os filtros da tela (exporta o estoque inteiro)",
+      "prioridade": 1,
+      "tipo": "bug",
+      "detalhe": "O cabeçalho de Estoque.tsx tem <Link to='/relatorios'>Exportar</Link> sem passar categoria/busca/situação; lib/periodos.ts já tem juntarFiltros() usado pelo Histórico para montar URLs. O operador que filtrou 'Repor' + categoria exporta tudo e confere linha a linha no Excel.",
+      "arquivos_que_toca": [
+        "src/pages/Estoque.tsx",
+        "src/pages/Relatorios.tsx",
+        "src/lib/relatorio.ts"
+      ],
+      "criterios": "Link leva a /relatorios com categoria=, q= e situacao= da tela; Relatorios.tsx aplica os mesmos filtros antes de montarRelatorio/montarLinhasEstoque; teste puro garante que o filtro reduz as linhas exportadas e que a URL sem filtro mantém o comportamento atual.",
+      "criado_em": "2026-10-18T17:12:48.823859"
+    },
+    {
+      "id": "T-021",
+      "titulo": "Filtro de produto do Relatórios (?produto=) não vai para a URL — link compartilhado abre 'Todos os produtos'",
+      "prioridade": 1,
+      "tipo": "bug",
+      "detalhe": "Relatorios.tsx lê de=/ate= da URL via periodoDaUrl, mas o select Produto é só estado local (useState('')) e nunca é escrito em params nem lido no mount. Junto com T-016/T-017 (q=, categoria=, situacao=), o link de 'exportar estoque filtrado' perde o recorte por produto ao recarregar/compartilhar. Falta também ler produto= no init e usar juntarFiltros de lib/periodos.ts em vez de manipular URLSearchParams à mão.",
+      "arquivos_que_toca": [
+        "src/pages/Relatorios.tsx",
+        "src/lib/relatorio.ts",
+        "src/lib/relatorio.test.ts"
+      ],
+      "criterios": "?produto=<id> no mount seleciona o produto; trocar o select atualiza a URL (replace) com juntarFiltros; produto inexistente/desconhecido é ignorado sem quebrar; teste do montarRelatorio continua garantindo filtro por produto.",
+      "criado_em": "2026-10-18T18:20:00.000000"
+    },
+    {
+      "id": "T-019",
+      "titulo": "Estoque e Relatórios não têm um recorte de filtros único reutilizável (produto+termo+categoria+situação)",
       "prioridade": 2,
       "tipo": "refatoracao",
-      "detalhe": "Estoque.tsx: contagem.abaixo recalcula montarReposicao() sobre os produtos filtrados; visiveisReposicao usa montarReposicao() sem filtro de categoria/busca; o filtro por linha usa useCallbackMap(situacaoReposicao por produto). Três derivações da mesma regra de lib/estoque.ts dentro da mesma tela — risco do chip mostrar N e a lista mostrar M.",
-      "criterios": "Um único useMemo derivado de montarReposicao(produtos, lotes) alimenta chip, lista e contagem, com os filtros aplicados depois (precisaRepor + produtoCombina/categoria); teste em regras.test.ts prova contagem === itens.length com e sem filtro.",
-      "id": "T-009",
-      "criado_em": "2026-10-17T14:04:16.177284"
+      "detalhe": "Estoque.tsx filtra à mão (produtoCombina + categoria + situacao) e Relatorios.tsx, ao receber os params de T-016/T-017, precisa repetir exatamente a mesma lógica sobre montarLinhasEstoque e montarReposicao. Sem uma função pura em lib/estoque.ts, os dois lados divergem (ex.: termo com acento, categoria de produto inativo) e a exportação não bate com a tela.",
+      "arquivos_que_toca": [
+        "src/lib/estoque.ts",
+        "src/lib/regras.test.ts",
+        "src/pages/Estoque.tsx",
+        "src/pages/Relatorios.tsx"
+      ],
+      "criterios": "Nova função pura (ex.: filtrarRecorte({termo, categoria, situacao})) em lib/estoque.ts aplicada por Estoque e Relatorios; teste em regras.test.ts cobre termo sem acento, categoria e situacao no mesmo recorte; comportamento visível do Estoque inalterado.",
+      "criado_em": "2026-10-18T18:25:00.000000"
     },
     {
-      "titulo": "Modal 'Estoque mínimo' fecha sem devolver o foco e sem sinal do que mudou na lista",
+      "id": "T-017",
+      "titulo": "Aba 'Posição' do Relatórios ignora busca/categoria e não avisa que os filtros do Estoque vieram no link",
       "prioridade": 2,
-      "tipo": "acessibilidade",
-      "detalhe": "src/components/ReposicaoForm.tsx abre via setEditando(produto) a partir do botão 'Mínimo' em ListaReposicao; ao salvar, aoFechar() desmonta o modal sem restaurar foco ao botão de origem (WCAG 2.4.3). Como o recarregar('catalogo') atualiza a lista por baixo, o operador não consegue perceber se o item saiu ou não da lista de compras.",
-      "criterios": "Após salvar ou cancelar, o foco volta ao botão 'Mínimo' do mesmo produto quando ele continua na lista; se o produto saiu da lista (mínimo desligado), o foco vai para o campo de busca; toast já existente continua.",
-      "id": "T-008",
-      "criado_em": "2026-10-17T14:04:19.546716"
+      "tipo": "melhoria",
+      "detalhe": "Relatorios.tsx só lê de=/ate= e produtoId; os params de T-016 (q=, categoria=, situacao=) chegariam pela URL mas não são lidos nem mostrados. O operador que exporta 'estoque filtrado' vê posicao com todas as linhas ativas e não entende o porquê. Falta um aviso visível dos filtros aplicados + botão 'limpar'.",
+      "arquivos_que_toca": [
+        "src/pages/Relatorios.tsx",
+        "src/lib/relatorio.ts",
+        "src/lib/relatorio.test.ts"
+      ],
+      "criterios": "Relatorios.tsx lê q/categoria/situacao de params, mostra um Aviso com os filtros ativos e 'Limpar filtros'; montarRelatorio recebe filtroPosicao opcional aplicado a posicao (e compras) via produtoCombina/linha.situacao; teste puro garante que o filtro reduz posicao e que sem filtro nada muda.",
+      "criado_em": "2026-10-18T18:00:00.000000"
     },
     {
-      "titulo": "Sem sugestão de estoque mínimo: produto sem mínimo nunca entra em 'Repor'",
-      "prioridade": 3,
-      "tipo": "feature",
-      "detalhe": "montarReposicao() filtra sem_minimo por padrão, então no primeiro uso (catálogo sem mínimo) a tela Repor aparece vazia e o operador precisa abrir produto por produto. movimentos já estão disponíveis via lib/dados/movimentos.ts para estimar consumo médio.",
-      "criterios": "ReposicaoForm sugere um mínimo (ex.: consumo dos últimos 30 dias) como texto com botão 'Usar'; sem mínimo não há bloqueio da tela Repor; teste puro da função de sugestão.",
-      "id": "T-010",
-      "criado_em": "2026-10-17T14:04:22.598673"
+      "id": "T-020",
+      "titulo": "Lista 'Repor' do Estoque (T-009 unificado) não tem teste de aceite de contagem chip x tabela",
+      "prioridade": 2,
+      "tipo": "teste",
+      "detalhe": "T-009 já unificou montarReposicao em Estoque.tsx, mas continua sem teste puro que falhe se o chip 'Repor' divergir do número de linhas do filtro e da lista de compras (produtos sem mínimo, produto zerado sem lote, filtro de categoria).",
+      "arquivos_que_toca": [
+        "src/lib/regras.test.ts",
+        "src/lib/estoque.ts"
+      ],
+      "criterios": "Teste em regras.test.ts: precisaRepor(montarReposicao(...)).length === nº de produtos distintos com situacao abaixo/no_minimo; produto sem mínimo fora; produto zerado sem lote dentro; com filtro de categoria a contagem bate com o subconjunto.",
+      "criado_em": "2026-10-18T18:10:00.000000"
     },
     {
-      "titulo": "Lista de compras não leva à entrada de estoque do que foi comprado",
+      "id": "T-018",
+      "titulo": "Estoque e Relatórios duplicam a geração/entrega de arquivo (import dinâmico + baixarArquivo + toast + estado 'gerando')",
       "prioridade": 3,
-      "tipo": "feature",
-      "detalhe": "Depois de baixar Excel/PDF o operador precisa reencontrar o produto em /movimentar. ListaReposicao já tem produto, sugestaoCompra e pode saber se pode.movimentar: dá para pré-preencher a entrada com a quantidade sugerida.",
-      "criterios": "Item da lista com link 'Entrada' para /movimentar?tipo=entrada&produto=<id>, visível apenas com pode.movimentar, sem interferir no checkbox da lista de compras.",
-      "id": "T-012",
-      "criado_em": "2026-10-17T14:04:25.136148"
-    }
-  ],
-  "concluidos": [
+      "tipo": "refatoracao",
+      "detalhe": "Estoque.exportarCompra e Relatorios.exportar repetem import dinâmico do gerador, baixarArquivo, toast de erro e setGerando. lib/relatorio.ts já concentra baixarArquivo/tituloEmpresa; falta um helper único para não divergir mensagens e tratamento de erro.",
+      "arquivos_que_toca": [
+        "src/lib/relatorio.ts",
+        "src/pages/Estoque.tsx",
+        "src/pages/Relatorios.tsx"
+      ],
+      "criterios": "Helper (ex.: exportarComToast) recebe formato, gerador e nome; ambas as telas passam a usá-lo; mensagens de erro/sucesso idênticas; nenhum comportamento visível alterado (testes existentes passam).",
+      "criado_em": "2026-10-18T18:00:00.000001"
+    },
     {
-      "titulo": "Lista de compras mostra 'Comprar 8 kg' sem dizer quantas embalagens comprar",
+      "id": "T-022",
+      "titulo": "Relatórios gera arquivo com seções vazias (posicao/compras sem linhas) sem avisar antes do download",
+      "prioridade": 3,
+      "tipo": "melhoria",
+      "detalhe": "exportar() só valida que ao menos uma seção está marcada. Se o recorte do período/filtros zerar posicao ou compras, o Excel/PDF sai com a seção em branco e o operador só descobre abrindo o arquivo. Melhor mostrar contagem por seção no cartão 'Incluir no arquivo' (ex.: 'Posição (0)') e indicar seção sem dados.",
+      "arquivos_que_toca": [
+        "src/pages/Relatorios.tsx",
+        "src/lib/exportar/excel.ts",
+        "src/lib/exportar/pdf.ts"
+      ],
+      "criterios": "Cada seção mostra o nº de linhas que será exportado; seção sem linhas aparece com '(0)' / 'sem dados' e a geração não quebra; aviso quando todas as seções marcadas estão vazias.",
+      "criado_em": "2026-10-18T18:20:00.000001"
+    },
+    {
+      "id": "D-002",
+      "titulo": "Painel renderiza badge 'Repor' inline em vez do componente BadgeReposicao",
+      "prioridade": 2,
+      "tipo": "design",
+      "detalhe": "O item 'abaixo' da lista 'Precisa de atenção' do Painel desenha um badge à mão (bg-amber-100/ring-amber-200) duplicando exatamente o ESTILO_REPOSICAO.abaixo que já existe em BadgeReposicao (ui.tsx). Duas fontes de verdade para o mesmo visual.",
+      "evidencia": "src/pages/Painel.tsx:186 — span inline bg-amber-100/ring-amber-200 duplica ESTILO_REPOSICAO.abaixo de src/components/ui.tsx:72",
+      "arquivos_que_toca": [
+        "src/pages/Painel.tsx",
+        "src/components/ui.tsx"
+      ],
+      "criterios": "Painel carrega minimo+unidade no item e usa BadgeReposicao (situacao='abaixo'); sem mudança visual; sem regressão E2E.",
+      "criado_em": "2026-10-21T00:00:00.000000"
+    },
+    {
+      "id": "D-003",
+      "titulo": "Cor da marca (emerald 700/800) hardcoded — centralizar em token do @theme",
+      "prioridade": 2,
+      "tipo": "design",
+      "detalhe": "A cor principal da marca (emerald-700/800) está espalhada inline em vários arquivos (botão PDV, cabeçalho mobile, navegação inferior, atalho 'Escanear', avatar de dono). Centralizar em um token (--color-marca) do @theme de index.css facilita consistência e futuro rebranding.",
+      "evidencia": "src/components/Layout.tsx:151,189,256; src/pages/Painel.tsx:135; src/pages/Equipe.tsx:82 — bg-emerald-700/800 espalhados inline",
+      "arquivos_que_toca": [
+        "src/index.css",
+        "src/components/Layout.tsx",
+        "src/pages/Painel.tsx",
+        "src/pages/Equipe.tsx"
+      ],
+      "criterios": "Definir --color-marca-* no @theme de index.css; substituir usos da cor da marca; visual idêntico; npm run build verde.",
+      "criado_em": "2026-10-21T00:00:00.000000"
+    },
+    {
+      "id": "D-004",
+      "titulo": "Estados vazios do Painel usam <div> com emoji em vez do componente Vazio",
+      "prioridade": 2,
+      "tipo": "design",
+      "detalhe": "Os blocos 'Tudo em dia' e 'Nenhuma movimentação ainda' do Painel usam <div className='cartao p-6 text-center'> com emoji 🎉, fora do padrão do Vazio (que tem ícone lucide + título + texto). Trocar pelo componente Vazio mantém a consistência e remove emoji.",
+      "evidencia": "src/pages/Painel.tsx:170 ('Tudo em dia... 🎉') e :210 ('Nenhuma movimentação ainda.') — <div> sem ícone, com emoji",
+      "arquivos_que_toca": [
+        "src/pages/Painel.tsx",
+        "src/components/ui.tsx"
+      ],
+      "criterios": "Trocar por Vazio (ícone lucide, sem emoji), mantendo o texto; sem mudança de comportamento; sem regressão E2E.",
+      "criado_em": "2026-10-21T00:00:00.000000"
+    },
+    {
+      "id": "D-005",
+      "titulo": "Atalhos de movimentação do Painel (celular) com estilos divergentes",
+      "prioridade": 2,
+      "tipo": "design",
+      "detalhe": "Os 3 atalhos rápidos do celular no Painel (Entrada, Escanear baixa, Saída manual) usam padrões diferentes: dois usam a classe .cartao e um ('Escanear baixa') usa rounded-2xl bg-emerald-700 inline. Unificar num padrão consistente de atalho.",
+      "evidencia": "src/pages/Painel.tsx:131 e :139 usam .cartao; :135 ('Escanear baixa') usa rounded-2xl bg-emerald-700 inline",
+      "arquivos_que_toca": [
+        "src/pages/Painel.tsx",
+        "src/index.css"
+      ],
+      "criterios": "Unificar os 3 atalhos num padrão consistente (classe .atalho ou semelhante); visual atual preservado; sem regressão E2E.",
+      "criado_em": "2026-10-21T00:00:00.000000"
+    },
+    {
+      "id": "D-006",
+      "titulo": "Botão 'Corrigir' fica só com ícone no celular, sem nome acessível",
+      "prioridade": 2,
+      "tipo": "design",
+      "detalhe": "No celular o texto 'Corrigir' fica oculto (hidden sm:inline), sobrando só o ícone RotateCcw com title='Lançar correção'. O title não é exposto de forma confiável em touch/leitores de tela — falta aria-label para o nome acessível do botão.",
+      "evidencia": "src/components/ListaMovimentacoes.tsx:88-91 — <button title='Lançar correção'> com <span class='hidden sm:inline'>Corrigir</span>; no celular só o ícone",
+      "arquivos_que_toca": [
+        "src/components/ListaMovimentacoes.tsx"
+      ],
+      "criterios": "Adicionar aria-label='Corrigir lançamento' ao botão; visual do desktop inalterado; sem regressão E2E.",
+      "criado_em": "2026-10-21T00:00:00.000000"
+    },
+    {
+      "id": "D-001",
+      "titulo": "Avatar (inicial do usuário) duplicado em 3 telas — extrair componente",
       "prioridade": 1,
-      "tipo": "ux",
-      "detalhe": "src/components/ListaReposicao.tsx (~linha 158) renderiza item.sugestaoCompra cru. O export (lib/exportar/lista-compra.ts, função embalagens()) já usa formatarEmbalagens() e o PDF mostra '8 kg (2 emb.)'. Na tela o operador precisa dividir de cabeça pelo conteudo_embalagem. formatarEmbalagens() em lib/formato.ts:163 retorna '2 emb.'.",
-      "criterios": "Linha com sugestaoCompra>0 e conteudo_embalagem>0 exibe 'Comprar 8 kg (2 emb.) para voltar ao mínimo'; sem conteúdo por embalagem o texto atual fica idêntico; data-embalagens no <li> para teste; novo teste em regras.test.ts/lista-compra.test.ts garante mesma contagem de embalagens da tela e do PDF.",
-      "id": "T-011",
-      "criado_em": "2026-10-17T14:04:12.957040",
-      "concluido_em": "2026-10-17T14:08:26.990796"
+      "tipo": "design",
+      "detalhe": "O mesmo padrão 'avatar' (círculo colorido com a inicial) aparece em Layout.tsx (menu lateral), Mais.tsx (menu do celular) e Equipe.tsx (lista da equipe), com tamanhos divergentes (size-9, size-12, size-10) e regras de cor duplicadas. Deve virar um componente único em ui.tsx.",
+      "evidencia": "src/components/Layout.tsx:174 (size-9); src/pages/Mais.tsx:36 (size-12); src/pages/Equipe.tsx:82 (size-10)",
+      "arquivos_que_toca": [
+        "src/components/ui.tsx",
+        "src/components/Layout.tsx",
+        "src/pages/Mais.tsx",
+        "src/pages/Equipe.tsx"
+      ],
+      "criterios": "Criar Avatar(nome, tamanho?, tom?) em ui.tsx; usar nos 3 lugares; visual idêntico ao atual; npm run build verde.",
+      "criado_em": "2026-10-21T00:00:00.000000"
+    },
+    {
+      "id": "T-023",
+      "titulo": "Migration estoque_minimo ausente — minimo/ponto de pedido nao sincroniza entre aparelhos",
+      "prioridade": 1,
+      "tipo": "infra",
+      "detalhe": "O app usa Produto.estoque_minimo (src/lib/tipos.ts:105) e tem um workaround em catalogo.ts que guarda o minimo LOCALMENTE por aparelho (catalogo.ts:7: 'Enquanto a coluna produtos.estoque_minimo nao existir na nuvem, o minimo e guardado local'). A tabela produtos e criada em supabase/migrations/20261008120000_base_multiempresa.sql:270 SEM a coluna. Resultado: minimo/lista de compras nao viajam entre computador e celular da mesma loja. Pre-requisito do piloto controlado.",
+      "evidencia": "supabase/migrations/20261008120000_base_multiempresa.sql:270 (create table produtos sem estoque_minimo); src/lib/dados/catalogo.ts:7 (workaround local); src/lib/tipos.ts:105 (campo no TS)",
+      "arquivos_que_toca": [
+        "supabase/migrations/20261021120000_estoque_minimo.sql",
+        "src/lib/dados/catalogo.ts"
+      ],
+      "criterios": "Nova migration ALTER TABLE public.produtos ADD COLUMN estoque_minimo (numeric, null) coerente com o tipo; catalogo.ts para de cair no fallback local (coluna existe na nuvem e no servidor local); minimo cadastrado num aparelho aparece no outro; npm run test:sql e npm test passam.",
+      "criado_em": "2026-10-21T00:00:00.000000"
+    },
+    {
+      "id": "T-024",
+      "titulo": "Conferencia/inventario cego (contar fisico sem ver o saldo do sistema)",
+      "prioridade": 1,
+      "tipo": "feature",
+      "detalhe": "Nao existe tela para contar o estoque fisico sem ver o saldo atual do sistema e apontar divergencias. Essencial para fechar estoque na loja real. Fluxo: escolher produtos (ou todos), contar 'as cegas', e o sistema gera o ajuste/divergencia no final.",
+      "evidencia": "DOCUMENTACAO_ERP.md (pendencias): 'Sem tela de conferencia/inventario cego'",
+      "arquivos_que_toca": [
+        "src/pages/Inventario.tsx",
+        "src/lib/estoque.ts",
+        "src/App.tsx"
+      ],
+      "criterios": "Tela lista produtos para contar; durante a contagem NAO mostra o saldo atual; ao final mostra divergencia (contado vs sistema) e permite gerar ajuste (tipo AJUSTE com motivo 'inventario'); acessivel e responsivo (padroes do design system).",
+      "criado_em": "2026-10-21T00:00:00.000000"
+    },
+    {
+      "id": "T-025",
+      "titulo": "Backup automatico do banco (hoje o servidor local e 'sem backup')",
+      "prioridade": 2,
+      "tipo": "infra",
+      "detalhe": "README avisa que o servidor local e 'um unico processo, sem backup'. Para loja real precisa de backup do banco (PGlite/Supabase) com exportacao periodica ou botao de exportar, e documento de restauracao.",
+      "evidencia": "README.md: 'E so para testes: um unico processo, sem backup.'",
+      "arquivos_que_toca": [
+        "servidor-local/banco.ts",
+        "scripts/backup.mjs"
+      ],
+      "criterios": "Backup do banco para arquivo (periodico e/ou botao) e restauracao documentada (README ou script); nao apaga dados; testavel localmente.",
+      "criado_em": "2026-10-21T00:00:00.000000"
+    },
+    {
+      "id": "T-026",
+      "titulo": "Scaffolding de NFC-e — deixar no ponto de so colocar as keys/API do emissor",
+      "prioridade": 2,
+      "tipo": "feature",
+      "detalhe": "O cupom de 80mm NAO e documento fiscal. Criar o ponto de integracao da NFC-e (sem implementar o protocolo SEFAZ): env vars das keys do emissor, interface EmissorNFCe com stub, e toggle 'habilitar NFC-e' no caixa. Depois e so plugar keys + API.",
+      "evidencia": "README.md: 'o cupom nao e documento fiscal (a NFC-e vem na fase fiscal)'; src/pages/EmpresaConfig.tsx:212 'o numero do caixa vira a serie da NFC-e na fase fiscal'",
+      "arquivos_que_toca": [
+        "src/lib/nfce.ts",
+        "src/pages/EmpresaConfig.tsx",
+        ".env.example"
+      ],
+      "criterios": "Env vars NFC_E_* documentadas em .env.example; interface EmissorNFCe com implementacao stub; toggle habilita/desabilita sem quebrar o caixa; cupom continua saindo normalmente (off).",
+      "criado_em": "2026-10-21T00:00:00.000000"
+    },
+    {
+      "id": "T-027",
+      "titulo": "Scaffolding de cobranca (Asaas) — deixar no ponto de so colocar a API key",
+      "prioridade": 2,
+      "tipo": "feature",
+      "detalhe": "A assinatura hoje e so estado (trial_ate/pago_ate/vencida). Criar o ponto de integracao de cobranca (sem implementar o SDK do Asaas): env var da API key, interface ServicoCobranca com stub, e toggle 'habilitar cobranca'. Depois e so plugar a key.",
+      "evidencia": "README.md: 'Proximas fases: cobranca da assinatura pelo Asaas'",
+      "arquivos_que_toca": [
+        "src/lib/cobranca.ts",
+        "src/pages/EmpresaConfig.tsx",
+        ".env.example"
+      ],
+      "criterios": "Env vars ASAAS_* documentadas em .env.example; interface ServicoCobranca com stub; toggle habilita/desabilita; assinatura continua funcionando (trial) sem cobranca ativa.",
+      "criado_em": "2026-10-21T00:00:00.000000"
+    },
+    {
+      "id": "T-028",
+      "titulo": "Piloto controlado em loja real (sem NFC-e e sem Asaas) + guia de teste manual",
+      "prioridade": 1,
+      "tipo": "meta",
+      "detalhe": "Meta de preparacao do piloto controlado numa loja real (NAO e venda fiscal). Pre-requisitos: T-023 (migration estoque_minimo) e T-016/T-021 (filtros na URL) — sem eles os dados nao batem entre aparelhos e o operador se perde. Depois do piloto: T-024 (inventario cego) e T-025 (backup) antes de qualquer contagem/fechamento serio. Entregavel: documento de passo a passo de teste manual (MANUAL_TESTE.md).",
+      "evidencia": "README.md (fases); DOCUMENTACAO_ERP.md (pendencias); backlog T-016/T-021 abertos",
+      "arquivos_que_toca": [
+        "MANUAL_TESTE.md",
+        "README.md"
+      ],
+      "criterios": "T-023 e T-016/T-021 concluidos; MANUAL_TESTE.md com passo a passo (subir servidor, criar empresa, cadastrar produto com minimo, testar filtros na URL, testar sincronizacao do minimo, conferir inventario); piloto validado em loja real.",
+      "criado_em": "2026-10-21T00:00:00.000000"
     }
   ],
-  "ciclos": 0
+  "concluidos": [],
+  "ciclos": 0,
+  "plano_atual": null
 }

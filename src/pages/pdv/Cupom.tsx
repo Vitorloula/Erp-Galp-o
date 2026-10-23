@@ -16,6 +16,7 @@ export interface DadosCupom {
     desconto: number
     total: number
     troco: number
+    cliente_cpf?: string | null
     itens: { descricao: string; quantidade: number; unidade: string; preco_unitario: number; desconto: number; total: number }[]
     pagamentos: { forma: string; valor: number }[]
   }
@@ -40,6 +41,7 @@ export function Cupom({ dados }: { dados: DadosCupom | null }) {
       {dados.cancelada && <div style={{ textAlign: 'center', fontWeight: 700 }}>*** VENDA CANCELADA ***</div>}
       <div>Venda {dados.numeroExibicao} · {dados.caixa}</div>
       <div>{formatarDataHora(dados.ocorridoEm)} · {dados.operador}</div>
+      {v.cliente_cpf && <div>CPF na nota: {v.cliente_cpf}</div>}
       <hr style={{ borderTop: '1px dashed #000', margin: '4px 0' }} />
       {v.itens.map((i, k) => (
         <div key={k} style={{ marginBottom: 2 }}>

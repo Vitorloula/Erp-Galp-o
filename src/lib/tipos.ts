@@ -105,6 +105,16 @@ export interface Produto {
   estoque_minimo: number | null
   preco_venda: number | null
   custo_ultimo: number | null
+  /** Campos fiscais (NFC-e/NF-e) — preenchidos opcionalmente no cadastro. */
+  ncm: string | null
+  cfop: string | null
+  cst_csosn: string | null
+  origem: number | null
+  unidade_tributavel: string | null
+  cest: string | null
+  /** Reforma Tributária: alíquotas de IBS e CBS (%) — opcionais. */
+  ibs_aliquota: number | null
+  cbs_aliquota: number | null
   rastreio: Rastreio
   /** Vendido por peso (etiqueta de balança). */
   pesavel: boolean
@@ -135,6 +145,14 @@ export type ProdutoDados = Pick<
   | 'fabricante'
   | 'observacao'
   | 'ativo'
+  | 'ncm'
+  | 'cfop'
+  | 'cst_csosn'
+  | 'origem'
+  | 'unidade_tributavel'
+  | 'cest'
+  | 'ibs_aliquota'
+  | 'cbs_aliquota'
 >
 
 /** Lote com saldo na loja ativa (visão vw_estoque). */

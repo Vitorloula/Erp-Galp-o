@@ -7,25 +7,16 @@ dist
 .DS_Store
 test-results
 playwright-report
+.vitest
 .e2e
 servidor-local/dados.json
 servidor-local/*.tmp
 servidor-local/banco/
+servidor-local/backup/
 
-
-# Ambiente dos agentes de IA
-agents/venv/
-agents/__pycache__
-
-
+# Ambiente dos agentes de IA: venv e cache NÃO vão para o repo.
+# O código da fábrica (agents/*.py) É versionado — é ele que roda no CI.
 agents/venv/
 venv/
 __pycache__/
 *.pyc
-.DS_Store
-
-
-# Código da fábrica (não deve ser tocado pelo rollback da IA)
-agents/*.py
-agents/venv/
-agents/__pycache__/

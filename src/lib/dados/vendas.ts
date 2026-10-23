@@ -1,4 +1,5 @@
-import { buscarTudo, exigir, num, sb, traduzirErro } from './cliente'
+import { buscarTudo, exigir, num, numOuNulo, sb, traduzirErro } from './cliente'
+import type { Produto } from '../tipos'
 
 export interface Caixa {
   id: string
@@ -24,6 +25,10 @@ export interface Venda {
   cancelada_por_nome: string | null
   motivo_cancelamento: string | null
   relogio_suspeito: boolean
+  nfce_status: 'pendente' | 'emitida' | 'cancelada' | 'erro'
+  nfce_chave: string | null
+  nfce_qrcode: string | null
+  cliente_cpf: string | null
 }
 
 export interface ItemVenda {
@@ -71,6 +76,10 @@ const paraVenda = (r: Record<string, unknown>): Venda => ({
   desconto: num(r.desconto),
   total: num(r.total),
   troco: num(r.troco),
+  nfce_status: (r.nfce_status as Venda['nfce_status']) ?? 'pendente',
+  nfce_chave: (r.nfce_chave as string | null) ?? null,
+  nfce_qrcode: (r.nfce_qrcode as string | null) ?? null,
+  cliente_cpf: (r.cliente_cpf as string | null) ?? null,
 })
 
 export async function listarCaixas(empresaId: string, lojaId?: string): Promise<Caixa[]> {
@@ -92,7 +101,7 @@ export function listarVendas(empresaId: string, lojaId: string, f: { desde: stri
     (de, ate) =>
       sb
         .from('vendas')
-        .select('id, caixa_id, numero, ocorrido_em, operador_nome, subtotal, desconto, total, troco, status, cancelada_em, cancelada_por_nome, motivo_cancelamento, relogio_suspeito')
+        .select('id, caixa_id, numero, ocorrido_em, operador_nome, subtotal, desconto, total, troco, status, cancelada_em, cancelada_por_nome, motivo_cancelamento, relogio_suspeito, nfce_status, nfce_chave, nfce_qrcode, cliente_cpf')
         .eq('empresa_id', empresaId)
         .eq('loja_id', lojaId)
         .gte('ocorrido_em', f.desde)
@@ -132,6 +141,92 @@ export async function detalheDaVenda(vendaId: string): Promise<{ itens: ItemVend
 export async function cancelarVenda(vendaId: string, motivo: string) {
   if (motivo.trim().length < 3) throw new Error('Informe o motivo do cancelamento.')
   exigir(await sb.rpc('cancelar_venda', { p_venda: vendaId, p_motivo: motivo.trim() }))
+}
+
+/** Registra o resultado da emissão da NFC-e numa venda (chave/QR Code/estado). */
+export async function salvarNFCe(vendaId: string, dados: { status: 'emitida' | 'cancelada' | 'erro'; chave?: string | null; qrcode?: string | null }) {
+  exigir(
+    await sb
+      .from('vendas')
+      .update({ nfce_status: dados.status, nfce_chave: dados.chave ?? null, nfce_qrcode: dados.qrcode ?? null })
+      .eq('id', vendaId)
+      .select('id')
+      .single(),
+  )
+}
+
+/** Estado da NFC-e de uma venda, para o cancelamento. */
+export async function buscarVendaParaCancelamento(vendaId: string): Promise<{ nfce_status: Venda['nfce_status']; nfce_chave: string | null } | null> {
+  const r = await sb.from('vendas').select('nfce_status, nfce_chave').eq('id', vendaId).single()
+  if (r.error) return null
+  return { nfce_status: (r.data.nfce_status as Venda['nfce_status']) ?? 'pendente', nfce_chave: (r.data.nfce_chave as string | null) ?? null }
+}
+
+/** Venda aguardando emissão da NFC-e (para a fila). */
+export interface VendaPendenteNFCe {
+  id: string
+  caixa_id: string
+  numero: number
+  total: number
+  ocorrido_em: string
+  cliente_cpf: string | null
+}
+
+/** Vendas com NFC-e pendente, na ordem em que aconteceram. */
+export function listarVendasPendentes(empresaId: string, lojaId: string): Promise<VendaPendenteNFCe[]> {
+  return buscarTudo(
+    (de, ate) =>
+      sb
+        .from('vendas')
+        .select('id, caixa_id, numero, total, ocorrido_em, cliente_cpf')
+        .eq('empresa_id', empresaId)
+        .eq('loja_id', lojaId)
+        .eq('nfce_status', 'pendente')
+        .order('ocorrido_em')
+        .range(de, ate),
+    r => ({ id: r.id as string, caixa_id: r.caixa_id as string, numero: num(r.numero), total: num(r.total), ocorrido_em: r.ocorrido_em as string, cliente_cpf: (r.cliente_cpf as string | null) ?? null }),
+  )
+}
+
+/** Item da venda com os campos fiscais do produto (para montar a NFC-e). */
+export interface ItemFiscalVenda {
+  produto: Pick<Produto, 'codigo_interno' | 'nome' | 'unidade' | 'ncm' | 'cfop' | 'cst_csosn' | 'origem' | 'ibs_aliquota' | 'cbs_aliquota'> | null
+  quantidade: number
+  valor: number
+}
+
+/** Itens da venda já cruzados com o produto (NCM/CFOP/CST/origem/IBS/CBS). */
+export async function itensFiscaisDaVenda(vendaId: string): Promise<ItemFiscalVenda[]> {
+  const itens = exigir(await sb.from('vendas_itens').select('produto_id, quantidade, total').eq('venda_id', vendaId)) as {
+    produto_id: string
+    quantidade: number
+    total: number
+  }[]
+  const ids = [...new Set(itens.map(i => i.produto_id))]
+  const produtos = ids.length
+    ? (exigir(await sb.from('produtos').select('id, codigo_interno, nome, unidade, ncm, cfop, cst_csosn, origem, ibs_aliquota, cbs_aliquota').in('id', ids)) as Record<string, unknown>[])
+    : []
+  const porId = new Map(produtos.map(p => [p.id as string, p]))
+  return itens.map(i => {
+    const p = porId.get(i.produto_id)
+    return {
+      produto: p
+        ? {
+            codigo_interno: p.codigo_interno as string,
+            nome: p.nome as string,
+            unidade: p.unidade as Produto['unidade'],
+            ncm: (p.ncm as string | null) ?? null,
+            cfop: (p.cfop as string | null) ?? null,
+            cst_csosn: (p.cst_csosn as string | null) ?? null,
+            origem: numOuNulo(p.origem),
+            ibs_aliquota: numOuNulo(p.ibs_aliquota),
+            cbs_aliquota: numOuNulo(p.cbs_aliquota),
+          }
+        : null,
+      quantidade: num(i.quantidade),
+      valor: num(i.total),
+    }
+  })
 }
 
 export async function listarSessoes(empresaId: string, lojaId: string, f: { desde: string; ate: string }): Promise<Sessao[]> {

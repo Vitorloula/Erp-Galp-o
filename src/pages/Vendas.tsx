@@ -9,6 +9,14 @@ import type { Caixa, ItemVenda, PagamentoVenda, Sessao, Venda } from '../lib/dad
 import { formatarData, formatarDataHora, formatarHora, formatarNumero, hojeISO } from '../lib/formato'
 import { PERIODOS, intervaloParaInstantes, intervaloRapido, type Intervalo, type PeriodoRapido } from '../lib/periodos'
 import { NOME_FORMA, centavos, formatarReais, numeroVenda, type FormaPagamento } from '../pdv/venda'
+import { cancelarNFCeDaVenda, emitirVendasPendentes } from '../lib/emissao'
+
+const NFCE_STATUS: Record<Venda['nfce_status'], { rotulo: string; classe: string }> = {
+  pendente: { rotulo: 'Nota pendente', classe: 'bg-amber-100 text-amber-800 ring-amber-200' },
+  emitida: { rotulo: 'Nota emitida', classe: 'bg-emerald-100 text-emerald-800 ring-emerald-200' },
+  cancelada: { rotulo: 'Nota cancelada', classe: 'bg-slate-100 text-slate-600 ring-slate-200' },
+  erro: { rotulo: 'Nota com erro', classe: 'bg-red-100 text-red-800 ring-red-200' },
+}
 
 export function Vendas() {
   const { empresa, loja, pode } = useAtiva()
@@ -23,6 +31,8 @@ export function Vendas() {
   const [sessoes, setSessoes] = useState<Sessao[] | null>(null)
   const [erro, setErro] = useState('')
   const [aberta, setAberta] = useState<Venda | null>(null)
+  const [emitindo, setEmitindo] = useState(false)
+  const [msgEmitir, setMsgEmitir] = useState('')
   const intervalo = periodo === 'personalizado' ? personalizado : intervaloRapido(periodo)
 
   useEffect(() => {
@@ -60,9 +70,33 @@ export function Vendas() {
 
   const rotulo = (v: Venda) => numeroVenda(numeroCaixa.get(v.caixa_id)?.numero ?? 0, v.numero)
 
+  async function emitirPendentes() {
+    setEmitindo(true)
+    setMsgEmitir('')
+    try {
+      const resultados = await emitirVendasPendentes(empresa.empresa_id, loja.id)
+      const emitidas = resultados.filter(r => r.status === 'emitida').length
+      const erros = resultados.filter(r => r.status === 'erro').length
+      setMsgEmitir(emitidas || erros ? `${emitidas} nota(s) emitida(s), ${erros} com erro.` : 'Nenhuma nota pendente (ou emissor desligado).')
+    } catch (e) {
+      setMsgEmitir((e as Error).message)
+    } finally {
+      setEmitindo(false)
+    }
+  }
+
   return (
     <div>
-      <Cabecalho titulo="Vendas" subtitulo="Vendas dos caixas, já sincronizadas. As feitas sem internet aparecem quando o caixa se conecta." />
+      <Cabecalho
+        titulo="Vendas"
+        subtitulo="Vendas dos caixas, já sincronizadas. As feitas sem internet aparecem quando o caixa se conecta."
+        acoes={
+          <button type="button" className="btn btn-secundario" onClick={emitirPendentes} disabled={emitindo}>
+            {emitindo ? 'Emitindo...' : 'Emitir notas pendentes'}
+          </button>
+        }
+      />
+      {msgEmitir && <Aviso tom="info">{msgEmitir}</Aviso>}
       <div className="mb-4 space-y-3">
         <div className="-mx-4 flex gap-2 rolagem-x overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
           {PERIODOS.filter(p => p.valor !== 'mesAnterior').map(p => (
@@ -134,6 +168,11 @@ export function Vendas() {
                       </p>
                     </div>
                     <span className="font-bold tabular-nums">{formatarReais(centavos(v.total))}</span>
+                    {v.nfce_status !== 'pendente' && (
+                      <span className={cx('shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset', NFCE_STATUS[v.nfce_status].classe)}>
+                        {NFCE_STATUS[v.nfce_status].rotulo}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -206,6 +245,11 @@ function DetalheVenda({ venda, rotulo, podeCancelar, aoFechar }: { venda: Venda 
   async function cancelar() {
     try {
       await dados.cancelarVenda(venda!.id, motivo)
+      try {
+        await cancelarNFCeDaVenda(venda!.id, motivo)
+      } catch (e) {
+        console.warn('Falha ao cancelar a NFC-e:', e)
+      }
       toast.sucesso(`Venda ${rotulo} cancelada.`)
       await recarregar()
       aoFechar()
@@ -226,6 +270,19 @@ function DetalheVenda({ venda, rotulo, podeCancelar, aoFechar }: { venda: Venda 
               </span>
             )}
           </p>
+          {venda.nfce_status !== 'pendente' && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
+              <p className={cx('font-semibold', NFCE_STATUS[venda.nfce_status].classe.split(' ').find(c => c.startsWith('text-')))}>
+                {NFCE_STATUS[venda.nfce_status].rotulo}
+              </p>
+              {venda.nfce_chave && <p className="mt-1 break-all font-mono text-slate-600">Chave: {venda.nfce_chave}</p>}
+              {venda.nfce_qrcode && (
+                <a className="mt-1 inline-block text-emerald-700 underline" href={venda.nfce_qrcode} target="_blank" rel="noreferrer">
+                  Consultar nota (QR Code)
+                </a>
+              )}
+            </div>
+          )}
           {erro && <Aviso tom="erro">{erro}</Aviso>}
           {!detalhe ? (
             <Carregando />

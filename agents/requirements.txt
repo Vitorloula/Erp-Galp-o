@@ -1,0 +1,4 @@
+# Fábrica autônoma — dependências Python (pinned para reprodutibilidade).
+# Atualize junto com agents/venv quando fizer upgrade do CrewAI.
+crewai==1.15.28
+GitPython==3.2.1
