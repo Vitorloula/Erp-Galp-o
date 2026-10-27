@@ -22,6 +22,7 @@ test.describe('Produtos', () => {
     await d.getByLabel('Unidade *').selectOption('L')
     await d.getByLabel('Categoria').selectOption({ label: 'Defensivo agrícola' })
     await d.getByLabel(/Conteúdo por embalagem/).fill('5')
+    await d.getByLabel(/Estoque mínimo/).fill('12')
     await d.getByLabel('Código de barras').fill('7890000099990')
     await d.getByLabel('Fabricante').fill('Teste S.A.')
     await d.getByLabel('Observações').fill('Classe III')
@@ -38,6 +39,7 @@ test.describe('Produtos', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Fungicida Teste 250 EC' })).toBeVisible() // espaços padronizados
     await expect(page.getByText('7890000099990')).toBeVisible()
     await expect(page.getByText('Teste S.A.')).toBeVisible()
+    await expect(page.getByText('Estoque mínimo').locator('..')).toContainText('12 L')
     await expect(page.getByText('Nenhum lote com saldo. Produto sem estoque.')).toBeVisible()
   })
 

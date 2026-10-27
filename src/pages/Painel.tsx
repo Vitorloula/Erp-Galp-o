@@ -1,8 +1,8 @@
-import { ArrowDownToLine, ArrowUpFromLine, Boxes, ChevronRight, Clock, OctagonAlert, PackageX, ScanBarcode, ShoppingBasket } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, Boxes, ChevronRight, CircleCheck, Clock, History, OctagonAlert, PackageX, ScanBarcode, ShoppingBasket, type LucideIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { ListaMovimentacoes } from '../components/ListaMovimentacoes'
-import { BadgeSituacao, Carregando, Kpi, cx } from '../components/ui'
+import { BadgeReposicao, BadgeSituacao, Carregando, Kpi, Vazio, cx } from '../components/ui'
 import { useAuth } from '../contexto/Auth'
 import { useDados } from '../contexto/Dados'
 import { useAtiva } from '../contexto/Empresa'
@@ -17,11 +17,29 @@ import {
   type Situacao,
 } from '../lib/estoque'
 import { formatarQtd, formatarValidade, hojeISO } from '../lib/formato'
-import type { Movimentacao } from '../lib/tipos'
+import type { Movimentacao, Unidade } from '../lib/tipos'
 
 function saudacao() {
   const h = new Date().getHours()
   return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'
+}
+
+function Atalho({ para, icone: Icone, titulo, tom }: { para: string; icone: LucideIcon; titulo: string; tom: 'entrada' | 'saida' | 'destaque' }) {
+  const iconeClasse = tom === 'entrada' ? 'bg-emerald-100 text-marca' : tom === 'saida' ? 'bg-sky-100 text-sky-700' : 'bg-white/15 text-white'
+  return (
+    <Link
+      to={para}
+      className={cx(
+        'cartao flex flex-col items-center gap-1.5 p-3 text-center text-sm font-semibold',
+        tom === 'destaque' ? 'bg-marca text-white active:bg-marca-escura' : 'text-slate-700 active:bg-slate-50',
+      )}
+    >
+      <span className={cx('grid size-10 place-items-center rounded-xl', iconeClasse)}>
+        <Icone className="size-5" />
+      </span>
+      {titulo}
+    </Link>
+  )
 }
 
 /** Item de "Precisa de atenção": um lote com problema ou um produto no ponto de pedido. */
@@ -33,6 +51,9 @@ interface ItemAtencao {
   detalhe: string
   validade: string | null
   href: string
+  /** Só para itens de reposição: mínimo e unidade usados pelo BadgeReposicao. */
+  minimo?: number | null
+  unidade?: Unidade
 }
 
 export function Painel() {
@@ -99,6 +120,8 @@ export function Painel() {
       detalhe: `Saldo ${formatarQtd(item.saldo, item.produto.unidade)} · mínimo ${formatarQtd(item.minimo ?? 0, item.produto.unidade)}`,
       validade: null,
       href: `/produtos/${item.produto.id}`,
+      minimo: item.minimo,
+      unidade: item.produto.unidade,
     }))
     return [...dosLotes, ...daReposicao]
       .sort(
@@ -128,18 +151,9 @@ export function Painel() {
 
       {pode.movimentar && (
       <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:hidden">
-        <Link to="/movimentar?tipo=entrada" className="cartao flex flex-col items-center gap-1.5 p-3 text-center text-sm font-semibold text-slate-700 active:bg-slate-50">
-          <span className="grid size-10 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><ArrowDownToLine className="size-5" /></span>
-          Entrada
-        </Link>
-        <Link to="/movimentar?tipo=saida&camera=1" className="flex flex-col items-center gap-1.5 rounded-2xl bg-emerald-700 p-3 text-center text-sm font-semibold text-white shadow-sm active:bg-emerald-800">
-          <span className="grid size-10 place-items-center rounded-xl bg-white/15"><ScanBarcode className="size-5" /></span>
-          Escanear baixa
-        </Link>
-        <Link to="/movimentar?tipo=saida" className="cartao flex flex-col items-center gap-1.5 p-3 text-center text-sm font-semibold text-slate-700 active:bg-slate-50">
-          <span className="grid size-10 place-items-center rounded-xl bg-sky-100 text-sky-700"><ArrowUpFromLine className="size-5" /></span>
-          Saída manual
-        </Link>
+        <Atalho para="/movimentar?tipo=entrada" icone={ArrowDownToLine} titulo="Entrada" tom="entrada" />
+        <Atalho para="/movimentar?tipo=saida&camera=1" icone={ScanBarcode} titulo="Escanear baixa" tom="destaque" />
+        <Atalho para="/movimentar?tipo=saida" icone={ArrowUpFromLine} titulo="Saída manual" tom="saida" />
       </div>
       )}
 
@@ -162,12 +176,14 @@ export function Painel() {
         <section className="xl:col-span-3">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="font-semibold text-slate-900">Precisa de atenção</h2>
-            <Link to="/estoque" className="flex items-center text-sm font-medium text-emerald-800 hover:underline">
+            <Link to="/estoque" className="flex items-center text-sm font-medium text-marca-escura hover:underline">
               Ver estoque <ChevronRight className="size-4" />
             </Link>
           </div>
           {atencao.length === 0 ? (
-            <div className="cartao p-6 text-center text-sm text-slate-500">Tudo em dia: nenhum item vencido, vencendo, zerado ou no mínimo. 🎉</div>
+            <div className="cartao">
+              <Vazio icone={CircleCheck} titulo="Tudo em dia" texto="Nenhum item vencido, vencendo, zerado ou no mínimo." />
+            </div>
           ) : (
             <div className="cartao divide-y divide-slate-100 overflow-hidden">
               {atencao.map(item => (
@@ -183,10 +199,7 @@ export function Painel() {
                     <p className="text-xs opacity-75">{item.detalhe}</p>
                   </div>
                   {item.situacao === 'abaixo' ? (
-                    <span className="ponto-atencao inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 ring-1 ring-inset ring-amber-200">
-                      <ShoppingBasket className="size-3.5" />
-                      Repor
-                    </span>
+                    <BadgeReposicao situacao="abaixo" minimo={item.minimo ?? null} unidade={item.unidade ?? 'un'} />
                   ) : (
                     <BadgeSituacao situacao={item.situacao} validade={item.validade} />
                   )}
@@ -202,12 +215,14 @@ export function Painel() {
               Últimas movimentações
               {movHoje.length > 0 && <span className="ml-2 text-sm font-normal text-slate-500">{movHoje.length} hoje</span>}
             </h2>
-            <Link to="/historico" className="flex items-center text-sm font-medium text-emerald-800 hover:underline">
+            <Link to="/historico" className="flex items-center text-sm font-medium text-marca-escura hover:underline">
               Histórico <ChevronRight className="size-4" />
             </Link>
           </div>
           {recentes === null ? <Carregando /> : recentes.length === 0 ? (
-            <div className="cartao p-6 text-center text-sm text-slate-500">Nenhuma movimentação ainda.</div>
+            <div className="cartao">
+              <Vazio icone={History} titulo="Nenhuma movimentação ainda" texto="As entradas e saídas aparecem aqui." />
+            </div>
           ) : (
             <ListaMovimentacoes movimentacoes={recentes} />
           )}

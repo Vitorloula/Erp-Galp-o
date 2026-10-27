@@ -1,6 +1,7 @@
 import { Copy, Crown, MailPlus, MessageCircle, Trash2, UserPlus, Users, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Navigate } from 'react-router'
+import { Avatar } from '../components/Avatar'
 import { useToast } from '../components/Toast'
 import { Aviso, Cabecalho, Carregando, Modal, Vazio, cx } from '../components/ui'
 import { useAuth } from '../contexto/Auth'
@@ -79,9 +80,9 @@ export function Equipe() {
               return (
                 <div key={m.usuario_id} data-membro={m.email ?? m.nome} className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center">
                   <div className="flex min-w-0 flex-1 items-center gap-3">
-                    <div className={cx('grid size-10 shrink-0 place-items-center rounded-full text-sm font-bold', m.papel === 'dono' ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600')}>
-                      {m.papel === 'dono' ? <Crown className="size-5" /> : m.nome.slice(0, 1).toUpperCase()}
-                    </div>
+                    <Avatar nome={m.nome} className={m.papel === 'dono' ? 'bg-marca text-white' : 'bg-slate-100 text-slate-600'}>
+                      {m.papel === 'dono' ? <Crown className="size-5" /> : undefined}
+                    </Avatar>
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-slate-900">
                         {m.nome} {eu && <span className="text-xs font-normal text-slate-500">(você)</span>}
@@ -243,7 +244,7 @@ function NovoConvite({ aberto, aoFechar, aoCriar }: { aberto: boolean; aoFechar:
             <div className="space-y-2">
               {papeis.map(p => (
                 <label key={p} className={cx('flex cursor-pointer items-start gap-3 rounded-xl border p-3', papel === p ? 'border-emerald-600 ring-2 ring-emerald-600/20' : 'border-slate-200')}>
-                  <input type="radio" name="papel" className="mt-0.5 size-4.5 accent-emerald-700" checked={papel === p} onChange={() => setPapel(p)} />
+                  <input type="radio" name="papel" className="mt-0.5 size-4.5 accent-marca" checked={papel === p} onChange={() => setPapel(p)} />
                   <span>
                     <span className="block text-sm font-semibold text-slate-900">{NOME_PAPEL[p]}</span>
                     <span className="block text-xs text-slate-500">{DESCRICAO_PAPEL[p]}</span>
@@ -260,7 +261,7 @@ function NovoConvite({ aberto, aoFechar, aoCriar }: { aberto: boolean; aoFechar:
                   <label key={l.id} className="chip chip-inativo cursor-pointer">
                     <input
                       type="checkbox"
-                      className="accent-emerald-700"
+                      className="accent-marca"
                       checked={lojasEscolhidas.includes(l.id)}
                       onChange={e => setLojasEscolhidas(s => (e.target.checked ? [...s, l.id] : s.filter(x => x !== l.id)))}
                     />

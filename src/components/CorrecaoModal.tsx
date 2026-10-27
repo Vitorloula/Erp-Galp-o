@@ -108,7 +108,7 @@ function Conteudo({ m, aoFechar }: { m: Movimentacao; aoFechar: () => void }) {
             <Aviso tom="info">O lançamento original continua no histórico. Será criado um novo lançamento de correção com a diferença.</Aviso>
             {!zerar && <CampoQuantidade produto={produto} aoMudar={setCorreta} rotulo={`Quantidade correta da ${NOME_TIPO[m.tipo].toLowerCase()}`} id="qtd-correta" autoFocus />}
             <label className="flex items-center gap-2.5 text-sm font-medium text-slate-700">
-              <input type="checkbox" className="size-4.5 accent-emerald-700" checked={zerar} onChange={e => setZerar(e.target.checked)} />
+              <input type="checkbox" className="size-4.5 accent-marca" checked={zerar} onChange={e => setZerar(e.target.checked)} />
               Estornar totalmente (o lançamento não deveria ter existido)
             </label>
             {diferenca !== null && diferenca !== 0 && (

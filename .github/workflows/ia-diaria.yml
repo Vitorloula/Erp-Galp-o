@@ -63,7 +63,7 @@ jobs:
       # Usa exatamente o mesmo comando do testes.yml (Edge pré-instalado no Windows)
       - name: 🧪 Testes de ponta a ponta (Playwright + Edge)
         if: success()
-        run: npm run test:e2e
+        run: npm run test:e2e:ci
 
       - name: 📎 Relatório dos testes de ponta a ponta
         if: failure()
@@ -81,7 +81,7 @@ jobs:
         run: |
           $BRANCH = (git branch -r --sort=-committerdate | Select-String 'ia-autonoma/' | Select-Object -First 1).ToString().Trim() -replace 'origin/', ''
           if ($BRANCH) {
-            gh pr create --title "🤖 Evolução IA: $(Get-Date -Format 'dd/MM/yyyy')" --body "PR gerado automaticamente. E2E aprovado no Edge." --base main --head $BRANCH
+            gh pr create --title "🤖 Evolução IA: $(Get-Date -Format 'dd/MM/yyyy')" --body "PR gerado automaticamente. E2E aprovado no Edge." --base saas --head $BRANCH
           } else {
             echo "⚠️ Nenhuma branch nova encontrada."
           }

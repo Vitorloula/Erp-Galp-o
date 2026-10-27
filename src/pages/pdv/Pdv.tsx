@@ -177,7 +177,7 @@ function EscolherCaixa() {
         <div className="cartao divide-y divide-slate-100 overflow-hidden">
           {(caixas ?? []).map(c => (
             <button key={c.id} className="flex w-full items-center gap-3 px-4 py-4 text-left hover:bg-slate-50" onClick={() => assumir(c)} disabled={!!assumindo}>
-              <Store className="size-5 text-emerald-700" />
+              <Store className="size-5 text-marca" />
               <span className="flex-1 font-semibold text-slate-900">{c.nome}</span>
               {assumindo === c.id && <LoaderCircle className="size-5 animate-spin text-slate-400" />}
             </button>

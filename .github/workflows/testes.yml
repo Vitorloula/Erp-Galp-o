@@ -4,11 +4,18 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: testes-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  testes:
-    # Windows já traz o Microsoft Edge, usado pelos testes de ponta a ponta.
-    runs-on: windows-latest
-    timeout-minutes: 30
+  qualidade:
+    # Build, regras de negócio e RLS não precisam do Edge/Windows.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -29,8 +36,25 @@ jobs:
       - name: Testes de segurança do banco (PGlite)
         run: npm run test:sql
 
+  e2e:
+    # Windows já traz o Microsoft Edge, usado pelos testes de ponta a ponta.
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
       - name: Testes de ponta a ponta (Playwright + Edge)
-        run: npm run test:e2e
+        run: npm run test:e2e:ci
+        env:
+          CI: true
 
       - name: Relatório dos testes de ponta a ponta
         if: failure()

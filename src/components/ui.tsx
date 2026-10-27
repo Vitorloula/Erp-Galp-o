@@ -53,7 +53,7 @@ const ESTILO_SITUACAO: Record<Situacao, { classe: string; icone: LucideIcon }> =
   vencido: { classe: 'bg-red-100 text-red-800 ring-red-200', icone: OctagonAlert },
   zerado: { classe: 'bg-red-100 text-red-800 ring-red-200', icone: PackageX },
   vencendo: { classe: 'bg-amber-100 text-amber-900 ring-amber-200', icone: Clock },
-  ok: { classe: 'bg-emerald-50 text-emerald-800 ring-emerald-200', icone: CircleCheck },
+  ok: { classe: 'bg-emerald-50 text-marca-escura ring-emerald-200', icone: CircleCheck },
 }
 
 export function BadgeSituacao({ situacao, validade, curto }: { situacao: Situacao; validade: string | null; curto?: boolean }) {
@@ -72,7 +72,7 @@ export function BadgeSituacao({ situacao, validade, curto }: { situacao: Situaca
 const ESTILO_REPOSICAO: Record<SituacaoReposicao, { classe: string; icone: LucideIcon; texto: string }> = {
   abaixo: { classe: 'bg-amber-100 text-amber-900 ring-amber-200', icone: TrendingDown, texto: 'Repor' },
   no_minimo: { classe: 'bg-amber-50 text-amber-800 ring-amber-200', icone: Equal, texto: 'No mínimo' },
-  acima: { classe: 'bg-emerald-50 text-emerald-800 ring-emerald-200', icone: CircleCheck, texto: 'OK' },
+  acima: { classe: 'bg-emerald-50 text-marca-escura ring-emerald-200', icone: CircleCheck, texto: 'OK' },
   sem_minimo: { classe: 'bg-slate-100 text-slate-600 ring-slate-200', icone: Minus, texto: 'Sem mínimo' },
 }
 
@@ -116,15 +116,15 @@ export function Cobertura({ saldo, minimo, unidade }: CoberturaProps) {
 }
 
 const ESTILO_TIPO: Record<TipoMov, { classe: string; icone: LucideIcon }> = {
-  ENTRADA: { classe: 'bg-emerald-100 text-emerald-800', icone: ArrowDownToLine },
+  ENTRADA: { classe: 'bg-emerald-100 text-marca-escura', icone: ArrowDownToLine },
   SAIDA: { classe: 'bg-sky-100 text-sky-800', icone: ArrowUpFromLine },
   AJUSTE: { classe: 'bg-violet-100 text-violet-800', icone: SlidersHorizontal },
   CORRECAO: { classe: 'bg-violet-100 text-violet-800', icone: RotateCcw },
   VENDA: { classe: 'bg-sky-100 text-sky-800', icone: ShoppingCart },
   CANCELAMENTO_VENDA: { classe: 'bg-amber-100 text-amber-800', icone: Undo2 },
-  DEVOLUCAO: { classe: 'bg-emerald-100 text-emerald-800', icone: Undo2 },
+  DEVOLUCAO: { classe: 'bg-emerald-100 text-marca-escura', icone: Undo2 },
   TRANSF_SAIDA: { classe: 'bg-sky-100 text-sky-800', icone: ArrowRightLeft },
-  TRANSF_ENTRADA: { classe: 'bg-emerald-100 text-emerald-800', icone: ArrowRightLeft },
+  TRANSF_ENTRADA: { classe: 'bg-emerald-100 text-marca-escura', icone: ArrowRightLeft },
 }
 
 export function BadgeTipo({ tipo }: { tipo: TipoMov }) {
@@ -247,7 +247,7 @@ export function Kpi({
     neutro: 'bg-slate-100 text-slate-600',
     vermelho: 'bg-red-100 text-red-700',
     amarelo: 'bg-amber-100 text-amber-700',
-    verde: 'bg-emerald-100 text-emerald-700',
+    verde: 'bg-emerald-100 text-marca',
   }
   const Tag = onClick ? 'button' : 'div'
   return (

@@ -1,275 +1,200 @@
 # Documentação do ERP Galpão
 
-## Status do repositório (verificado por este QA no reenvio de T-021)
+## 1. Status atual (27/10/2026)
 
-**Compilação: OK** — `npx tsc --noEmit` → **exit 0** · `npx tsc -p e2e/tsconfig.json --noEmit` → **exit 0**.
-Testes: **90/90 passando** em 8 arquivos (`npx vitest run` → **exit 0**, 10,63 s de parede).
-Build: **OK** (`npm run build` → exit 0, 2303 módulos, PWA `generateSW`, 11 entradas precache,
-1.018,59 KiB, 1,06 s). Playwright: `--list` → **171 testes / 17 arquivos** (execução real fica no
-gate externo `qa_gate.py`; `npm run lint` **não existe** — `Missing script: "lint"`).
-Backlog: **T-021 NÃO entregue** — ver "Item do ciclo". Últimos concluídos: T-001/T-006/T-009/T-011.
+- **Compilação:** `npm run lint` (`tsc -p . --noEmit`) → **0 erros**.
+- **Testes de regras:** `npm test` → **117/117** em 12 arquivos.
+- **Testes de banco/RLS:** `npm run test:sql` → **238/238**.
+- **Build de produção:** `npm run build` → **OK**.
+- **E2E direcionado:** importação, inventário por lote, LGPD e produtos passaram com
+  `--workers=1`. O E2E completo roda no CI com retries; a suíte inteira ainda não foi
+  declarada estável em workers padrão.
+- **Backlog:** a fonte de verdade é `memoria/estado.json`. Estão abertos **T-028**
+  (piloto em loja real + restauração de produção) e **T-034** (integrações reais de
+  NFC-e e Asaas).
 
----
+O escopo do piloto é **uma loja por empresa, PDV não fiscal, sem NFC-e/NF-e real e
+sem cobrança automática**. O cupom sempre exibe **“DOCUMENTO SEM VALOR FISCAL”**.
 
-## Item do ciclo: T-021 — link do Relatório perde o filtro de produto (`?produto=`)
+## 2. Arquitetura
 
-### Situação: **NÃO ENTREGUE no código** (critérios 1–4 sem evidência; 5 parcial; 6 cumprido como baseline)
+- **Frontend:** React + TypeScript + Vite, PWA instalável, Tailwind.
+- **Nuvem:** Supabase (Postgres, Auth, RLS e RPCs). Regras críticas de estoque e
+  permissões ficam no banco, não só na tela.
+- **Servidor local de desenvolvimento/E2E:** PGlite em `servidor-local/`, com um
+  ambiente que simula `auth.uid()`, roles e políticas.
+- **Operação do suporte:** service role somente em scripts locais (`npm run piloto`,
+  backup e consultas de erro), nunca no bundle do navegador.
+- **Offline:** o PDV grava eventos no aparelho e sincroniza quando a conexão volta.
 
-### O que o operador vê hoje (o defeito continua vivo)
+## 3. Funcionalidades prontas para o piloto
 
-1. Em **Relatórios**, o operador escolhe **"Glifosato 480 SL"** no select **Produto**. A tela mostra
-   1 linha; a conta fecha.
-2. Ele **recarrega a página** (F5 no computador do galpão) ou **copia o link** para o dono conferir no
-   celular. O link é só `/relatorios`.
-3. A tela reabre em **"Todos os produtos"** — o recorte por produto **não sobrevive** ao link nem ao
-   reload, e o Excel/PDF baixado sai com o **estoque inteiro**, não com o produto que interessava.
+### Catálogo e importação
 
-**A correção não está no código:** `src/pages/Relatorios.tsx` guarda o produto em `useState('')`, o
-`<select id="r-produto">` só chama `setProdutoId`, e `refletirNaUrl` só escreve `de`/`ate` montando
-`URLSearchParams` à mão.
+- Cadastro e edição de produtos com código interno automático, múltiplos códigos de
+  barras, categoria, unidade, preço, fabricante e ponto de pedido.
+- Importação de catálogo por **CSV** (`;`, `,` ou tab) ou **XLSX** na tela Produtos.
+- Prévia antes de gravar, com validação de unidade, números brasileiros, data,
+  duplicidade de código, lote/validade e quantidade.
+- RPC `public.importar_catalogo` em subtransação por linha: uma linha inválida não
+  derruba o arquivo. O resultado informa criados, saldos lançados e erros por linha.
+- Categoria inexistente é criada; o ponto de pedido é gravado diretamente na coluna
+  `produtos.estoque_minimo`.
+- O saldo inicial entra como movimentação `ENTRADA` com documento
+  “Saldo inicial importado”.
 
-### O que deveria mudar (contrato com o usuário, para o próximo ciclo)
+### Estoque por lote
 
-> **Escolher um produto no Relatório passa a deixar o recorte na URL** (`?produto=<id>`), então
-> **recarregar ou compartilhar o link abre a mesma tela** — mesmo produto, mesmo arquivo.
+- Saldo materializado por loja e lote; histórico imutável de movimentações.
+- Entrada, saída, ajuste e correção sempre vinculados a um lote.
+- Lotes com validade, alerta de vencimento e ordenação FEFO na venda.
+- Bloqueio de saída acima do saldo, salvo eventos de PDV offline que já aconteceram
+  (esses viram divergência para conferência).
+- Produto sem lote cadastrado pode receber um lote durante o inventário.
 
-- Abrir `/relatorios?produto=<id>` já mostra o produto selecionado e o relatório **filtrado**; vale
-  também após **F5**, e para as abas **Resumo**, **Movimentações**, **Posição** e **Compras**
-  (`montarRelatorio` já recorta tudo pelo `produtoId`).
-- Trocar o select grava `produto=` na URL **sem sujar o histórico** (`replace`) e **sem params
-  vazios** (voltar para "Todos os produtos" **remove** o parâmetro — contrato de `juntarFiltros`).
-- Escolher um período (ex.: "Últimos 30 dias") **preserva** `produto=`: um recorte não apaga o outro.
-- Link velho com produto **excluído** (id inexistente) **não quebra a tela** e não mostra erro: cai em
-  **"Todos os produtos"** — mesma filosofia de `periodoDaUrl` ("link quebrado não derruba a tela").
-- Um aviso discreto informa o recorte ativo ("Relatório e arquivos exportados mostram só
-  **Glifosato 480 SL**") com atalho **"ver todos os produtos"** (e um `x` ao lado do select) que volta
-  ao relatório completo e **devolve o foco ao select** — quem usa teclado não se perde.
+### Inventário por lote
 
-### O que **não** muda (contrato com quem já usa e com o E2E)
+- Contagem **cega**: o saldo do sistema não aparece durante a digitação.
+- Uma linha por lote; a diferença é ajustada no lote contado, nunca no “primeiro
+  lote” do produto.
+- Rascunho salvo no aparelho até finalizar; busca e paginação para catálogos grandes.
+- Revisão mostra saldo, contagem e diferença antes de gerar os ajustes.
+- Cada divergência gera um lançamento `AJUSTE` com motivo de inventário.
 
-- `<label className="rotulo" htmlFor="r-produto">Produto</label>` e o texto das opções
-  (`Todos os produtos`, `p.nome`): o `getByRole('combobox', { name: 'Produto' })` de
-  `e2e/app/relatorios.spec.ts` **não pode ser renomeado**.
-- `getByLabel('De', { exact: true })`, KPIs (`main .cartao:has(span.text-2xl)` → 3), abas
-  `Resumo`/`Movimentações`/`Posição`/`Compras` (`exact: true`), 4 checkboxes de seção, botões
-  `Baixar Excel (.xlsx)`/`Baixar PDF`, texto `"Nenhuma movimentação no período."`, toast
-  `"Escolha pelo menos uma seção do relatório."` — **todos congelados**.
-- Nenhum `data-testid`/`aria-label`/texto existente muda; o único nome novo é
-  `aria-label="Limpar filtro de produto"` (não colide com `Limpar filtros` do Histórico).
-- O aviso de recorte **não** usa `aria-live`: `e2e/base.ts` escaneia `[aria-live="polite"]` para os
-  toasts e um segundo `aria-live` na página cria ambiguidade nos specs.
-- `lib/relatorio.ts` **não muda**: `doFiltro` já ignora id inexistente. `lib/periodos.ts` ganha no
-  máximo helpers puros (`produtoDaUrl`, `paramsDoPeriodo`) — `periodoDaUrl`, `chaveIntervalo` e
-  `juntarFiltros` **não** mudam.
-- Breakpoint do grid (`grid gap-3 sm:grid-cols-3`) e ausência de rolagem horizontal
-  (`navegacao.spec.ts › semRolagemHorizontal`) — T-021 é **estado/URL**, não redesenho.
-- ⚠️ **`@/` não é alias válido** neste projeto: `tsconfig.json` usa `moduleResolution: bundler` e
-  **não** declara `paths`; `vite.config.ts` **não** tem `resolve.alias`. Use caminhos relativos
-  (padrão em 100% de `src/`).
+### PDV e caixa
 
-### O que foi verificado neste ciclo (por leitura + comandos, sem maquiar)
+- Abertura/fechamento de caixa, sangria, suprimento e fechamento às cegas.
+- Venda com múltiplas formas de pagamento, troco, desconto e cancelamento com
+  autorização.
+- Operação offline com sincronização idempotente; conflito de evento vira
+  divergência.
+- Venda baixa estoque por lote (FEFO); “Diversos” pode não movimentar estoque.
+- Limite de caixas conforme o plano; caixa aberto em outro aparelho é bloqueado.
 
-| Verificação | Resultado |
-|---|---|
-| `npx tsc --noEmit` | exit 0 |
-| `npx tsc -p e2e/tsconfig.json --noEmit` | exit 0 |
-| `npx vitest run` | 8 arquivos · **90/90** |
-| `npm run build` | exit 0 · 2303 módulos · PWA ok · 1,06 s |
-| `npx playwright test --list` | **171 testes / 17 arquivos** |
-| `src/pages/Relatorios.tsx` | ❌ `useState('')`; `onChange={e => setProdutoId(e.target.value)}`; `refletirNaUrl(p, i)` só grava `de`/`ate` com `new URLSearchParams`; **sem** leitura de `?produto=`, sem Limpar, sem Aviso de recorte, sem `data-filtro="produto"` |
-| `src/lib/periodos.ts` | ❌ sem `produtoDaUrl`/`paramsDoPeriodo`; `juntarFiltros` (o helper a reaproveitar) existe e é testado |
-| `src/lib/estoque.ts` | ❌ sem `filtrarRecorte` (T-019 não entrou) |
-| `src/lib/relatorio.ts` | `montarRelatorio(…, produtoId?)` com 6 parâmetros; `doFiltro` já ignora id inexistente |
-| `src/lib/relatorio.test.ts` | **3** `it()`; nenhum de id inexistente |
-| `src/lib/regras.test.ts` | 27 `it()`; `juntarFiltros` coberto, **sem** asserção de `produto` |
-| `e2e/app/relatorios.spec.ts` | **5** casos; nenhum de `?produto=`/reload/limpar |
-| `e2e/app/estoque-repor.spec.ts` | **não existe** (dívida herdada de T-009) |
-| `memoria/estado.json` | `"plano_atual": null`, `"ciclos": 0` — plano do Arquiteto **não persistido** no arquivo |
+### Relatórios, filtros e exportação
 
-Conclusão factual: o repositório está **verde** (tsc/vitest/build), mas **a correção de T-021 não foi
-aplicada e a cobertura dela não está no disco**. O relatório de entrega afirmava `filtrarRecorte` em
-`estoque.ts`, `produtoDaUrl`/`paramsDoPeriodo` em `periodos.ts`, 1 `it()` novo em `relatorio.test.ts`,
-1 asserção nova em `regras.test.ts` e 3 casos E2E novos em `relatorios.spec.ts`; o disco mostra
-**0 de todos eles**. Registrado sem maquiar.
+- Painel, estoque, histórico, relatórios e lista de compras.
+- Filtros de estoque e relatório refletidos na URL, inclusive produto, categoria,
+  busca e situação.
+- Exportação Excel/PDF com helper único, mensagens padronizadas e aviso quando uma
+  seção escolhida está vazia.
+- Lista de compras com sugestão por embalagem; chip “Repor”, tabela e arquivo usam a
+  mesma regra (`montarReposicao`).
 
----
+### Equipe, permissões e assinatura
 
-## Itens anteriores aprovados
+- Papéis `dono`, `gerente`, `caixa` e `estoquista`, com RLS por empresa e loja.
+- Convites por link/e-mail, com expiração e uso único.
+- Assinatura em trial, ativa, atrasada (aviso), somente leitura, suspensa e cortesia.
+- Painel do dono para dados da empresa, lojas, caixas, equipe e assinatura.
 
-### T-016 / T-017 — "Exportar" do Estoque levando filtros para o Relatório
+### LGPD, privacidade e monitoramento
 
-**NÃO ENTREGUE no código** (mesma evidência dos ciclos anteriores, reconfirmada agora).
+- Política de Privacidade em `/privacidade.html` e Termos de Uso em `/termos.html`,
+  acessíveis antes do login.
+- Dono exporta os dados da empresa em JSON (catálogo, estoque, movimentações, vendas,
+  equipe e configurações), sem senhas e sem hash de convite.
+- Tabela `public.erros_cliente` recebe falhas de JavaScript/React; leitura restrita a
+  dono/gerente da própria empresa; suporte usa service role.
+- Tela de erro amigável com recarregar e **Copiar diagnóstico**; últimas 20 falhas
+  ficam no aparelho.
 
-O defeito do operador segue vivo: chip **"Repor"** + categoria **Fertilizante** em `/estoque`, toca
-**Exportar** → abre `/relatorios` **sem filtro nenhum** porque `src/pages/Estoque.tsx` tem
-`<Link to="/relatorios" className="btn btn-secundario">Exportar</Link>` fixo. O Excel/PDF sai com o
-estoque inteiro e o operador confere linha a linha na planilha.
+## 4. Regras importantes de estoque
 
-Contrato (inalterado): link carrega `categoria=`, `q=` e `situacao=` via `juntarFiltros` (a chave
-interna `filtro=` **não** vaza); `Relatorios.tsx` lê os três, mostra um aviso com os filtros ativos e
-um **"Limpar filtros"** que volta a `/relatorios` limpo; o recorte vale para **Posição** e
-**Compras**; `Resumo` e `Movimentações` continuam completos. Sem filtro, o link leva a
-`/relatorios` **exatamente** (tela de destino byte a byte como hoje).
+- O saldo exibido por produto é a soma dos lotes com saldo; a situação consolidada é a
+  pior situação entre os lotes.
+- Produto abaixo do ponto de pedido entra em “Repor”. O cálculo usa o saldo
+  consolidado, não a situação de um lote isolado.
+- Ajustes e correções nunca alteram o histórico: criam um novo lançamento.
+- O inventário é a forma recomendada de corrigir saldo físico; não edite tabelas
+  diretamente.
+- A venda offline pode deixar saldo negativo temporariamente; isso é registrado como
+  divergência para conferência, não como falha silenciosa.
 
-> **Ordem de dependência:** T-021 é **pré-requisito** de T-016 — sem `?produto=` na URL via
-> `juntarFiltros`, o link de T-016 perde o recorte de produto ao recarregar/compartilhar.
+## 5. Importação: colunas aceitas
 
-### T-009 — A tela Estoque mostrava dois números diferentes para "Repor"
+| Coluna | Obrigatória | Observação |
+| --- | --- | --- |
+| `nome` | sim | Nome do produto. |
+| `codigo_interno` | não | Vazio ⇒ código automático. |
+| `codigo_barras` | não | Vários separados por ponto e vírgula (no Excel, vírgula também). |
+| `categoria` | não | Criada se não existir. |
+| `unidade` | não | `un`, `kg`, `g`, `L`, `ml`, `m`, `cx`, etc. Padrão `un`. |
+| `preco_venda` | não | `19,90` ou `19.90`. |
+| `estoque_minimo` | não | Vazio/0 desliga o alerta. |
+| `quantidade` | não | Saldo inicial; 0/vazio não cria lote. |
+| `lote` | não | Preencha quando o produto controla lote e há saldo inicial. |
+| `validade` | não | `31/12/2027`, `2027-12-31` ou data do Excel. |
+| `controla_estoque` | não | `sim`/`não`; padrão `sim`. |
+| `rastreio` | não | `lote` ou `nenhum`; padrão `nenhum`. |
+| `fabricante`, `observacao` | não | Texto livre. |
 
-**Concluído no código**; cobertura E2E da paridade **pendente**.
+O modelo para download está na própria tela de importação. Linhas com erro são
+mostradas com o número da linha e podem ser corrigidas em um novo arquivo.
 
-Contrato: **Chip "Repor N" = nº de linhas da tabela = nº de linhas do arquivo baixado**, uma linha
-por **produto** (não por lote), com qualquer combinação de busca/categoria.
+## 6. Operação e suporte
 
-```ts
-// src/pages/Estoque.tsx — derivado único (não exportado)
-const reposicao         = useMemo(() => montarReposicao(produtos, lotes), [produtos, lotes])
-const visiveisReposicao = useMemo(
-  () => precisaRepor(reposicao).filter(
-    i => (!categoria || i.produto.categoria_id === categoria) && produtoCombina(i.produto, termo)),
-  [reposicao, categoria, termo])
-const itensRepor        = useMemo(() => ordenarReposicao(visiveisReposicao, ordem), [...])
-// contagem.abaixo = visiveisReposicao.length   ← MESMA lista que a tabela desenha
+- Runbook completo: [`PILOTO.md`](PILOTO.md).
+- Manual de testes: [`MANUAL_TESTE.md`](MANUAL_TESTE.md).
+- Cortesia/trial:
+  `npm run piloto -- cortesia <empresa_id>` ou
+  `npm run piloto -- trial <empresa_id> 60`.
+- Backup local: `npm run backup`; restauração:
+  `node scripts/backup.mjs --restore <arquivo.tar>`.
+- Erros do piloto:
+
+```sql
+select criado_em, empresa_id, loja_id, mensagem, url, stack
+from public.erros_cliente
+order by criado_em desc
+limit 50;
 ```
 
-Decisões registradas: `saldosPorProduto` **permaneceu** (consumida por `Painel.tsx`, KPI "Para
-repor"); `ordem` é **ignorada** (não `disabled`) no filtro Repor; "Vencidos"/"Zerados" continuam
-vindo de `montarLinhasEstoque` (visão por lote) — só o filtro Repor é por produto.
+**Pendência de produção:** o backup/restauração do Supabase em nuvem ainda não foi
+ensaiado neste ambiente. Não prometa point-in-time recovery antes de validar com o
+provedor.
 
-### T-011 — lista de compras mostra "Comprar 8 kg (2 emb.)"
+## 7. Testes e CI
 
-`textoEmbalagensSugestao` em `ListaReposicao.tsx`, `data-embalagens` na `<li>`, paridade tela × PDF
-provada por `lista-compra-paridade.test.ts` (4 testes).
-
-```ts
-// src/components/ListaReposicao.tsx
-export function textoEmbalagensSugestao(
-  produto: Pick<Produto, 'conteudo_embalagem'>,
-  sugestaoCompra: number,
-): string | null            // "2 emb." | null
+```powershell
+npm run lint          # tipos do frontend
+npm test              # Vitest
+npm run test:sql      # migrations, RLS e regras no PGlite
+npm run build         # produção
+npm run test:e2e      # Playwright local
+npm run test:e2e:ci   # Playwright com retries (CI)
 ```
 
-### T-001 (parte relatório) — lista de compras no Excel/PDF e na tela
+O workflow `.github/workflows/testes.yml` separa:
 
-`LinhaCompraRel`/`Relatorio.compras` em `lib/relatorio.ts`, aba "Lista de compras" em
-`lib/exportar/excel.ts`, tabela "Compras (reposição)" em `lib/exportar/pdf.ts`, 4º checkbox em
-`Relatorios.tsx`, `relatorio.test.ts` (3) e `exportar.test.ts` (6).
+- **qualidade** (Ubuntu): instala, build, Vitest e SQL;
+- **e2e** (Windows + Edge): Playwright com retries e artefato do relatório em falha.
 
-```ts
-// src/lib/estoque.ts
-type SituacaoPedido = Extract<SituacaoReposicao, 'abaixo' | 'no_minimo'>
-export interface ItemCompra {
-  produto: Produto; codigo: string; categoria: string; unidade: Unidade
-  saldo: number; minimo: number | null; cobertura: number | null
-  sugestaoCompra: number; situacao: SituacaoPedido
-}
-export function filtrarItensCompra(itens, selecionados, nomeCategoria?): ItemCompra[]
+O `ia-diaria.yml` usa a branch `saas` e o mesmo caminho de E2E com retries.
 
-// src/lib/exportar/lista-compra.ts
-export function nomeArquivoListaCompra(ext: 'xlsx' | 'pdf', dia?: string): string
-export function gerarListaCompraExcel(itens, empresa, opcoes?: { geradoEm?: Date }): Promise<Blob>
-export function gerarListaCompraPdf  (itens, empresa, opcoes?: { geradoEm?: Date }): Promise<Blob>
-```
+## 8. Backlog atual
 
-Contrato de formatação da coluna "Comprar": **Excel = número puro** (negrito verde),
-**PDF = texto** `"8 kg (2 emb.)"`, **tela = o mesmo texto do PDF**.
+- **T-028** (prio 1, meta): piloto controlado em loja real, sem NFC-e/Asaas.
+  Pré-requisitos técnicos concluídos; falta validar em loja e ensaiar restauração de
+  produção.
+- **T-034** (prio 2, integração): NFC-e e cobrança Asaas reais. Os scaffolds existem,
+  mas continuam stubs; implementar só depois do piloto, com homologação fiscal e
+  revisão contábil/jurídica.
 
-### T-006 — Filtros na URL + rodapé de totais
+Concluídos recentemente: T-016, T-017, T-019, T-021 (filtros/URL), T-023 (migration
+de estoque mínimo), T-024 (inventário por lote), T-025 (backup local), T-026/T-027
+(scaffolds), T-029 (importação), T-030 (operação do piloto), T-031 (LGPD), T-032
+(paginação) e T-033 (qualidade/CI). O detalhe de cada item está em
+`memoria/estado.json` e `memoria/historico.md`.
 
-```ts
-periodoDaUrl(query, hoje?): PeriodoDaUrl
-chaveIntervalo(i: Intervalo): string                  // "AAAA-MM-DD|AAAA-MM-DD"
-juntarFiltros(params, mudancas): URLSearchParams      // valor vazio (ou só espaços) remove o parâmetro
-totaisPorGrupo(movs): TotaisMov
-```
+## 9. Limitações conhecidas
 
-Defeito corrigido naquele ciclo: `juntarFiltros` gravava `?q=+` com busca só de espaços — `trim()`
-antes do teste de presença em `periodos.ts`. **É o helper que T-016 e T-021 devem usar** (na
-primeira escrita de qualquer filtro do Relatórios, para `de`/`ate`/`produto`).
-
-### T-002 — Estoque mínimo / ponto de pedido
-
-`Produto.estoque_minimo`, `SituacaoReposicao`, `montarReposicao`, `precisaRepor`, `abaixoDoMinimo`,
-`BadgeReposicao`, `Cobertura`, `ReposicaoForm`, `ListaReposicao`, filtro "Repor". Cobertura em
-`regras.test.ts`. Pendências: migration e `Painel.tsx`.
-
-### T-007 — `ListaReposicao` não era usada (diagnóstico desmentido)
-
-`src/pages/Estoque.tsx` importa `ListaReposicao` e a renderiza dentro do filtro `filtro === 'abaixo'`,
-com `selecionados`, `aoAlternar` e `aoMarcarTodosToggle` ligados.
-
-## Modelo de domínio de reposição
-
-```
-SituacaoReposicao = 'abaixo' | 'no_minimo' | 'acima' | 'sem_minimo'
-SituacaoPedido    = Extract<SituacaoReposicao, 'abaixo' | 'no_minimo'>   // entra na lista de compras
-
-cobertura = saldo / minimo            (null quando sem mínimo)
-sugestaoCompra = ceil((minimo - saldo) / conteudo_embalagem) * conteudo_embalagem
-                 (ou minimo - saldo arredondado, quando não há embalagem)
-embalagens = round(sugestaoCompra / conteudo_embalagem, 2)   // "2 emb." — tela e PDF
-```
-
-Regras: `minimo` nulo ou `<= 0` → `sem_minimo`; `saldo <= 0` ou `saldo < minimo` → `abaixo`;
-`saldo === minimo` → `no_minimo`; `saldo > minimo` → `acima`.
-
-Entram na lista de compras: **abaixo + no_minimo**, uma linha **por produto**, ordenados por
-cobertura ascendente (mais crítico primeiro). `precisaRepor(montarReposicao(produtos, lotes))` é a
-**única** porta de entrada — usada pelo chip "Repor", pela tabela e pelo arquivo baixado.
-Reposição **não** colore a linha (o fundo segue a pior situação de lote); o badge sempre traz
-ícone + texto, nunca só cor.
-
-> **Pegadinha registrada para T-017:** `situacao=abaixo` no relatório deve ser decidido pelo
-> **saldo consolidado do produto** (`saldosPorProduto` + `estoque_minimo`), **nunca** por
-> `l.situacao` do lote. Um produto abaixo do mínimo com 2 lotes apareceria como 2 linhas "Repor" se a
-> regra de lote fosse usada — é exatamente o defeito que T-009 corrigiu na tela.
-
-## Filtros do Relatórios e a URL (estado real, após T-021 não entregue)
-
-| Param | Origem | Escrita | Leitura |
-|---|---|---|---|
-| `de` / `ate` | chips de período / input de data | `refletirNaUrl` (hoje com `URLSearchParams` à mão; **deve** migrar para `juntarFiltros`) | `periodoDaUrl(params, hojeISO())` |
-| `produto` | `<select id="r-produto">` | **não escreve hoje** (T-021) | **não lê hoje** (T-021) |
-| `q` / `categoria` / `situacao` | link do Estoque | — | **não lê** (T-016/T-017) |
-
-Regra única que o Relatórios deve manter: **um só escritor de URL** (`refletirNaUrl`), sempre com
-`juntarFiltros` e `{ replace: true }`; valor `''` ⇒ `null` ⇒ parâmetro **removido**. Produto
-inexistente é ignorado (`doFiltro` do `montarRelatorio` já garante), **sem** toast de erro.
-
-## Estado do backlog (persistido em `memoria/estado.json`)
-
-Aberto após este ciclo (ordem de prioridade):
-
-- **T-016** (prio 1, bug) — "Exportar" do Estoque abre `/relatorios` sem os filtros da tela.
-  **Não entregue.**
-- **T-021** (prio 1, bug) — `?produto=` do Relatórios não vai para a URL; link compartilhado abre
-  "Todos os produtos". **Não entregue** (pré-requisito de T-016).
-- **T-019** (prio 2, refatoração) — recorte único reutilizável (produto+termo+categoria+situação)
-  entre Estoque e Relatórios. `filtrarRecorte` **não existe**.
-- **T-017** (prio 2, melhoria) — aba Posição ignora busca/categoria e não avisa que os filtros vieram
-  no link. **Não entregue.**
-- **T-020** (prio 2, teste) — falta teste de aceite da contagem chip "Repor" × tabela × compras.
-- **T-018** (prio 3, refatoração) — duplicação da geração/entrega de arquivo (import dinâmico +
-  `baixarArquivo` + toast + estado "gerando").
-- **T-022** (prio 3, melhoria) — arquivo sai com seções vazias sem avisar antes do download.
-- **T-008** (acessibilidade) — modal "Estoque mínimo" fecha sem devolver o foco.
-- **T-010** / **T-012** / **T-003** / **T-004** / **T-002** / **T-006-E2E** — seguem abertos como
-  registrado nos ciclos anteriores.
-
-Concluído: T-001 (lista de compras no relatório), T-002 (estoque mínimo), T-005 (chip "Repor" por
-produto), T-006 (filtros na URL), T-007 (uso de `ListaReposicao`), T-009 (fonte única do "Repor"),
-T-011 (embalagens na lista de compras).
-
-Pendências verificadas no código e ainda não abertas como item:
-
-- Migration de `estoque_minimo` ausente em `supabase/migrations` — mínimos e lista de compras hoje só
-  existem no aparelho.
-- Sem tela de conferência/inventário cego.
-- Filtros de URL sem teste de componente (só teste de unidade em `periodos.ts`).
-- Seleção/checkboxes/`BarraAcoesCompra`/toasts de T-001 e o render de T-011 sem teste de componente —
-  projeto sem `@testing-library`; verificação por revisão + Playwright.
-- **Processo:** `atualizar_backlog` com ação `reordenar` **apagou** o backlog no ciclo T-009 — não
-  usar `reordenar` como ferramenta de priorização; recadastrar item a item.
-- **Processo:** `plano_atual` continua `null` em `memoria/estado.json` e `"ciclos": 0`, mas os ciclos
-  estão registrados em `memoria/historico.md` — o `estado.json` não reflete o histórico (divergência
-  de ferramenta, não de código).
+- Sem emissão fiscal real; o cupom é comprovante interno.
+- Sem cobrança automática Asaas; assinatura é ajustada pelo suporte.
+- Sem integração multi-loja/transferência completa no piloto.
+- Backup em nuvem depende da configuração do Supabase e ainda não foi testado em
+  restauração de produção.
+- A suíte E2E completa ainda precisa de acompanhamento no CI para confirmar
+  estabilidade sem retries.
+- O factory de agentes de IA não é necessário para a operação do piloto e continua
+  dependendo de Python/CrewAI e chave de LLM.

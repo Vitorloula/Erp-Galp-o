@@ -82,7 +82,7 @@ export function BoasVindas({ dentroDoSistema }: { dentroDoSistema?: boolean }) {
                 )}
               >
                 <input type="radio" name="segmento" className="sr-only" checked={segmento === s.valor} onChange={() => setSegmento(s.valor)} />
-                <s.icone className="mt-0.5 size-5 shrink-0 text-emerald-700" />
+                <s.icone className="mt-0.5 size-5 shrink-0 text-marca" />
                 <span>
                   <span className="block text-sm font-semibold text-slate-900">{s.nome}</span>
                   <span className="block text-xs text-slate-500">{s.texto}</span>
@@ -106,7 +106,7 @@ export function BoasVindas({ dentroDoSistema }: { dentroDoSistema?: boolean }) {
       </div>
 
       <form className="space-y-2" onSubmit={usarConvite}>
-        <label className="rotulo flex items-center gap-1.5" htmlFor="link-convite"><MailOpen className="size-4 text-emerald-700" /> Recebi um convite</label>
+        <label className="rotulo flex items-center gap-1.5" htmlFor="link-convite"><MailOpen className="size-4 text-marca" /> Recebi um convite</label>
         <div className="flex gap-2">
           <input id="link-convite" className="campo" value={link} onChange={e => setLink(e.target.value)} placeholder="Cole aqui o link do convite" />
           <button className="btn btn-secundario shrink-0">Abrir</button>

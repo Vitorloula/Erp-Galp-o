@@ -1,17 +1,18 @@
-import { Building2, CreditCard, Monitor, Pencil, Plus, Store } from 'lucide-react'
+import { Building2, CreditCard, Download, Monitor, Pencil, Plus, ShieldCheck, Store } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useToast } from '../components/Toast'
 import { Aviso, Cabecalho, Carregando, Modal, cx } from '../components/ui'
 import { useAtiva } from '../contexto/Empresa'
-import { empresas, vendas as dadosVendas } from '../lib/dados'
+import { empresas, lgpd, vendas as dadosVendas } from '../lib/dados'
 import type { Caixa } from '../lib/dados/vendas'
 import { formatarData } from '../lib/formato'
 import { NOME_PAPEL } from '../lib/permissoes'
+import { baixarArquivo } from '../lib/relatorio'
 import type { DadosEmpresa, Loja, Vinculo } from '../lib/tipos'
 import { SEGMENTOS } from './BoasVindas'
 
 const ESTADO: Record<Vinculo['estado'], { texto: string; classe: string }> = {
-  ativa: { texto: 'Em dia', classe: 'bg-emerald-50 text-emerald-800' },
+  ativa: { texto: 'Em dia', classe: 'bg-emerald-50 text-marca-escura' },
   atrasada: { texto: 'Em atraso (carência)', classe: 'bg-amber-100 text-amber-900' },
   somente_leitura: { texto: 'Vencida: somente consulta', classe: 'bg-red-100 text-red-800' },
   suspensa: { texto: 'Suspensa', classe: 'bg-red-100 text-red-800' },
@@ -25,6 +26,7 @@ export function EmpresaConfig() {
   const [todasLojas, setTodasLojas] = useState<Loja[] | null>(null)
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)
+  const [baixandoDados, setBaixandoDados] = useState(false)
   const [lojaEditando, setLojaEditando] = useState<Partial<Loja> | null>(null)
 
   useEffect(() => {
@@ -47,6 +49,22 @@ export function EmpresaConfig() {
     }
   }
 
+  async function baixarDados() {
+    setBaixandoDados(true)
+    try {
+      const arquivo = await lgpd.exportarDadosEmpresa(empresa.empresa_id)
+      baixarArquivo(
+        new Blob([JSON.stringify(arquivo, null, 2)], { type: 'application/json;charset=utf-8' }),
+        `dados-empresa-${new Date().toISOString().slice(0, 10)}.json`,
+      )
+      toast.sucesso('Exportação de dados gerada.')
+    } catch (er) {
+      toast.erro((er as Error).message)
+    } finally {
+      setBaixandoDados(false)
+    }
+  }
+
   const limite = empresa.status === 'trial' ? empresa.trial_ate : empresa.pago_ate
   const segmento = SEGMENTOS.find(s => s.valor === empresa.segmento)
 
@@ -56,7 +74,7 @@ export function EmpresaConfig() {
       {erro && <Aviso tom="erro">{erro}</Aviso>}
 
       <section className="cartao p-4">
-        <h2 className="mb-3 flex items-center gap-2 font-semibold text-slate-900"><CreditCard className="size-5 text-emerald-700" /> Assinatura</h2>
+        <h2 className="mb-3 flex items-center gap-2 font-semibold text-slate-900"><CreditCard className="size-5 text-marca" /> Assinatura</h2>
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <span className="font-semibold text-slate-900">{empresa.plano_nome ?? '—'}</span>
           <span className={cx('rounded-full px-2.5 py-0.5 text-xs font-semibold', ESTADO[empresa.estado].classe)}>{ESTADO[empresa.estado].texto}</span>
@@ -75,8 +93,28 @@ export function EmpresaConfig() {
         )}
       </section>
 
+      {pode.gerenciarEmpresa && (
+        <section className="cartao p-4">
+          <h2 className="mb-2 flex items-center gap-2 font-semibold text-slate-900"><ShieldCheck className="size-5 text-marca" /> Privacidade e seus dados</h2>
+          <p className="text-sm text-slate-600">
+            Baixe uma cópia dos dados da empresa (catálogo, estoque, movimentações, vendas, equipe e configurações) em JSON.
+            O arquivo contém dados pessoais: guarde com segurança.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button type="button" className="btn btn-secundario" onClick={baixarDados} disabled={baixandoDados}>
+              {baixandoDados ? 'Gerando...' : <><Download className="size-4.5" /> Baixar dados (JSON)</>}
+            </button>
+            <a className="btn btn-fantasma text-sm" href="/privacidade.html" target="_blank" rel="noreferrer">Política de Privacidade</a>
+            <a className="btn btn-fantasma text-sm" href="/termos.html" target="_blank" rel="noreferrer">Termos de Uso</a>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            Para correção ou exclusão de dados pessoais, use o canal de suporte do piloto descrito na Política de Privacidade.
+          </p>
+        </section>
+      )}
+
       <section className="cartao p-4">
-        <h2 className="mb-3 flex items-center gap-2 font-semibold text-slate-900"><Building2 className="size-5 text-emerald-700" /> Dados da empresa</h2>
+        <h2 className="mb-3 flex items-center gap-2 font-semibold text-slate-900"><Building2 className="size-5 text-marca" /> Dados da empresa</h2>
         {!dados ? (
           <Carregando />
         ) : (
@@ -108,7 +146,7 @@ export function EmpresaConfig() {
 
       <section className="cartao p-4">
         <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 font-semibold text-slate-900"><Store className="size-5 text-emerald-700" /> Lojas e galpões</h2>
+          <h2 className="flex items-center gap-2 font-semibold text-slate-900"><Store className="size-5 text-marca" /> Lojas e galpões</h2>
           {pode.gerenciarEmpresa && pode.gravavel && (
             <button className="btn btn-secundario px-3 py-1.5 text-sm" onClick={() => setLojaEditando({ nome: '', ativo: true })}>
               <Plus className="size-4" /> Nova loja
@@ -200,7 +238,7 @@ function EditarLoja({ loja, aoFechar, aoSalvar }: { loja: Partial<Loja> | null; 
         </div>
         {loja?.id && (
           <label className="flex items-center gap-2.5 text-sm font-medium text-slate-700">
-            <input type="checkbox" className="size-4.5 accent-emerald-700" checked={ativo} onChange={e => setAtivo(e.target.checked)} />
+            <input type="checkbox" className="size-4.5 accent-marca" checked={ativo} onChange={e => setAtivo(e.target.checked)} />
             Loja ativa (desmarque para esconder sem apagar o histórico)
           </label>
         )}
@@ -238,7 +276,7 @@ function Caixas({ lojas }: { lojas: Loja[] | null }) {
   const ativas = (lojas ?? []).filter(l => l.ativo)
   return (
     <section className="cartao p-4">
-      <h2 className="mb-3 flex items-center gap-2 font-semibold text-slate-900"><Monitor className="size-5 text-emerald-700" /> Caixas (PDV)</h2>
+      <h2 className="mb-3 flex items-center gap-2 font-semibold text-slate-900"><Monitor className="size-5 text-marca" /> Caixas (PDV)</h2>
       {erro && !editando && <Aviso tom="erro">{erro}</Aviso>}
       {!caixas ? (
         <Carregando />
@@ -265,7 +303,7 @@ function Caixas({ lojas }: { lojas: Loja[] | null }) {
               </ul>
               {pode.gerenciarCaixas && (
                 <button
-                  className="btn btn-fantasma mt-1 px-2 py-1 text-sm text-emerald-800"
+                  className="btn btn-fantasma mt-1 px-2 py-1 text-sm text-marca-escura"
                   onClick={() => setEditando({ loja_id: l.id, nome: `Caixa ${String(caixas.filter(c => c.loja_id === l.id).length + 1).padStart(2, '0')}`, ativo: true })}
                 >
                   <Plus className="size-4" /> Novo caixa{ativas.length > 1 ? ` em ${l.nome}` : ''}
@@ -291,7 +329,7 @@ function Caixas({ lojas }: { lojas: Loja[] | null }) {
           </div>
           {editando?.id && (
             <label className="flex items-center gap-2.5 text-sm font-medium text-slate-700">
-              <input type="checkbox" className="size-4.5 accent-emerald-700" checked={editando.ativo} onChange={e => setEditando(c => c && { ...c, ativo: e.target.checked })} />
+              <input type="checkbox" className="size-4.5 accent-marca" checked={editando.ativo} onChange={e => setEditando(c => c && { ...c, ativo: e.target.checked })} />
               Caixa ativo
             </label>
           )}

@@ -1,6 +1,8 @@
-import { ChevronRight, Package, Pencil, Plus, Search, Tags, Trash2 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { ChevronRight, Package, Pencil, Plus, Search, Tags, Trash2, Upload } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
+import { ImportarCatalogo } from '../components/ImportarCatalogo'
+import { Paginacao } from '../components/Paginacao'
 import { ProdutoForm } from '../components/ProdutoForm'
 import { useToast } from '../components/Toast'
 import { Aviso, BadgeSituacao, Cabecalho, Carregando, Modal, Vazio, cx } from '../components/ui'
@@ -9,7 +11,10 @@ import { useAtiva } from '../contexto/Empresa'
 import { catalogo } from '../lib/dados'
 import { produtoCombina, resumirProduto } from '../lib/estoque'
 import { exibirCodigo, formatarMoeda, formatarNumero, formatarValidade } from '../lib/formato'
+import { paginar } from '../lib/paginacao'
 import type { Categoria } from '../lib/tipos'
+
+const POR_PAGINA = 50
 
 export function Produtos() {
   const { produtos, categorias, nomeCategoria, lotesPorProduto, carregando } = useDados()
@@ -18,6 +23,8 @@ export function Produtos() {
   const [categoria, setCategoria] = useState('')
   const [inativos, setInativos] = useState(false)
   const [novo, setNovo] = useState(false)
+  const [importando, setImportando] = useState(false)
+  const [pagina, setPagina] = useState(1)
   const [editandoCategorias, setEditandoCategorias] = useState(false)
 
   const lista = useMemo(
@@ -27,6 +34,11 @@ export function Produtos() {
         .map(p => ({ p, r: resumirProduto(lotesPorProduto.get(p.id) ?? []) })),
     [produtos, lotesPorProduto, termo, categoria, inativos],
   )
+  const paginados = useMemo(() => paginar(lista, pagina, POR_PAGINA), [lista, pagina])
+
+  useEffect(() => {
+    setPagina(1)
+  }, [termo, categoria, inativos])
 
   if (carregando) return <Carregando />
 
@@ -40,6 +52,11 @@ export function Produtos() {
             {pode.gerenciarCategorias && (
               <button className="btn btn-secundario" onClick={() => setEditandoCategorias(true)}>
                 <Tags className="size-4.5" /> Categorias
+              </button>
+            )}
+            {pode.cadastrarProduto && (
+              <button className="btn btn-secundario" onClick={() => setImportando(true)}>
+                <Upload className="size-4.5" /> Importar
               </button>
             )}
             {pode.cadastrarProduto && (
@@ -61,7 +78,7 @@ export function Produtos() {
           {categorias.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
         </select>
         <label className="flex items-center gap-2 whitespace-nowrap text-sm text-slate-600">
-          <input type="checkbox" className="size-4 accent-emerald-700" checked={inativos} onChange={e => setInativos(e.target.checked)} />
+          <input type="checkbox" className="size-4 accent-marca" checked={inativos} onChange={e => setInativos(e.target.checked)} />
           Mostrar inativos
         </label>
       </div>
@@ -73,8 +90,9 @@ export function Produtos() {
           </Vazio>
         </div>
       ) : (
-        <div className="cartao divide-y divide-slate-100 overflow-hidden">
-          {lista.map(({ p, r }) => (
+        <>
+          <div className="cartao divide-y divide-slate-100 overflow-hidden">
+            {paginados.itens.map(({ p, r }) => (
             <Link key={p.id} to={`/produtos/${p.id}`} className={cx('flex items-center gap-3 px-4 py-3 transition hover:bg-slate-50', !p.ativo && 'opacity-55')}>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold text-slate-900">
@@ -97,9 +115,20 @@ export function Produtos() {
             </Link>
           ))}
         </div>
+          <Paginacao
+            pagina={paginados.pagina}
+            totalPaginas={paginados.totalPaginas}
+            primeiro={paginados.primeiro}
+            ultimo={paginados.ultimo}
+            total={paginados.total}
+            rotulo="produtos"
+            aoMudar={setPagina}
+          />
+        </>
       )}
 
       <ProdutoForm aberto={novo} aoFechar={() => setNovo(false)} />
+      <ImportarCatalogo aberto={importando} aoFechar={() => setImportando(false)} />
       <GerenciarCategorias aberto={editandoCategorias} aoFechar={() => setEditandoCategorias(false)} />
     </div>
   )

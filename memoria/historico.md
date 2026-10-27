@@ -253,3 +253,61 @@ Docs atualizados via escrever_arquivo: GUIA_DE_TESTES.md (tabela de comandos com
 Nenhum arquivo de src/ ou e2e/ foi alterado por este QA. Backlog NÃO alterado: T-021 não entregue (decisão idêntica ao gate mecânico e ao ciclo anterior).
 
 VEREDITO: REPROVADO — T-021 não implementada: Relatorios.tsx mantém produtoId em useState('') e nunca escreve/lê ?produto= (refletirNaUrl só grava de/ate com new URLSearchParams à mão); não existem produtoDaUrl/paramsDoPeriodo em periodos.ts, filtrarRecorte em estoque.ts, caso de id inexistente em relatorio.test.ts, asserção de produto em regras.test.ts nem os 3 casos E2E em relatorios.spec.ts. Mecânica verde (tsc 0/0, vitest 90/90, build 0) — o bloqueio é de funcionalidade e cobertura, não de tipos.
+
+## [2026-10-27 14:16] T-018 — exportação sem duplicação
+
+Helper `exportarComToast` em `src/lib/relatorio.ts` centraliza import dinâmico, download, toast e estado "gerando". `Estoque` e `Relatórios` passaram a usá-lo; mensagens de erro/sucesso padronizadas. `nomeArquivoListaCompra` mudou para `lib/relatorio.ts` (reexportado por `lista-compra.ts`). Testes: tsc 0, vitest 105/105, build 0, Playwright relatórios 5/5 (workers=1).
+
+## [2026-10-27 15:01] T-020, T-022 e D-001..D-006
+
+- **T-020**: novo `e2e/app/estoque-repor.spec.ts` prova que chip "Repor", tabela e lista de compras
+  usam a mesma contagem (2 produtos abaixo do mínimo), inclusive seleção/marcar todos.
+- **T-022**: Relatórios mostra `Aviso` persistente e toast antes do download quando uma seção
+  escolhida está vazia; o arquivo continua sendo gerado, agora sem surpresa.
+- **D-001**: componente `Avatar` extraído e usado em Layout, Mais e Equipe (coroa do dono preservada).
+- **D-002**: Painel usa `BadgeReposicao` no item "Repor", com mínimo/unidade no `title`.
+- **D-003**: tokens `--color-marca`/`--color-marca-escura` no `@theme`; 85 usos de
+  emerald-700/800 trocados por `marca`/`marca-escura` em 25 arquivos (visual idêntico).
+- **D-004**: estados vazios do Painel usam `Vazio` (sem div/emoji).
+- **D-005**: atalhos mobile do Painel usam o mesmo componente `Atalho`/cartão, com variante de destaque.
+- **D-006**: botão "Corrigir" ganhou `aria-label="Corrigir lançamento"` além do `title`.
+
+Testes: tsc src/e2e 0; vitest 105/105; build 0; Playwright app-computador (painel, equipe, histórico,
+relatórios) 24 passed/1 skipped; novos specs T-020 e T-022 passam em app-computador e app-celular.
+
+## [2026-10-27 20:30] Preparação para o piloto (T-029..T-033)
+
+Implementados os seis itens escolhidos para o piloto controlado, sem alterar o escopo
+de uma loja, PDV não fiscal e integrações fiscais/cobrança ainda em stub:
+
+- **T-029 — Importação de catálogo e saldo inicial**: tela `Importar` em Produtos,
+  parser CSV/XLSX com aliases e validação por linha (`src/lib/importacao.ts`), RPC
+  `public.importar_catalogo` com subtransação por linha, categoria automática, códigos,
+  ponto de pedido, lote/validade e entrada de saldo inicial auditável. Corrigida a
+  persistência do estoque mínimo no cadastro.
+- **T-030 — Operação do piloto**: `PILOTO.md` (checklist, importação, inventário,
+  offline, backup, incidentes), `npm run piloto` (listar/status/cortesia/trial/ativa
+  com service role), tabela `erros_cliente`, monitoramento silencioso, tela de erro
+  amigável e diagnóstico copiável.
+- **T-031 — Jurídico/LGPD**: `public/privacidade.html`, `public/termos.html`, links no
+  login e em Mais, exportação JSON dos dados da empresa pelo dono em
+  `src/lib/dados/lgpd.ts` e EmpresaConfig.
+- **T-032 — Volume/performance**: paginação de 50 produtos na lista, helper puro
+  `paginar`, componente `Paginacao` e paginação das linhas de lote no inventário.
+- **T-033 — Qualidade/CI**: testes unitários de importação e paginação, casos SQL de
+  importação e monitoramento, E2E de importação, inventário por lote e LGPD; Playwright
+  com retries/timeout maior e workflow separado em qualidade (Linux) e E2E
+  (Windows/Edge), com artefato de relatório em falha.
+- **Inventário por lote (T-024)**: contagem cega por lote, rascunho por aparelho,
+  busca/paginação, criação de lote para produto sem lote e ajuste no lote contado —
+  não mais no primeiro lote com saldo.
+
+Verificação desta rodada: `npm run lint` 0; `npm test` 117/117; `npm run test:sql`
+238/238; `npm run build` 0; Playwright direcionado com `--workers=1`: importação,
+inventário por lote e LGPD 12/12 (computador e celular); produtos e estoque/repor
+18/18 (computador e celular). O E2E completo continua sendo executado no CI com
+retries; a suíte local inteira ainda não foi declarada estável com workers padrão.
+
+Backlog reconciliado em `memoria/estado.json`: T-016/T-017/T-019/T-021/T-023/T-024/
+T-025/T-026/T-027 e T-029..T-033 concluídos; permanecem abertos **T-028** (piloto em
+loja real + restauração de produção) e **T-034** (integrações reais de NFC-e/Asaas).

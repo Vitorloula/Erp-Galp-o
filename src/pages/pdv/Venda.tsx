@@ -277,7 +277,7 @@ export function TelaVenda({ abrirMenu }: { abrirMenu: () => void }) {
             <span>Subtotal {formatarReais(totais.subtotal)}</span>
           </div>
           {totais.desconto > 0 && (
-            <div className="flex justify-between text-emerald-700">
+            <div className="flex justify-between text-marca">
               <span>Desconto</span>
               <span>− {formatarReais(totais.desconto)}</span>
             </div>
@@ -381,7 +381,7 @@ export function TelaVenda({ abrirMenu }: { abrirMenu: () => void }) {
         createPortal(
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4" role="dialog" aria-modal="true" aria-label="Venda concluída" data-modal>
             <div className="max-h-[calc(100dvh-2rem)] w-full max-w-sm space-y-4 overflow-y-auto overscroll-contain rounded-3xl bg-white p-6 text-center shadow-2xl" data-modal-painel>
-              <span className="mx-auto grid size-14 place-items-center rounded-full bg-emerald-100 text-emerald-700">
+              <span className="mx-auto grid size-14 place-items-center rounded-full bg-emerald-100 text-marca">
                 <Check className="size-8" />
               </span>
               <div>
@@ -687,7 +687,7 @@ function TelaPagamento({ total, aoVoltar, aoConcluir }: { total: number; aoVolta
                 key={f.valor}
                 type="button"
                 onClick={() => adicionar(f.valor)}
-                className={cx('flex flex-col items-center rounded-xl border px-1 py-2 text-xs font-semibold', forma === f.valor ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-200 text-slate-700')}
+                className={cx('flex flex-col items-center rounded-xl border px-1 py-2 text-xs font-semibold', forma === f.valor ? 'border-emerald-600 bg-emerald-50 text-marca-escura' : 'border-slate-200 text-slate-700')}
               >
                 {f.nome}
                 <span className="text-[10px] font-normal text-slate-400">{f.atalho}</span>

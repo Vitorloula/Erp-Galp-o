@@ -81,7 +81,7 @@ export function Login() {
         )}
         {modo === 'recuperar' ? (
           <div>
-            <h1 className="flex items-center gap-2 text-lg font-bold text-slate-900"><KeyRound className="size-5 text-emerald-700" /> Esqueci minha senha</h1>
+            <h1 className="flex items-center gap-2 text-lg font-bold text-slate-900"><KeyRound className="size-5 text-marca" /> Esqueci minha senha</h1>
             <p className="mt-1 text-sm text-slate-500">Informe seu e-mail para receber o link de uma nova senha.</p>
           </div>
         ) : (
@@ -127,7 +127,7 @@ export function Login() {
           {modo === 'entrar' ? (enviando ? 'Entrando...' : 'Entrar') : modo === 'criar' ? (enviando ? 'Criando...' : 'Criar conta') : 'Enviar link'}
         </button>
         {modo === 'entrar' && (
-          <button type="button" className="w-full text-center text-sm font-medium text-emerald-800 hover:underline" onClick={() => mudar('recuperar')}>
+          <button type="button" className="w-full text-center text-sm font-medium text-marca-escura hover:underline" onClick={() => mudar('recuperar')}>
             Esqueci minha senha
           </button>
         )}
@@ -137,6 +137,12 @@ export function Login() {
           </button>
         )}
       </form>
+      <p className="mt-4 text-center text-xs text-slate-500">
+        Ao entrar, você concorda com os{' '}
+        <a className="font-medium underline hover:text-marca-escura" href="/termos.html" target="_blank" rel="noreferrer">Termos de Uso</a>
+        {' '}e a{' '}
+        <a className="font-medium underline hover:text-marca-escura" href="/privacidade.html" target="_blank" rel="noreferrer">Política de Privacidade</a>.
+      </p>
     </TelaCheia>
   )
 }
@@ -182,7 +188,7 @@ export function NovaSenha() {
     <TelaCheia>
       <form onSubmit={salvar} className="space-y-4">
         <div>
-          <h1 className="flex items-center gap-2 text-lg font-bold text-slate-900"><KeyRound className="size-5 text-emerald-700" /> Nova senha</h1>
+          <h1 className="flex items-center gap-2 text-lg font-bold text-slate-900"><KeyRound className="size-5 text-marca" /> Nova senha</h1>
           <p className="mt-1 text-sm text-slate-500">Olá, {usuario?.nome}. Escolha a nova senha de acesso.</p>
         </div>
         {erro && <Aviso tom="erro">{erro}</Aviso>}

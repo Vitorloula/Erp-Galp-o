@@ -41,7 +41,7 @@ function Menu({ irPara }: { irPara: (t: Tela) => void }) {
   const { sync } = usePdv()
   const Item = ({ tela, icone: Icone, titulo, texto, perigo }: { tela: Tela; icone: LucideIcon; titulo: string; texto: string; perigo?: boolean }) => (
     <button className="flex w-full items-center gap-3 px-1 py-3 text-left hover:bg-slate-50" onClick={() => irPara(tela)}>
-      <span className={cx('grid size-10 place-items-center rounded-xl', perigo ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700')}>
+      <span className={cx('grid size-10 place-items-center rounded-xl', perigo ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-marca')}>
         <Icone className="size-5" />
       </span>
       <span className="min-w-0 flex-1">
@@ -239,7 +239,7 @@ function FecharCaixa({ aoConcluir }: { aoConcluir: () => void }) {
                   <td className="py-1.5 font-medium">{NOME_FORMA[r.forma]}</td>
                   <td className="py-1.5 text-right tabular-nums">{formatarReais(r.esperado)}</td>
                   <td className="py-1.5 text-right tabular-nums">{formatarReais(r.contado)}</td>
-                  <td className={cx('py-1.5 text-right font-semibold tabular-nums', dif < 0 ? 'text-red-700' : dif > 0 ? 'text-amber-700' : 'text-emerald-700')}>
+                  <td className={cx('py-1.5 text-right font-semibold tabular-nums', dif < 0 ? 'text-red-700' : dif > 0 ? 'text-amber-700' : 'text-marca')}>
                     {dif === 0 ? 'OK' : `${dif > 0 ? '+' : '−'} ${formatarReais(Math.abs(dif))}`}
                   </td>
                 </tr>

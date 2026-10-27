@@ -16,6 +16,8 @@ Controle de estoque com lote e validade, **caixa (PDV) que vende sem internet**,
 | 🟥 Linha vermelha: estoque zerado ou validade vencida · 🟨 Amarela: vence em 30 dias | **Painel**, **Estoque**, **Produto** e relatórios Excel/PDF |
 | Leitor de código de barras pela câmera | **Movimentar → Escanear** (EAN-13/8, UPC, Code 128/39, ITF, QR e DataMatrix). Lê o código GS1 e já preenche **lote e validade** |
 | Vários códigos por produto | Unidade, caixa fechada (ex.: cada leitura = 12) e códigos de fornecedores diferentes |
+| **Importação de catálogo** | **Produtos → Importar**: CSV ou XLSX com prévia, erros por linha, categoria automática, saldo inicial, lote/validade e ponto de pedido |
+| **Inventário cego por lote** | **Inventário**: conta cada lote sem ver o saldo, salva rascunho no aparelho, revisa a diferença e lança o ajuste no lote contado |
 | Preço de venda e categorias próprias | Cadastro do produto; categorias em **Produtos → Categorias** |
 | Unidades técnicas (L, ml, kg, g, t, sc, gl, cx, un, pc, par, kit, m) | Lançamento na unidade ou **por embalagem** (ex.: 3 galões de 20 L = 60 L) |
 | Validade em data real, exibida como `jun./26` | No Excel é uma data de verdade, filtrável |
@@ -26,6 +28,9 @@ Controle de estoque com lote e validade, **caixa (PDV) que vende sem internet**,
 | **Caixa (PDV)** | **Abrir o caixa**: tela cheia, leitor USB/Bluetooth, câmera, etiqueta de balança, desconto, várias formas de pagamento, troco e cupom 80 mm. Ver [Caixa (PDV)](#caixa-pdv) |
 | Vendas e fechamentos | **Vendas**: total por forma de pagamento, detalhe e cancelamento (gerente/dono); aba **Caixas** com sobra/falta de cada fechamento |
 | Divergências | O que os caixas registraram sem internet e não fechou (estoque negativo, número repetido, relógio errado), para conferir e resolver |
+| **Privacidade e LGPD** | **Empresa → Privacidade e seus dados**: o dono baixa um JSON com catálogo, estoque, movimentações, vendas, equipe e configurações; política e termos em `/privacidade.html` e `/termos.html` |
+| **Monitoramento do piloto** | Erros de tela ficam em `erros_cliente` (leitura restrita a dono/gerente) e no diagnóstico copiável da tela de erro |
+| **Backup local** | `npm run backup` e restauração documentada; em produção, use o backup do Supabase e ensaie a restauração |
 
 ---
 
@@ -46,7 +51,7 @@ Sem `.env`, o `npm run dev` sobe junto um **"Supabase" local**: o banco PostgreS
 - **E-mails** (confirmação, nova senha): o servidor local não envia; o link aparece no terminal.
 - **Dados:** ficam em `servidor-local/banco/`. Para recomeçar do zero, pare o servidor e apague essa pasta.
 
-> É só para testes: um único processo, sem backup. Com o `.env` do Supabase configurado, `npm run dev` usa a nuvem; para forçar o servidor local mesmo assim, use `npm run dev:servidor`.
+> O servidor local é para testes: um único processo. Para backup do banco local use `npm run backup`; para produção, use o backup do Supabase. Com o `.env` do Supabase configurado, `npm run dev` usa a nuvem; para forçar o servidor local mesmo assim, use `npm run dev:servidor`.
 
 ---
 
@@ -139,13 +144,22 @@ Além disso:
 ## Desenvolvimento
 
 ```bash
-npm run dev        # sistema + servidor local (sem .env) ou Supabase na nuvem (com .env)
-npm test           # regras (alertas, validade, GS1, permissões, Excel/PDF) e servidor local (Auth, REST, tempo real)
-npm run test:sql   # migrações num PostgreSQL embutido: isolamento entre empresas, papéis, convites, assinatura, imutabilidade
-npm run test:e2e   # telas no navegador (Playwright + Microsoft Edge), contra o banco real
-npm run test:tudo  # build + todos os testes acima
-npm run build      # gera a pasta dist para publicação
+npm run dev            # sistema + servidor local (sem .env) ou Supabase na nuvem (com .env)
+npm run lint           # tipos TypeScript do frontend
+npm test               # regras (alertas, validade, GS1, permissões, Excel/PDF, importação, paginação) e servidor local
+npm run test:sql       # migrações num PostgreSQL embutido: RLS, papéis, convites, assinatura, importação, monitoramento
+npm run test:e2e       # telas no navegador (Playwright + Microsoft Edge), contra o banco real
+npm run test:e2e:ci    # Playwright com retries, usado no CI
+npm run test:e2e:smoke # fluxos principais em workers=1
+npm run test:tudo      # build + todos os testes acima
+npm run build          # gera a pasta dist para publicação
+npm run backup         # backup do banco local (PGlite)
+npm run piloto -- listar  # operação do piloto (service role; leia PILOTO.md)
 ```
+
+Para o roteiro completo de operação, consulte [`PILOTO.md`](PILOTO.md). A documentação
+técnica e o backlog estão em [`DOCUMENTACAO_ERP.md`](DOCUMENTACAO_ERP.md) e
+[`memoria/estado.json`](memoria/estado.json).
 
 ### Testes de ponta a ponta (`e2e/`)
 
@@ -153,7 +167,7 @@ Rodam no build de produção, no Microsoft Edge já instalado no Windows (em out
 
 | Projeto | O que cobre |
 |---|---|
-| `app-computador` e `app-celular` | Todos os fluxos de tela em 1366 px e 390 px, numa empresa de exemplo nova: painel, estoque e alertas, entrada/saída/ajuste, leitor USB, códigos GS1, cadastro rápido, histórico e correções, produtos e lotes, relatórios (abre o Excel e o PDF baixados), equipe e convites, lojas com estoque separado, troca de empresa, tempo real entre abas, aviso sem internet, sem rolagem lateral e sem erros no console |
+| `app-computador` e `app-celular` | Todos os fluxos de tela em 1366 px e 390 px, numa empresa de exemplo nova: painel, estoque e alertas, entrada/saída/ajuste, leitor USB, códigos GS1, cadastro rápido, histórico e correções, importação de catálogo, inventário por lote, produtos e lotes, relatórios (abre o Excel e o PDF baixados), LGPD/exportação, equipe e convites, lojas com estoque separado, troca de empresa, tempo real entre abas, aviso sem internet, sem rolagem lateral e sem erros no console |
 | `camera` e `camera-sem-codigo` | Leitura **real** pela câmera (vídeo com um EAN-13 gerado pelo teste) e câmera desligada ao fechar o leitor |
 | `acesso` | Login, cadastro com confirmação de e-mail, primeira empresa, empresa de exemplo, esqueci a senha, convite aceito em outro aparelho, papéis (caixa, estoquista, gerente), isolamento entre empresas, assinatura vencida/em carência, abertura sem internet, reenvio sem duplicar, saldo concorrente e o que o app envia à API |
 | `pdv` | Caixa vendendo sem internet e sincronizando sem duplicar, dois caixas offline vendendo a última unidade (estoque −1 e divergência), relógio do aparelho adiantado, etiqueta de balança, Diversos e operador sem permissão de cancelar |
@@ -163,10 +177,13 @@ Rodam no build de produção, no Microsoft Edge já instalado no Windows (em out
 Depois de rodar, `npm run test:e2e:relatorio` abre o relatório com capturas de tela.
 
 ```
-supabase/migrations/       banco: tabelas, regras, RLS, funções, tempo real
-scripts/testar-sql.mjs     testes de segurança do banco
+supabase/migrations/       banco: tabelas, regras, RLS, funções, importação, monitoramento, tempo real
+scripts/testar-sql.mjs     testes de segurança e regras do banco
+scripts/piloto.mjs         operação do piloto (trial/cortesia via service role)
 servidor-local/            Supabase local: banco real (PGlite) + Auth, REST (PostgREST) e Realtime simulados
-src/lib/dados/             acesso a dados (sessão, empresas, catálogo, movimentos, tempo real)
+src/lib/dados/             acesso a dados (sessão, empresas, catálogo, movimentos, LGPD, tempo real)
+src/lib/importacao.ts      leitura/validação de CSV e XLSX
+src/lib/monitoramento.ts   erros de tela e diagnóstico para o suporte
 src/lib/permissoes.ts      o que cada papel pode fazer na tela (espelho das regras do banco)
 src/pdv/                   caixa: venda, balança, banco no aparelho (IndexedDB) e sincronizador
 src/pages/pdv/             telas do caixa (venda, pagamento, cupom, menu, fechamento)
@@ -175,7 +192,7 @@ src/lib/gs1.ts             leitura de DataMatrix/GS1 (lote e validade)
 src/lib/exportar/          geração de Excel e PDF
 src/contexto/              sessão, empresa/loja ativa e dados em tempo real
 src/pages/                 telas
-src/components/            leitor de código, formulários, listas
+src/components/            leitor de código, formulários, listas, paginação e erro global
 ```
 
 Tecnologias: React 19, TypeScript, Vite, Tailwind CSS, Supabase (PostgreSQL + Auth + Realtime), PGlite, Dexie (IndexedDB), Workbox (aplicativo instalável), html5-qrcode, ExcelJS, jsPDF.

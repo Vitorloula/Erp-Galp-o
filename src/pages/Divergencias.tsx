@@ -105,7 +105,7 @@ export function Divergencias() {
                 </div>
                 {d.resolvida_em && (
                   <p className="rounded-lg bg-emerald-50 px-3 py-2 text-emerald-900">
-                    {d.resolucao} <span className="text-xs text-emerald-700">— {d.resolvida_por_nome}, {formatarDataHora(d.resolvida_em)}</span>
+                    {d.resolucao} <span className="text-xs text-marca">— {d.resolvida_por_nome}, {formatarDataHora(d.resolvida_em)}</span>
                   </p>
                 )}
               </div>

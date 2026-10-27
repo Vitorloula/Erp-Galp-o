@@ -1,5 +1,5 @@
 import type { ItemCompra } from '../estoque'
-import { formatarDataHora, formatarEmbalagens, hojeISO } from '../formato'
+import { formatarDataHora, formatarEmbalagens } from '../formato'
 import { CINZA_ARGB, CINZA_RGB, VERDE_ARGB, VERDE_RGB, formatoNumero, linhaGeradoEm, textoCobertura, textoNumero } from './comum'
 import { bordas, montarCabecalho } from './excel'
 import { ESTILO, VERDE } from './pdf'
@@ -27,10 +27,8 @@ const COLUNAS = [
 
 const LEGENDA = 'Quantidade já arredondada pelo conteúdo da embalagem · do mais crítico ao menos crítico'
 
-/** `lista-de-compras_2026-10-03.xlsx` (o dia é o da geração, fuso local). */
-export function nomeArquivoListaCompra(ext: 'xlsx' | 'pdf', dia = hojeISO()): string {
-  return `lista-de-compras_${dia}.${ext}`
-}
+// O nome leve continua disponível por aqui para quem já importava deste módulo.
+export { nomeArquivoListaCompra } from '../relatorio'
 
 /** "2 emb." quando o produto tem conteúdo por embalagem. */
 function embalagens(item: ItemCompra): string | null {

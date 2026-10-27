@@ -582,6 +582,99 @@ secao('PDV — caixa que vende sem internet:')
 }
 
 // ----------------------------------------------------------------------
+secao('Importação de catálogo e saldo inicial:')
+{
+  const donoImp = await criarUsuario('importador@mercado.test', 'Iara Importadora')
+  const empImp = await comoUsuario(donoImp, async () => (await um(`select public.criar_empresa('Loja Importada', 'galpao') as id`)).id)
+  const lojaImp = await comoUsuario(donoImp, async () => (await um('select id from public.lojas limit 1')).id)
+  const caixaImp = await criarUsuario('caixa.importador@mercado.test', 'Caio Importador')
+  const conviteImp = await comoUsuario(donoImp, async () => (await um('select public.criar_convite($1, $2) as t', [empImp, 'caixa'])).t)
+  await comoUsuario(caixaImp, () => db.query('select public.aceitar_convite($1)', [conviteImp]))
+  const linhas = [
+    {
+      linha: 2,
+      nome: 'Produto Importado',
+      codigo_interno: 'IMP-1',
+      categoria: 'Importados',
+      unidade: 'L',
+      preco_venda: 9.9,
+      estoque_minimo: 3,
+      quantidade: 12.5,
+      lote: 'IMP-L1',
+      validade: '2027-12-31',
+      controla_estoque: true,
+      rastreio: 'lote',
+      codigos: [{ codigo: '7890000000011', fator: 1 }],
+    },
+    {
+      linha: 3,
+      nome: 'Duplicado',
+      codigo_interno: 'IMP-1',
+      categoria: 'Importados',
+      unidade: 'un',
+      preco_venda: 1,
+      estoque_minimo: null,
+      quantidade: 0,
+      lote: '',
+      validade: null,
+      controla_estoque: true,
+      rastreio: 'nenhum',
+      codigos: [],
+    },
+    {
+      linha: 4,
+      nome: 'Quantidade Negativa',
+      codigo_interno: 'IMP-2',
+      categoria: 'Importados',
+      unidade: 'un',
+      preco_venda: 1,
+      estoque_minimo: null,
+      quantidade: -1,
+      lote: '',
+      validade: null,
+      controla_estoque: true,
+      rastreio: 'nenhum',
+      codigos: [],
+    },
+  ]
+  const r = await comoUsuario(donoImp, async () => (await um(
+    'select public.importar_catalogo($1, $2, $3::jsonb) as r',
+    [empImp, lojaImp, JSON.stringify(linhas)],
+  )).r)
+  confere(r.criados === 1 && r.estoques === 1 && r.erros.length === 2, 'importa linha válida e devolve os erros das linhas inválidas', JSON.stringify(r))
+  confere((await um(`select count(*)::int as n from public.produtos where empresa_id = $1 and codigo_interno in ('IMP-1', 'IMP-2')`, [empImp])).n === 1, 'linha com quantidade negativa não deixa produto parcial')
+  const p = await um(`select id, estoque_minimo::float, categoria_id from public.produtos where empresa_id = $1 and codigo_interno = 'IMP-1'`, [empImp])
+  confere(p && p.estoque_minimo === 3, 'importação grava o ponto de pedido', JSON.stringify(p))
+  confere((await um('select count(*)::int as n from public.categorias where empresa_id = $1 and nome = $2', [empImp, 'Importados'])).n === 1, 'importação cria a categoria que não existia')
+  const saldoImp = await um('select saldo::float, lote from public.vw_estoque where empresa_id = $1 and produto_id = $2', [empImp, p.id])
+  confere(saldoImp?.saldo === 12.5 && saldoImp?.lote === 'IMP-L1', 'importação lança o saldo inicial no lote', JSON.stringify(saldoImp))
+
+  await comoUsuario(caixaImp, () => esperaErro('caixa não importa catálogo', () =>
+    db.query('select public.importar_catalogo($1, $2, $3::jsonb)', [empImp, lojaImp, '[]']), /row-level security|permission denied|Sem permissao/))
+}
+
+// ----------------------------------------------------------------------
+secao('Monitoramento de erros do piloto:')
+{
+  const erroId = await comoUsuario(donoA, async () => (await um(
+    `insert into public.erros_cliente (empresa_id, loja_id, usuario_id, mensagem, stack)
+     values ($1, $2, $3, 'Falha de teste', 'stack de teste') returning id`,
+    [empA, lojaA1, donoA],
+  )).id)
+  confere(!!erroId, 'usuário registra um erro para a própria empresa')
+  const visiveis = await comoUsuario(donoA, async () => (await um('select count(*)::int as n from public.erros_cliente where empresa_id = $1', [empA])).n)
+  confere(visiveis === 1, 'dono consulta os erros da própria empresa')
+  const deOutra = await comoUsuario(donoB, async () => (await um('select count(*)::int as n from public.erros_cliente')).n)
+  confere(deOutra === 0, 'outra empresa não vê o erro')
+  await comoUsuario(estoquista, () => esperaErro('não registra erro em nome de outro usuário', () =>
+    db.query(
+      `insert into public.erros_cliente (empresa_id, loja_id, usuario_id, mensagem)
+       values ($1, $2, $3, 'Tentativa indevida')`,
+      [empA, lojaA1, donoA],
+    ), /row-level security/))
+}
+
+// ----------------------------------------------------------------------
 secao('Plano e assinatura:')
 await db.query(`update public.assinaturas set plano_id = 'essencial' where empresa_id = $1`, [empB])
 await comoUsuario(donoB, () => esperaErro('limite de lojas do plano', () =>

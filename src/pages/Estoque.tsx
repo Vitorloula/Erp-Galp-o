@@ -21,7 +21,7 @@ import {
 } from '../lib/estoque'
 import { formatarData, formatarEmbalagens, formatarNumero, formatarValidade } from '../lib/formato'
 import { juntarFiltros } from '../lib/periodos'
-import { baixarArquivo, tituloEmpresa } from '../lib/relatorio'
+import { exportarComToast, nomeArquivoListaCompra, tituloEmpresa } from '../lib/relatorio'
 import type { Produto } from '../lib/tipos'
 
 type Filtro = 'todos' | Situacao | 'abaixo'
@@ -165,21 +165,19 @@ export function Estoque() {
       toast.erro('Selecione ao menos um produto')
       return
     }
-    setGerando(formato)
-    try {
-      const { gerarListaCompraExcel, gerarListaCompraPdf, nomeArquivoListaCompra } = await import('../lib/exportar/lista-compra')
-      const titulo = tituloEmpresa(empresa.nome, loja.nome, (lojas?.length ?? 0) > 1)
-      const blob =
-        formato === 'xlsx'
-          ? await gerarListaCompraExcel(itensSelecionados, titulo)
-          : await gerarListaCompraPdf(itensSelecionados, titulo)
-      baixarArquivo(blob, nomeArquivoListaCompra(formato))
-      toast.sucesso(`Lista com ${itensSelecionados.length} ${itensSelecionados.length === 1 ? 'produto' : 'produtos'} gerada.`)
-    } catch (e) {
-      toast.erro('Não foi possível gerar o arquivo: ' + (e as Error).message)
-    } finally {
-      setGerando(null)
-    }
+    const titulo = tituloEmpresa(empresa.nome, loja.nome, (lojas?.length ?? 0) > 1)
+    await exportarComToast({
+      formato,
+      nome: nomeArquivoListaCompra(formato),
+      gerar: async () => {
+        const { gerarListaCompraExcel, gerarListaCompraPdf } = await import('../lib/exportar/lista-compra')
+        return formato === 'xlsx'
+          ? gerarListaCompraExcel(itensSelecionados, titulo)
+          : gerarListaCompraPdf(itensSelecionados, titulo)
+      },
+      avisos: toast,
+      aoMudarEstado: setGerando,
+    })
   }
 
   // "Exportar" leva o recorte da tela para o Relatório (T-016): categoria, busca e situação.

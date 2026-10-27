@@ -69,7 +69,7 @@ export function ProdutoDetalhe() {
       {pode.movimentar && (
       <div className="grid grid-cols-3 gap-2">
         <Link to={`/movimentar?tipo=entrada&produto=${produto.id}`} className="btn btn-secundario flex-col gap-1 py-3 sm:flex-row">
-          <ArrowDownToLine className="size-5 text-emerald-700" /> Entrada
+          <ArrowDownToLine className="size-5 text-marca" /> Entrada
         </Link>
         <Link to={`/movimentar?tipo=saida&produto=${produto.id}`} className="btn btn-primario flex-col gap-1 py-3 sm:flex-row">
           <ArrowUpFromLine className="size-5" /> Saída
@@ -97,6 +97,7 @@ export function ProdutoDetalhe() {
             mono={produto.codigos.length > 0}
           />
           <Info rotulo="Preço de venda" valor={formatarMoeda(produto.preco_venda)} />
+          <Info rotulo="Estoque mínimo" valor={produto.estoque_minimo ? formatarQtd(produto.estoque_minimo, produto.unidade) : '—'} />
           <Info rotulo="Unidade" valor={UNIDADES.find(u => u.valor === produto.unidade)?.nome ?? produto.unidade} />
           <Info rotulo="Conteúdo por embalagem" valor={produto.conteudo_embalagem ? formatarQtd(produto.conteudo_embalagem, produto.unidade) : '—'} />
           <Info rotulo="Fabricante" valor={produto.fabricante ?? '—'} />
@@ -108,7 +109,7 @@ export function ProdutoDetalhe() {
         <div className="mb-2 flex items-center justify-between">
           <h2 className="font-semibold text-slate-900">Lotes</h2>
           <label className="flex items-center gap-2 text-sm text-slate-600">
-            <input type="checkbox" className="size-4 accent-emerald-700" checked={mostrarZerados} onChange={e => setMostrarZerados(e.target.checked)} />
+            <input type="checkbox" className="size-4 accent-marca" checked={mostrarZerados} onChange={e => setMostrarZerados(e.target.checked)} />
             Mostrar lotes zerados
           </label>
         </div>

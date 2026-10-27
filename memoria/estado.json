@@ -1,75 +1,35 @@
 {
   "backlog": [
     {
-      "id": "T-016",
-      "titulo": "Exportar do Estoque abre /relatorios sem os filtros da tela (exporta o estoque inteiro)",
+      "id": "T-028",
+      "titulo": "Piloto controlado em loja real (sem NFC-e e sem Asaas) + guia de teste manual",
       "prioridade": 1,
-      "tipo": "bug",
-      "detalhe": "O cabeçalho de Estoque.tsx tem <Link to='/relatorios'>Exportar</Link> sem passar categoria/busca/situação; lib/periodos.ts já tem juntarFiltros() usado pelo Histórico para montar URLs. O operador que filtrou 'Repor' + categoria exporta tudo e confere linha a linha no Excel.",
+      "tipo": "meta",
+      "detalhe": "Meta de piloto real em loja, sem NFC-e e sem Asaas. Os pré-requisitos técnicos do piloto foram implementados: estoque mínimo, filtros, inventário por lote, importação, LGPD, backup local, monitoramento e runbook. Falta validar em loja real e ensaiar restauração do Supabase de produção.",
+      "evidencia": "README.md (fases); DOCUMENTACAO_ERP.md (pendencias); backlog T-016/T-021 abertos",
       "arquivos_que_toca": [
-        "src/pages/Estoque.tsx",
-        "src/pages/Relatorios.tsx",
-        "src/lib/relatorio.ts"
+        "MANUAL_TESTE.md",
+        "README.md"
       ],
-      "criterios": "Link leva a /relatorios com categoria=, q= e situacao= da tela; Relatorios.tsx aplica os mesmos filtros antes de montarRelatorio/montarLinhasEstoque; teste puro garante que o filtro reduz as linhas exportadas e que a URL sem filtro mantém o comportamento atual.",
-      "criado_em": "2026-10-18T17:12:48.823859"
+      "criterios": "Piloto validado em loja real; restauração de produção ensaiada; MANUAL_TESTE.md e PILOTO.md seguidos; nenhum bloqueio crítico em erros_cliente.",
+      "criado_em": "2026-10-21T00:00:00.000000"
     },
     {
-      "id": "T-021",
-      "titulo": "Filtro de produto do Relatórios (?produto=) não vai para a URL — link compartilhado abre 'Todos os produtos'",
-      "prioridade": 1,
-      "tipo": "bug",
-      "detalhe": "Relatorios.tsx lê de=/ate= da URL via periodoDaUrl, mas o select Produto é só estado local (useState('')) e nunca é escrito em params nem lido no mount. Junto com T-016/T-017 (q=, categoria=, situacao=), o link de 'exportar estoque filtrado' perde o recorte por produto ao recarregar/compartilhar. Falta também ler produto= no init e usar juntarFiltros de lib/periodos.ts em vez de manipular URLSearchParams à mão.",
-      "arquivos_que_toca": [
-        "src/pages/Relatorios.tsx",
-        "src/lib/relatorio.ts",
-        "src/lib/relatorio.test.ts"
-      ],
-      "criterios": "?produto=<id> no mount seleciona o produto; trocar o select atualiza a URL (replace) com juntarFiltros; produto inexistente/desconhecido é ignorado sem quebrar; teste do montarRelatorio continua garantindo filtro por produto.",
-      "criado_em": "2026-10-18T18:20:00.000000"
-    },
-    {
-      "id": "T-019",
-      "titulo": "Estoque e Relatórios não têm um recorte de filtros único reutilizável (produto+termo+categoria+situação)",
+      "id": "T-034",
+      "titulo": "Integrações reais de NFC-e e cobrança Asaas",
       "prioridade": 2,
-      "tipo": "refatoracao",
-      "detalhe": "Estoque.tsx filtra à mão (produtoCombina + categoria + situacao) e Relatorios.tsx, ao receber os params de T-016/T-017, precisa repetir exatamente a mesma lógica sobre montarLinhasEstoque e montarReposicao. Sem uma função pura em lib/estoque.ts, os dois lados divergem (ex.: termo com acento, categoria de produto inativo) e a exportação não bate com a tela.",
+      "tipo": "integração",
+      "detalhe": "Os scaffolds de NFC-e e cobrança existem, mas continuam stubs: não emitem documento fiscal nem cobram de verdade. Implementar somente depois do piloto controlado, com credenciais de produção, homologação fiscal e revisão contábil/jurídica.",
       "arquivos_que_toca": [
-        "src/lib/estoque.ts",
-        "src/lib/regras.test.ts",
-        "src/pages/Estoque.tsx",
-        "src/pages/Relatorios.tsx"
+        "src/lib/nfce.ts",
+        "src/lib/cobranca.ts",
+        "src/pages/EmpresaConfig.tsx"
       ],
-      "criterios": "Nova função pura (ex.: filtrarRecorte({termo, categoria, situacao})) em lib/estoque.ts aplicada por Estoque e Relatorios; teste em regras.test.ts cobre termo sem acento, categoria e situacao no mesmo recorte; comportamento visível do Estoque inalterado.",
-      "criado_em": "2026-10-18T18:25:00.000000"
-    },
-    {
-      "id": "T-017",
-      "titulo": "Aba 'Posição' do Relatórios ignora busca/categoria e não avisa que os filtros do Estoque vieram no link",
-      "prioridade": 2,
-      "tipo": "melhoria",
-      "detalhe": "Relatorios.tsx só lê de=/ate= e produtoId; os params de T-016 (q=, categoria=, situacao=) chegariam pela URL mas não são lidos nem mostrados. O operador que exporta 'estoque filtrado' vê posicao com todas as linhas ativas e não entende o porquê. Falta um aviso visível dos filtros aplicados + botão 'limpar'.",
-      "arquivos_que_toca": [
-        "src/pages/Relatorios.tsx",
-        "src/lib/relatorio.ts",
-        "src/lib/relatorio.test.ts"
-      ],
-      "criterios": "Relatorios.tsx lê q/categoria/situacao de params, mostra um Aviso com os filtros ativos e 'Limpar filtros'; montarRelatorio recebe filtroPosicao opcional aplicado a posicao (e compras) via produtoCombina/linha.situacao; teste puro garante que o filtro reduz posicao e que sem filtro nada muda.",
-      "criado_em": "2026-10-18T18:00:00.000000"
-    },
-    {
-      "id": "T-020",
-      "titulo": "Lista 'Repor' do Estoque (T-009 unificado) não tem teste de aceite de contagem chip x tabela",
-      "prioridade": 2,
-      "tipo": "teste",
-      "detalhe": "T-009 já unificou montarReposicao em Estoque.tsx, mas continua sem teste puro que falhe se o chip 'Repor' divergir do número de linhas do filtro e da lista de compras (produtos sem mínimo, produto zerado sem lote, filtro de categoria).",
-      "arquivos_que_toca": [
-        "src/lib/regras.test.ts",
-        "src/lib/estoque.ts"
-      ],
-      "criterios": "Teste em regras.test.ts: precisaRepor(montarReposicao(...)).length === nº de produtos distintos com situacao abaixo/no_minimo; produto sem mínimo fora; produto zerado sem lote dentro; com filtro de categoria a contagem bate com o subconjunto.",
-      "criado_em": "2026-10-18T18:10:00.000000"
-    },
+      "criterios": "Emissão fiscal homologada, cobrança conciliada, tratamento de falhas e rollback documentados; escopo aprovado pelo cliente.",
+      "criado_em": "2026-10-27T20:30:00.000Z"
+    }
+  ],
+  "concluidos": [
     {
       "id": "T-018",
       "titulo": "Estoque e Relatórios duplicam a geração/entrega de arquivo (import dinâmico + baixarArquivo + toast + estado 'gerando')",
@@ -82,7 +42,22 @@
         "src/pages/Relatorios.tsx"
       ],
       "criterios": "Helper (ex.: exportarComToast) recebe formato, gerador e nome; ambas as telas passam a usá-lo; mensagens de erro/sucesso idênticas; nenhum comportamento visível alterado (testes existentes passam).",
-      "criado_em": "2026-10-18T18:00:00.000001"
+      "criado_em": "2026-10-18T18:00:00.000001",
+      "concluido_em": "2026-10-27T17:16:49.037Z"
+    },
+    {
+      "id": "T-020",
+      "titulo": "Lista 'Repor' do Estoque (T-009 unificado) não tem teste de aceite de contagem chip x tabela",
+      "prioridade": 2,
+      "tipo": "teste",
+      "detalhe": "T-009 já unificou montarReposicao em Estoque.tsx, mas continua sem teste puro que falhe se o chip 'Repor' divergir do número de linhas do filtro e da lista de compras (produtos sem mínimo, produto zerado sem lote, filtro de categoria).",
+      "arquivos_que_toca": [
+        "src/lib/regras.test.ts",
+        "src/lib/estoque.ts"
+      ],
+      "criterios": "Teste em regras.test.ts: precisaRepor(montarReposicao(...)).length === nº de produtos distintos com situacao abaixo/no_minimo; produto sem mínimo fora; produto zerado sem lote dentro; com filtro de categoria a contagem bate com o subconjunto.",
+      "criado_em": "2026-10-18T18:10:00.000000",
+      "concluido_em": "2026-10-27T18:01:47.790Z"
     },
     {
       "id": "T-022",
@@ -96,78 +71,8 @@
         "src/lib/exportar/pdf.ts"
       ],
       "criterios": "Cada seção mostra o nº de linhas que será exportado; seção sem linhas aparece com '(0)' / 'sem dados' e a geração não quebra; aviso quando todas as seções marcadas estão vazias.",
-      "criado_em": "2026-10-18T18:20:00.000001"
-    },
-    {
-      "id": "D-002",
-      "titulo": "Painel renderiza badge 'Repor' inline em vez do componente BadgeReposicao",
-      "prioridade": 2,
-      "tipo": "design",
-      "detalhe": "O item 'abaixo' da lista 'Precisa de atenção' do Painel desenha um badge à mão (bg-amber-100/ring-amber-200) duplicando exatamente o ESTILO_REPOSICAO.abaixo que já existe em BadgeReposicao (ui.tsx). Duas fontes de verdade para o mesmo visual.",
-      "evidencia": "src/pages/Painel.tsx:186 — span inline bg-amber-100/ring-amber-200 duplica ESTILO_REPOSICAO.abaixo de src/components/ui.tsx:72",
-      "arquivos_que_toca": [
-        "src/pages/Painel.tsx",
-        "src/components/ui.tsx"
-      ],
-      "criterios": "Painel carrega minimo+unidade no item e usa BadgeReposicao (situacao='abaixo'); sem mudança visual; sem regressão E2E.",
-      "criado_em": "2026-10-21T00:00:00.000000"
-    },
-    {
-      "id": "D-003",
-      "titulo": "Cor da marca (emerald 700/800) hardcoded — centralizar em token do @theme",
-      "prioridade": 2,
-      "tipo": "design",
-      "detalhe": "A cor principal da marca (emerald-700/800) está espalhada inline em vários arquivos (botão PDV, cabeçalho mobile, navegação inferior, atalho 'Escanear', avatar de dono). Centralizar em um token (--color-marca) do @theme de index.css facilita consistência e futuro rebranding.",
-      "evidencia": "src/components/Layout.tsx:151,189,256; src/pages/Painel.tsx:135; src/pages/Equipe.tsx:82 — bg-emerald-700/800 espalhados inline",
-      "arquivos_que_toca": [
-        "src/index.css",
-        "src/components/Layout.tsx",
-        "src/pages/Painel.tsx",
-        "src/pages/Equipe.tsx"
-      ],
-      "criterios": "Definir --color-marca-* no @theme de index.css; substituir usos da cor da marca; visual idêntico; npm run build verde.",
-      "criado_em": "2026-10-21T00:00:00.000000"
-    },
-    {
-      "id": "D-004",
-      "titulo": "Estados vazios do Painel usam <div> com emoji em vez do componente Vazio",
-      "prioridade": 2,
-      "tipo": "design",
-      "detalhe": "Os blocos 'Tudo em dia' e 'Nenhuma movimentação ainda' do Painel usam <div className='cartao p-6 text-center'> com emoji 🎉, fora do padrão do Vazio (que tem ícone lucide + título + texto). Trocar pelo componente Vazio mantém a consistência e remove emoji.",
-      "evidencia": "src/pages/Painel.tsx:170 ('Tudo em dia... 🎉') e :210 ('Nenhuma movimentação ainda.') — <div> sem ícone, com emoji",
-      "arquivos_que_toca": [
-        "src/pages/Painel.tsx",
-        "src/components/ui.tsx"
-      ],
-      "criterios": "Trocar por Vazio (ícone lucide, sem emoji), mantendo o texto; sem mudança de comportamento; sem regressão E2E.",
-      "criado_em": "2026-10-21T00:00:00.000000"
-    },
-    {
-      "id": "D-005",
-      "titulo": "Atalhos de movimentação do Painel (celular) com estilos divergentes",
-      "prioridade": 2,
-      "tipo": "design",
-      "detalhe": "Os 3 atalhos rápidos do celular no Painel (Entrada, Escanear baixa, Saída manual) usam padrões diferentes: dois usam a classe .cartao e um ('Escanear baixa') usa rounded-2xl bg-emerald-700 inline. Unificar num padrão consistente de atalho.",
-      "evidencia": "src/pages/Painel.tsx:131 e :139 usam .cartao; :135 ('Escanear baixa') usa rounded-2xl bg-emerald-700 inline",
-      "arquivos_que_toca": [
-        "src/pages/Painel.tsx",
-        "src/index.css"
-      ],
-      "criterios": "Unificar os 3 atalhos num padrão consistente (classe .atalho ou semelhante); visual atual preservado; sem regressão E2E.",
-      "criado_em": "2026-10-21T00:00:00.000000"
-    },
-    {
-      "id": "D-006",
-      "titulo": "Botão 'Corrigir' fica só com ícone no celular, sem nome acessível",
-      "prioridade": 2,
-      "tipo": "design",
-      "detalhe": "No celular o texto 'Corrigir' fica oculto (hidden sm:inline), sobrando só o ícone RotateCcw com title='Lançar correção'. O title não é exposto de forma confiável em touch/leitores de tela — falta aria-label para o nome acessível do botão.",
-      "evidencia": "src/components/ListaMovimentacoes.tsx:88-91 — <button title='Lançar correção'> com <span class='hidden sm:inline'>Corrigir</span>; no celular só o ícone",
-      "arquivos_que_toca": [
-        "src/components/ListaMovimentacoes.tsx"
-      ],
-      "criterios": "Adicionar aria-label='Corrigir lançamento' ao botão; visual do desktop inalterado; sem regressão E2E.",
-      "criado_em": "2026-10-21T00:00:00.000000"
+      "criado_em": "2026-10-18T18:20:00.000001",
+      "concluido_em": "2026-10-27T18:01:47.790Z"
     },
     {
       "id": "D-001",
@@ -183,7 +88,145 @@
         "src/pages/Equipe.tsx"
       ],
       "criterios": "Criar Avatar(nome, tamanho?, tom?) em ui.tsx; usar nos 3 lugares; visual idêntico ao atual; npm run build verde.",
-      "criado_em": "2026-10-21T00:00:00.000000"
+      "criado_em": "2026-10-21T00:00:00.000000",
+      "concluido_em": "2026-10-27T18:01:47.790Z"
+    },
+    {
+      "id": "D-002",
+      "titulo": "Painel renderiza badge 'Repor' inline em vez do componente BadgeReposicao",
+      "prioridade": 2,
+      "tipo": "design",
+      "detalhe": "O item 'abaixo' da lista 'Precisa de atenção' do Painel desenha um badge à mão (bg-amber-100/ring-amber-200) duplicando exatamente o ESTILO_REPOSICAO.abaixo que já existe em BadgeReposicao (ui.tsx). Duas fontes de verdade para o mesmo visual.",
+      "evidencia": "src/pages/Painel.tsx:186 — span inline bg-amber-100/ring-amber-200 duplica ESTILO_REPOSICAO.abaixo de src/components/ui.tsx:72",
+      "arquivos_que_toca": [
+        "src/pages/Painel.tsx",
+        "src/components/ui.tsx"
+      ],
+      "criterios": "Painel carrega minimo+unidade no item e usa BadgeReposicao (situacao='abaixo'); sem mudança visual; sem regressão E2E.",
+      "criado_em": "2026-10-21T00:00:00.000000",
+      "concluido_em": "2026-10-27T18:01:47.790Z"
+    },
+    {
+      "id": "D-003",
+      "titulo": "Cor da marca (emerald 700/800) hardcoded — centralizar em token do @theme",
+      "prioridade": 2,
+      "tipo": "design",
+      "detalhe": "A cor principal da marca (emerald-700/800) está espalhada inline em vários arquivos (botão PDV, cabeçalho mobile, navegação inferior, atalho 'Escanear', avatar de dono). Centralizar em um token (--color-marca) do @theme de index.css facilita consistência e futuro rebranding.",
+      "evidencia": "src/components/Layout.tsx:151,189,256; src/pages/Painel.tsx:135; src/pages/Equipe.tsx:82 — bg-emerald-700/800 espalhados inline",
+      "arquivos_que_toca": [
+        "src/index.css",
+        "src/components/Layout.tsx",
+        "src/pages/Painel.tsx",
+        "src/pages/Equipe.tsx"
+      ],
+      "criterios": "Definir --color-marca-* no @theme de index.css; substituir usos da cor da marca; visual idêntico; npm run build verde.",
+      "criado_em": "2026-10-21T00:00:00.000000",
+      "concluido_em": "2026-10-27T18:01:47.790Z"
+    },
+    {
+      "id": "D-004",
+      "titulo": "Estados vazios do Painel usam <div> com emoji em vez do componente Vazio",
+      "prioridade": 2,
+      "tipo": "design",
+      "detalhe": "Os blocos 'Tudo em dia' e 'Nenhuma movimentação ainda' do Painel usam <div className='cartao p-6 text-center'> com emoji 🎉, fora do padrão do Vazio (que tem ícone lucide + título + texto). Trocar pelo componente Vazio mantém a consistência e remove emoji.",
+      "evidencia": "src/pages/Painel.tsx:170 ('Tudo em dia... 🎉') e :210 ('Nenhuma movimentação ainda.') — <div> sem ícone, com emoji",
+      "arquivos_que_toca": [
+        "src/pages/Painel.tsx",
+        "src/components/ui.tsx"
+      ],
+      "criterios": "Trocar por Vazio (ícone lucide, sem emoji), mantendo o texto; sem mudança de comportamento; sem regressão E2E.",
+      "criado_em": "2026-10-21T00:00:00.000000",
+      "concluido_em": "2026-10-27T18:01:47.790Z"
+    },
+    {
+      "id": "D-005",
+      "titulo": "Atalhos de movimentação do Painel (celular) com estilos divergentes",
+      "prioridade": 2,
+      "tipo": "design",
+      "detalhe": "Os 3 atalhos rápidos do celular no Painel (Entrada, Escanear baixa, Saída manual) usam padrões diferentes: dois usam a classe .cartao e um ('Escanear baixa') usa rounded-2xl bg-emerald-700 inline. Unificar num padrão consistente de atalho.",
+      "evidencia": "src/pages/Painel.tsx:131 e :139 usam .cartao; :135 ('Escanear baixa') usa rounded-2xl bg-emerald-700 inline",
+      "arquivos_que_toca": [
+        "src/pages/Painel.tsx",
+        "src/index.css"
+      ],
+      "criterios": "Unificar os 3 atalhos num padrão consistente (classe .atalho ou semelhante); visual atual preservado; sem regressão E2E.",
+      "criado_em": "2026-10-21T00:00:00.000000",
+      "concluido_em": "2026-10-27T18:01:47.790Z"
+    },
+    {
+      "id": "D-006",
+      "titulo": "Botão 'Corrigir' fica só com ícone no celular, sem nome acessível",
+      "prioridade": 2,
+      "tipo": "design",
+      "detalhe": "No celular o texto 'Corrigir' fica oculto (hidden sm:inline), sobrando só o ícone RotateCcw com title='Lançar correção'. O title não é exposto de forma confiável em touch/leitores de tela — falta aria-label para o nome acessível do botão.",
+      "evidencia": "src/components/ListaMovimentacoes.tsx:88-91 — <button title='Lançar correção'> com <span class='hidden sm:inline'>Corrigir</span>; no celular só o ícone",
+      "arquivos_que_toca": [
+        "src/components/ListaMovimentacoes.tsx"
+      ],
+      "criterios": "Adicionar aria-label='Corrigir lançamento' ao botão; visual do desktop inalterado; sem regressão E2E.",
+      "criado_em": "2026-10-21T00:00:00.000000",
+      "concluido_em": "2026-10-27T18:01:47.790Z"
+    },
+    {
+      "id": "T-016",
+      "titulo": "Exportar do Estoque abre /relatorios sem os filtros da tela (exporta o estoque inteiro)",
+      "prioridade": 1,
+      "tipo": "bug",
+      "detalhe": "O cabeçalho de Estoque.tsx tem <Link to='/relatorios'>Exportar</Link> sem passar categoria/busca/situação; lib/periodos.ts já tem juntarFiltros() usado pelo Histórico para montar URLs. O operador que filtrou 'Repor' + categoria exporta tudo e confere linha a linha no Excel.",
+      "arquivos_que_toca": [
+        "src/pages/Estoque.tsx",
+        "src/pages/Relatorios.tsx",
+        "src/lib/relatorio.ts"
+      ],
+      "criterios": "Link leva a /relatorios com categoria=, q= e situacao= da tela; Relatorios.tsx aplica os mesmos filtros antes de montarRelatorio/montarLinhasEstoque; teste puro garante que o filtro reduz as linhas exportadas e que a URL sem filtro mantém o comportamento atual.",
+      "criado_em": "2026-10-18T17:12:48.823859",
+      "concluido_em": "2026-10-27T20:30:00.000Z"
+    },
+    {
+      "id": "T-021",
+      "titulo": "Filtro de produto do Relatórios (?produto=) não vai para a URL — link compartilhado abre 'Todos os produtos'",
+      "prioridade": 1,
+      "tipo": "bug",
+      "detalhe": "Relatorios.tsx lê de=/ate= da URL via periodoDaUrl, mas o select Produto é só estado local (useState('')) e nunca é escrito em params nem lido no mount. Junto com T-016/T-017 (q=, categoria=, situacao=), o link de 'exportar estoque filtrado' perde o recorte por produto ao recarregar/compartilhar. Falta também ler produto= no init e usar juntarFiltros de lib/periodos.ts em vez de manipular URLSearchParams à mão.",
+      "arquivos_que_toca": [
+        "src/pages/Relatorios.tsx",
+        "src/lib/relatorio.ts",
+        "src/lib/relatorio.test.ts"
+      ],
+      "criterios": "?produto=<id> no mount seleciona o produto; trocar o select atualiza a URL (replace) com juntarFiltros; produto inexistente/desconhecido é ignorado sem quebrar; teste do montarRelatorio continua garantindo filtro por produto.",
+      "criado_em": "2026-10-18T18:20:00.000000",
+      "concluido_em": "2026-10-27T20:30:00.000Z"
+    },
+    {
+      "id": "T-019",
+      "titulo": "Estoque e Relatórios não têm um recorte de filtros único reutilizável (produto+termo+categoria+situação)",
+      "prioridade": 2,
+      "tipo": "refatoracao",
+      "detalhe": "Estoque.tsx filtra à mão (produtoCombina + categoria + situacao) e Relatorios.tsx, ao receber os params de T-016/T-017, precisa repetir exatamente a mesma lógica sobre montarLinhasEstoque e montarReposicao. Sem uma função pura em lib/estoque.ts, os dois lados divergem (ex.: termo com acento, categoria de produto inativo) e a exportação não bate com a tela.",
+      "arquivos_que_toca": [
+        "src/lib/estoque.ts",
+        "src/lib/regras.test.ts",
+        "src/pages/Estoque.tsx",
+        "src/pages/Relatorios.tsx"
+      ],
+      "criterios": "Nova função pura (ex.: filtrarRecorte({termo, categoria, situacao})) em lib/estoque.ts aplicada por Estoque e Relatorios; teste em regras.test.ts cobre termo sem acento, categoria e situacao no mesmo recorte; comportamento visível do Estoque inalterado.",
+      "criado_em": "2026-10-18T18:25:00.000000",
+      "concluido_em": "2026-10-27T20:30:00.000Z"
+    },
+    {
+      "id": "T-017",
+      "titulo": "Aba 'Posição' do Relatórios ignora busca/categoria e não avisa que os filtros do Estoque vieram no link",
+      "prioridade": 2,
+      "tipo": "melhoria",
+      "detalhe": "Relatorios.tsx só lê de=/ate= e produtoId; os params de T-016 (q=, categoria=, situacao=) chegariam pela URL mas não são lidos nem mostrados. O operador que exporta 'estoque filtrado' vê posicao com todas as linhas ativas e não entende o porquê. Falta um aviso visível dos filtros aplicados + botão 'limpar'.",
+      "arquivos_que_toca": [
+        "src/pages/Relatorios.tsx",
+        "src/lib/relatorio.ts",
+        "src/lib/relatorio.test.ts"
+      ],
+      "criterios": "Relatorios.tsx lê q/categoria/situacao de params, mostra um Aviso com os filtros ativos e 'Limpar filtros'; montarRelatorio recebe filtroPosicao opcional aplicado a posicao (e compras) via produtoCombina/linha.situacao; teste puro garante que o filtro reduz posicao e que sem filtro nada muda.",
+      "criado_em": "2026-10-18T18:00:00.000000",
+      "concluido_em": "2026-10-27T20:30:00.000Z"
     },
     {
       "id": "T-023",
@@ -197,7 +240,8 @@
         "src/lib/dados/catalogo.ts"
       ],
       "criterios": "Nova migration ALTER TABLE public.produtos ADD COLUMN estoque_minimo (numeric, null) coerente com o tipo; catalogo.ts para de cair no fallback local (coluna existe na nuvem e no servidor local); minimo cadastrado num aparelho aparece no outro; npm run test:sql e npm test passam.",
-      "criado_em": "2026-10-21T00:00:00.000000"
+      "criado_em": "2026-10-21T00:00:00.000000",
+      "concluido_em": "2026-10-27T20:30:00.000Z"
     },
     {
       "id": "T-024",
@@ -212,7 +256,8 @@
         "src/App.tsx"
       ],
       "criterios": "Tela lista produtos para contar; durante a contagem NAO mostra o saldo atual; ao final mostra divergencia (contado vs sistema) e permite gerar ajuste (tipo AJUSTE com motivo 'inventario'); acessivel e responsivo (padroes do design system).",
-      "criado_em": "2026-10-21T00:00:00.000000"
+      "criado_em": "2026-10-21T00:00:00.000000",
+      "concluido_em": "2026-10-27T20:30:00.000Z"
     },
     {
       "id": "T-025",
@@ -226,7 +271,8 @@
         "scripts/backup.mjs"
       ],
       "criterios": "Backup do banco para arquivo (periodico e/ou botao) e restauracao documentada (README ou script); nao apaga dados; testavel localmente.",
-      "criado_em": "2026-10-21T00:00:00.000000"
+      "criado_em": "2026-10-21T00:00:00.000000",
+      "concluido_em": "2026-10-27T20:30:00.000Z"
     },
     {
       "id": "T-026",
@@ -241,7 +287,8 @@
         ".env.example"
       ],
       "criterios": "Env vars NFC_E_* documentadas em .env.example; interface EmissorNFCe com implementacao stub; toggle habilita/desabilita sem quebrar o caixa; cupom continua saindo normalmente (off).",
-      "criado_em": "2026-10-21T00:00:00.000000"
+      "criado_em": "2026-10-21T00:00:00.000000",
+      "concluido_em": "2026-10-27T20:30:00.000Z"
     },
     {
       "id": "T-027",
@@ -256,24 +303,96 @@
         ".env.example"
       ],
       "criterios": "Env vars ASAAS_* documentadas em .env.example; interface ServicoCobranca com stub; toggle habilita/desabilita; assinatura continua funcionando (trial) sem cobranca ativa.",
-      "criado_em": "2026-10-21T00:00:00.000000"
+      "criado_em": "2026-10-21T00:00:00.000000",
+      "concluido_em": "2026-10-27T20:30:00.000Z"
     },
     {
-      "id": "T-028",
-      "titulo": "Piloto controlado em loja real (sem NFC-e e sem Asaas) + guia de teste manual",
+      "id": "T-029",
+      "titulo": "Importação de catálogo e saldo inicial por CSV/XLSX",
       "prioridade": 1,
-      "tipo": "meta",
-      "detalhe": "Meta de preparacao do piloto controlado numa loja real (NAO e venda fiscal). Pre-requisitos: T-023 (migration estoque_minimo) e T-016/T-021 (filtros na URL) — sem eles os dados nao batem entre aparelhos e o operador se perde. Depois do piloto: T-024 (inventario cego) e T-025 (backup) antes de qualquer contagem/fechamento serio. Entregavel: documento de passo a passo de teste manual (MANUAL_TESTE.md).",
-      "evidencia": "README.md (fases); DOCUMENTACAO_ERP.md (pendencias); backlog T-016/T-021 abertos",
+      "tipo": "feature",
+      "detalhe": "Onboarding de loja real sem digitar produto por produto. Nova tela Importar catálogo em Produtos, parser puro em src/lib/importacao.ts (CSV com ; , ou tab e XLSX), prévia com erros por linha e RPC public.importar_catalogo com subtransação por linha. Aceita categoria, código interno/barras, unidade, preço, ponto de pedido, lote, validade e quantidade inicial; saldo inicial entra como ENTRADA auditável.",
       "arquivos_que_toca": [
-        "MANUAL_TESTE.md",
-        "README.md"
+        "src/components/ImportarCatalogo.tsx",
+        "src/lib/importacao.ts",
+        "src/lib/dados/catalogo.ts",
+        "supabase/migrations/20261027090000_importacao_catalogo.sql",
+        "e2e/app/importar.spec.ts"
       ],
-      "criterios": "T-023 e T-016/T-021 concluidos; MANUAL_TESTE.md com passo a passo (subir servidor, criar empresa, cadastrar produto com minimo, testar filtros na URL, testar sincronizacao do minimo, conferir inventario); piloto validado em loja real.",
-      "criado_em": "2026-10-21T00:00:00.000000"
+      "criterios": "CSV/XLSX importável com prévia; linha inválida não derruba o arquivo; saldo inicial e estoque mínimo persistem; caixa não importa; testes unitários, SQL e E2E passam.",
+      "criado_em": "2026-10-27T20:30:00.000Z",
+      "concluido_em": "2026-10-27T20:30:00.000Z"
+    },
+    {
+      "id": "T-030",
+      "titulo": "Operação do piloto: runbook, cortesia e monitoramento de erros",
+      "prioridade": 1,
+      "tipo": "operação",
+      "detalhe": "Runbook PILOTO.md com checklist diário/semanal, importação, inventário, backup/restauração, LGPD e incidentes. Script npm run piloto para listar empresas e ajustar trial/cortesia via service role. Tabela public.erros_cliente, monitoramento silencioso no cliente, tela de erro amigável e diagnóstico copiável.",
+      "arquivos_que_toca": [
+        "PILOTO.md",
+        "scripts/piloto.mjs",
+        "src/lib/monitoramento.ts",
+        "src/components/ErroApp.tsx",
+        "supabase/migrations/20261027091000_monitoramento_piloto.sql"
+      ],
+      "criterios": "Operador consegue seguir o roteiro; suporte ajusta cortesia sem painel; erros de tela chegam à tabela restrita e ao diagnóstico; script e RLS testados.",
+      "criado_em": "2026-10-27T20:30:00.000Z",
+      "concluido_em": "2026-10-27T20:30:00.000Z"
+    },
+    {
+      "id": "T-031",
+      "titulo": "Jurídico/LGPD: política, termos e exportação de dados",
+      "prioridade": 1,
+      "tipo": "feature",
+      "detalhe": "Páginas públicas /privacidade.html e /termos.html, links no login e em Mais, e exportação JSON dos dados da empresa pelo dono (catálogo, estoque, movimentações, vendas, equipe e configurações), sem hashes de convite nem senhas.",
+      "arquivos_que_toca": [
+        "public/privacidade.html",
+        "public/termos.html",
+        "src/lib/dados/lgpd.ts",
+        "src/pages/EmpresaConfig.tsx",
+        "e2e/app/lgpd.spec.ts"
+      ],
+      "criterios": "Páginas acessíveis antes do login; dono baixa JSON completo; links visíveis; exportação testada e revisável pelo jurídico.",
+      "criado_em": "2026-10-27T20:30:00.000Z",
+      "concluido_em": "2026-10-27T20:30:00.000Z"
+    },
+    {
+      "id": "T-032",
+      "titulo": "Volume/performance: paginação da lista de produtos",
+      "prioridade": 2,
+      "tipo": "performance",
+      "detalhe": "Lista de produtos deixou de renderizar todo o catálogo de uma vez: paginação de 50 itens com helper puro paginar e componente Paginacao, mantendo busca, filtro e contagem. Inventário também pagina as linhas de lote.",
+      "arquivos_que_toca": [
+        "src/lib/paginacao.ts",
+        "src/components/Paginacao.tsx",
+        "src/pages/Produtos.tsx",
+        "src/pages/Inventario.tsx",
+        "src/lib/paginacao.test.ts"
+      ],
+      "criterios": "Catálogo grande renderiza apenas a página atual; filtros resetam a página; contagem/total exibidos corretamente; testes unitários passam.",
+      "criado_em": "2026-10-27T20:30:00.000Z",
+      "concluido_em": "2026-10-27T20:30:00.000Z"
+    },
+    {
+      "id": "T-033",
+      "titulo": "Qualidade/CI: testes de importação/LGPD e pipeline estabilizado",
+      "prioridade": 2,
+      "tipo": "teste",
+      "detalhe": "Novos testes unitários de parser e paginação, casos SQL de importação e monitoramento, E2E de importação/inventário/LGPD e configuração do Playwright com retries e timeout maior. Workflow separado em qualidade (Linux) e E2E (Windows/Edge), com relatório em falha.",
+      "arquivos_que_toca": [
+        ".github/workflows/testes.yml",
+        "playwright.config.ts",
+        "package.json",
+        "scripts/testar-sql.mjs",
+        "e2e/app/importar.spec.ts",
+        "e2e/app/inventario.spec.ts"
+      ],
+      "criterios": "Build, Vitest, SQL e E2E no CI; artefato de relatório em falha; E2E direcionado com workers=1 permanece estável.",
+      "criado_em": "2026-10-27T20:30:00.000Z",
+      "concluido_em": "2026-10-27T20:30:00.000Z"
     }
   ],
-  "concluidos": [],
-  "ciclos": 0,
+  "ciclos": 19,
   "plano_atual": null
 }

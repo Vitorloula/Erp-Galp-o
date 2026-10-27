@@ -10,7 +10,7 @@ import { filtrarProdutos } from '../lib/estoque'
 import type { Secoes } from '../lib/exportar/excel'
 import { formatarDataHora, formatarEmbalagens, formatarNumero, formatarValidade, hojeISO } from '../lib/formato'
 import { PERIODOS, intervaloParaInstantes, intervaloRapido, juntarFiltros, periodoDaUrl, produtoDaUrl, type Intervalo, type PeriodoRapido } from '../lib/periodos'
-import { baixarArquivo, montarRelatorio, nomeArquivo, tituloEmpresa, type LinhaCompraRel } from '../lib/relatorio'
+import { exportarComToast, montarRelatorio, nomeArquivo, tituloEmpresa, type LinhaCompraRel } from '../lib/relatorio'
 import type { Movimentacao } from '../lib/tipos'
 
 type Aba = 'resumo' | 'movimentacoes' | 'posicao' | 'compras'
@@ -85,7 +85,7 @@ function TabelaCompras({ linhas, conteudos }: TabelaComprasProps) {
                 <td className="px-3 py-2 text-right">{formatarNumero(l.saldo)}</td>
                 <td className="px-3 py-2 text-right text-slate-600">{formatarNumero(l.minimo)}</td>
                 <td className="px-3 py-2 text-right"><Cobertura saldo={l.saldo} minimo={l.minimo} unidade={l.unidade} /></td>
-                <td className="px-3 py-2 text-right font-bold text-emerald-800">
+                <td className="px-3 py-2 text-right font-bold text-marca-escura">
                   {formatarNumero(l.sugestaoCompra)} {l.unidade}
                   {embalagens && <span className="block text-xs font-normal text-slate-500">{embalagens}</span>}
                 </td>
@@ -201,22 +201,40 @@ export function Relatorios() {
 
   const algumaSecao = secoes.resumo || secoes.movimentacoes || secoes.posicao || secoes.compras
 
+  // Seções escolhidas que sairiam sem nenhuma linha (T-022): avisar antes de baixar.
+  const secoesVazias = useMemo(() => {
+    if (!relatorio) return []
+    const contagens: Record<keyof Secoes, number> = {
+      resumo: relatorio.resumo.length,
+      movimentacoes: relatorio.movimentacoes.length,
+      posicao: relatorio.posicao.length,
+      compras: relatorio.compras.length,
+    }
+    return SECOES.filter(([k]) => secoes[k] && contagens[k] === 0).map(([, nome]) => nome)
+  }, [relatorio, secoes])
+
   async function exportar(formato: 'xlsx' | 'pdf') {
     if (!relatorio) return
     if (!algumaSecao) return toast.erro('Escolha pelo menos uma seção do relatório.')
-    setGerando(formato)
-    try {
-      const blob =
-        formato === 'xlsx'
-          ? await (await import('../lib/exportar/excel')).gerarExcel(relatorio, titulo, secoes)
-          : await (await import('../lib/exportar/pdf')).gerarPdf(relatorio, titulo, secoes)
-      baixarArquivo(blob, nomeArquivo(relatorio, formato))
-      toast.sucesso(formato === 'xlsx' ? 'Planilha Excel gerada.' : 'PDF gerado.')
-    } catch (e) {
-      toast.erro('Não foi possível gerar o arquivo: ' + (e as Error).message)
-    } finally {
-      setGerando(null)
+    if (secoesVazias.length > 0) {
+      toast.erro(
+        `Atenção: ${secoesVazias.join(', ')} ${secoesVazias.length === 1 ? 'está vazia' : 'estão vazias'}; o arquivo será gerado mesmo assim.`,
+      )
     }
+    await exportarComToast({
+      formato,
+      nome: nomeArquivo(relatorio, formato),
+      gerar: async () => {
+        if (formato === 'xlsx') {
+          const { gerarExcel } = await import('../lib/exportar/excel')
+          return gerarExcel(relatorio, titulo, secoes)
+        }
+        const { gerarPdf } = await import('../lib/exportar/pdf')
+        return gerarPdf(relatorio, titulo, secoes)
+      },
+      avisos: toast,
+      aoMudarEstado: setGerando,
+    })
   }
 
   if (carregando) return <Carregando />
@@ -335,7 +353,7 @@ export function Relatorios() {
               <label key={k} className="flex items-center gap-2">
                 <input
                   type="checkbox"
-                  className="size-4 shrink-0 accent-emerald-700"
+                  className="size-4 shrink-0 accent-marca"
                   checked={secoes[k]}
                   onChange={e => setSecoes(s => ({ ...s, [k]: e.target.checked }))}
                 />
@@ -344,6 +362,11 @@ export function Relatorios() {
             ))}
           </div>
         </div>
+        {secoesVazias.length > 0 && (
+          <Aviso tom="alerta">
+            <strong>{secoesVazias.join(', ')}</strong> {secoesVazias.length === 1 ? 'está vazia' : 'estão vazias'} e será(ão) incluída(s) sem linhas. Desmarque ou ajuste os filtros antes de baixar.
+          </Aviso>
+        )}
         <div className="grid gap-2 sm:flex">
           <button className="btn btn-primario btn-grande" onClick={() => exportar('xlsx')} disabled={!relatorio || !!gerando}>
             {gerando === 'xlsx' ? <LoaderCircle className="size-5 animate-spin" /> : <FileSpreadsheet className="size-5" />}
@@ -388,7 +411,7 @@ export function Relatorios() {
                         <span className="font-medium">{l.produto}</span> <span className="text-xs text-slate-500">({l.unidade})</span>
                       </td>
                       <td className="px-3 py-2 text-right">{formatarNumero(l.saldoInicial)}</td>
-                      <td className="px-3 py-2 text-right text-emerald-700">{l.entradas ? '+' + formatarNumero(l.entradas) : '—'}</td>
+                      <td className="px-3 py-2 text-right text-marca">{l.entradas ? '+' + formatarNumero(l.entradas) : '—'}</td>
                       <td className="px-3 py-2 text-right text-red-700">{l.saidas ? '−' + formatarNumero(l.saidas) : '—'}</td>
                       <td className="px-3 py-2 text-right text-violet-700">{l.ajustes ? (l.ajustes > 0 ? '+' : '') + formatarNumero(l.ajustes) : '—'}</td>
                       <td className="px-3 py-2 text-right font-bold">{formatarNumero(l.saldoFinal)}</td>
@@ -420,7 +443,7 @@ export function Relatorios() {
                         <td className="px-3 py-2"><BadgeTipo tipo={m.tipo} /></td>
                         <td className="px-3 py-2 font-medium">{m.produto}</td>
                         <td className="px-3 py-2 text-xs text-slate-600">{m.lote || '—'} · {formatarValidade(m.validade)}</td>
-                        <td className={cx('whitespace-nowrap px-3 py-2 text-right font-bold tabular-nums', m.quantidade < 0 ? 'text-red-700' : 'text-emerald-700')}>
+                        <td className={cx('whitespace-nowrap px-3 py-2 text-right font-bold tabular-nums', m.quantidade < 0 ? 'text-red-700' : 'text-marca')}>
                           {m.quantidade > 0 ? '+' : '−'}{formatarNumero(Math.abs(m.quantidade))} {m.unidade}
                         </td>
                         <td className="px-3 py-2 text-slate-600">{m.documento || '—'}</td>

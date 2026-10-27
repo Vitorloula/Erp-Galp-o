@@ -1,5 +1,5 @@
 import { descreverSituacao, montarLinhasEstoque, montarReposicao, type Situacao, type SituacaoReposicao } from './estoque'
-import { NOME_TIPO, arred, grupoDoTipo } from './formato'
+import { NOME_TIPO, arred, grupoDoTipo, hojeISO } from './formato'
 import type { Intervalo } from './periodos'
 import { intervaloParaInstantes } from './periodos'
 import type { Lote, Movimentacao, Produto, TipoMov, Unidade } from './tipos'
@@ -209,6 +209,11 @@ export function nomeArquivo(r: Relatorio, ext: string) {
   return `relatorio-estoque_${r.intervalo.de}_a_${r.intervalo.ate}.${ext}`
 }
 
+/** `lista-de-compras_2026-10-03.xlsx` (o dia é o da geração, fuso local). */
+export function nomeArquivoListaCompra(ext: 'xlsx' | 'pdf', dia = hojeISO()): string {
+  return `lista-de-compras_${dia}.${ext}`
+}
+
 /** Nome que aparece no topo dos relatórios: empresa e, se houver mais de uma, a loja. */
 export function tituloEmpresa(empresa: string, loja: string, variasLojas: boolean) {
   return variasLojas ? `${empresa} — ${loja}` : empresa
@@ -223,4 +228,54 @@ export function baixarArquivo(conteudo: Blob, nome: string) {
   a.click()
   a.remove()
   setTimeout(() => URL.revokeObjectURL(url), 2000)
+}
+
+export type FormatoArquivo = 'xlsx' | 'pdf'
+
+/** Só o que o helper precisa do toast — evita acoplar a lib ao componente. */
+export interface AvisosExportacao {
+  sucesso(texto: string): void
+  erro(texto: string): void
+}
+
+export interface OpcoesExportacao {
+  formato: FormatoArquivo
+  nome: string
+  gerar: () => Promise<Blob>
+  avisos: AvisosExportacao
+  /** Recebe o formato enquanto gera e `null` ao terminar (controla o "gerando"). */
+  aoMudarEstado?: (formato: FormatoArquivo | null) => void
+  /** Injetável nos testes; em produção usa o download real. */
+  baixar?: (conteudo: Blob, nome: string) => void
+}
+
+/** Mensagem padrão de sucesso — a mesma para Estoque e Relatórios. */
+export function mensagemExportacao(formato: FormatoArquivo): string {
+  return formato === 'xlsx' ? 'Planilha Excel gerada.' : 'PDF gerado.'
+}
+
+/**
+ * Gera, baixa e avisa — o fluxo único das telas que exportam arquivo (T-018).
+ * Devolve `true` quando o download foi disparado; erro vira toast, nunca exceção.
+ */
+export async function exportarComToast({
+  formato,
+  nome,
+  gerar,
+  avisos,
+  aoMudarEstado,
+  baixar = baixarArquivo,
+}: OpcoesExportacao): Promise<boolean> {
+  aoMudarEstado?.(formato)
+  try {
+    const conteudo = await gerar()
+    baixar(conteudo, nome)
+    avisos.sucesso(mensagemExportacao(formato))
+    return true
+  } catch (e) {
+    avisos.erro('Não foi possível gerar o arquivo: ' + (e as Error).message)
+    return false
+  } finally {
+    aoMudarEstado?.(null)
+  }
 }

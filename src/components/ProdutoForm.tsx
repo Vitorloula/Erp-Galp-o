@@ -277,7 +277,7 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
         <label className="flex items-start gap-2.5 text-sm font-medium text-slate-700">
           <input
             type="checkbox"
-            className="mt-0.5 size-4.5 accent-emerald-700"
+            className="mt-0.5 size-4.5 accent-marca"
             checked={dados.rastreio === 'lote'}
             onChange={e => muda('rastreio', e.target.checked ? 'lote' : 'nenhum')}
           />
@@ -289,7 +289,7 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
         <label className="flex items-start gap-2.5 text-sm font-medium text-slate-700">
           <input
             type="checkbox"
-            className="mt-0.5 size-4.5 accent-emerald-700"
+            className="mt-0.5 size-4.5 accent-marca"
             checked={dados.pesavel}
             onChange={e => setDados(d => ({ ...d, pesavel: e.target.checked, unidade: e.target.checked && d.unidade === 'un' ? 'kg' : d.unidade }))}
           />
@@ -305,7 +305,7 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
           </div>
         )}
         <label className="flex items-start gap-2.5 text-sm font-medium text-slate-700">
-          <input type="checkbox" className="mt-0.5 size-4.5 accent-emerald-700" checked={dados.controla_estoque} onChange={e => muda('controla_estoque', e.target.checked)} />
+          <input type="checkbox" className="mt-0.5 size-4.5 accent-marca" checked={dados.controla_estoque} onChange={e => muda('controla_estoque', e.target.checked)} />
           <span>
             Controlar estoque
             <span className="block text-xs font-normal text-slate-500">Desmarque para serviços e itens avulsos (não aparecem no estoque).</span>
@@ -361,7 +361,7 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
 
         {produto && (
           <label className="flex items-center gap-2.5 text-sm font-medium text-slate-700">
-            <input type="checkbox" className="size-4.5 accent-emerald-700" checked={dados.ativo} onChange={e => muda('ativo', e.target.checked)} />
+            <input type="checkbox" className="size-4.5 accent-marca" checked={dados.ativo} onChange={e => muda('ativo', e.target.checked)} />
             Produto ativo (desmarque para ocultar das listas sem apagar o histórico)
           </label>
         )}

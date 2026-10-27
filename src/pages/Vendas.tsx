@@ -13,7 +13,7 @@ import { cancelarNFCeDaVenda, emitirVendasPendentes } from '../lib/emissao'
 
 const NFCE_STATUS: Record<Venda['nfce_status'], { rotulo: string; classe: string }> = {
   pendente: { rotulo: 'Nota pendente', classe: 'bg-amber-100 text-amber-800 ring-amber-200' },
-  emitida: { rotulo: 'Nota emitida', classe: 'bg-emerald-100 text-emerald-800 ring-emerald-200' },
+  emitida: { rotulo: 'Nota emitida', classe: 'bg-emerald-100 text-marca-escura ring-emerald-200' },
   cancelada: { rotulo: 'Nota cancelada', classe: 'bg-slate-100 text-slate-600 ring-slate-200' },
   erro: { rotulo: 'Nota com erro', classe: 'bg-red-100 text-red-800 ring-red-200' },
 }
@@ -214,7 +214,7 @@ function Sessoes({ sessoes, caixas }: { sessoes: Sessao[]; caixas: Map<string, C
                 <p className="text-xs text-slate-500">
                   Dinheiro: esperado {formatarReais(centavos(Number(s.fechamento.esperado['01'] ?? 0)))} · contado {formatarReais(centavos(Number(s.fechamento.contado['01'] ?? 0)))}
                 </p>
-                <p className={cx('font-semibold', dif < 0 ? 'text-red-700' : dif > 0 ? 'text-amber-700' : 'text-emerald-700')}>
+                <p className={cx('font-semibold', dif < 0 ? 'text-red-700' : dif > 0 ? 'text-amber-700' : 'text-marca')}>
                   {dif === 0 ? 'Caixa conferido' : dif < 0 ? `Faltou ${formatarReais(centavos(-dif))}` : `Sobrou ${formatarReais(centavos(dif))}`}
                 </p>
               </div>
@@ -277,7 +277,7 @@ function DetalheVenda({ venda, rotulo, podeCancelar, aoFechar }: { venda: Venda 
               </p>
               {venda.nfce_chave && <p className="mt-1 break-all font-mono text-slate-600">Chave: {venda.nfce_chave}</p>}
               {venda.nfce_qrcode && (
-                <a className="mt-1 inline-block text-emerald-700 underline" href={venda.nfce_qrcode} target="_blank" rel="noreferrer">
+                <a className="mt-1 inline-block text-marca underline" href={venda.nfce_qrcode} target="_blank" rel="noreferrer">
                   Consultar nota (QR Code)
                 </a>
               )}

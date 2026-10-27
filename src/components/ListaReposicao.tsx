@@ -80,7 +80,7 @@ export function ListaReposicao({ itens, aoEditar, vazio, selecionados, aoAlterna
             checked={todosMarcados}
             onChange={aoMarcarTodosToggle}
             disabled={!aoMarcarTodosToggle}
-            className="size-5 shrink-0 cursor-pointer rounded accent-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
+            className="size-5 shrink-0 cursor-pointer rounded accent-marca focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
             aria-label="Marcar todos os produtos da lista de compras"
           />
         )}
@@ -111,7 +111,7 @@ export function ListaReposicao({ itens, aoEditar, vazio, selecionados, aoAlterna
                   <input
                     type="checkbox"
                     id={`sel-${produto.id}`}
-                    className="size-5 shrink-0 cursor-pointer rounded accent-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
+                    className="size-5 shrink-0 cursor-pointer rounded accent-marca focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
                     checked={marcado}
                     onChange={() => aoAlternar?.(produto.id)}
                     aria-label={`Incluir ${produto.nome} na lista de compras`}

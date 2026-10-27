@@ -43,7 +43,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             key={m.id}
             className={cx(
               'pointer-events-auto flex w-full max-w-md items-start gap-2.5 rounded-2xl px-4 py-3 text-sm font-medium shadow-lg ring-1',
-              m.tipo === 'sucesso' ? 'bg-emerald-700 text-white ring-emerald-800' : 'bg-red-600 text-white ring-red-700',
+              m.tipo === 'sucesso' ? 'bg-marca text-white ring-marca-escura' : 'bg-red-600 text-white ring-red-700',
             )}
           >
             {m.tipo === 'sucesso' ? <CircleCheck className="mt-0.5 size-4.5 shrink-0" /> : <CircleAlert className="mt-0.5 size-4.5 shrink-0" />}

@@ -123,4 +123,16 @@ test.describe('Relatórios', () => {
       .filter({ hasText: /seção|selecion/i })
     await expect(toastErro.first()).toBeVisible({ timeout: 5000 })
   })
+
+  test('avisa antes de baixar quando uma seção está vazia (T-022)', async ({ page }) => {
+    await page.goto('/relatorios')
+    await expect(page.locator('main table tbody tr').first()).toBeVisible()
+
+    // A empresa de exemplo não tem mínimo definido, então "Lista de compras" sai vazia.
+    await expect(page.getByText(/Desmarque ou ajuste os filtros antes de baixar/)).toBeVisible()
+
+    await baixar(page, 'Baixar PDF')
+    await expect(toast(page, /Atenção: Lista de compras/)).toBeVisible()
+    await expect(toast(page, 'PDF gerado.')).toBeVisible()
+  })
 })

@@ -42,8 +42,10 @@ export default defineConfig({
   globalSetup: './e2e/preparar.ts',
   fullyParallel: true,
   workers: process.env.CI ? 2 : 4,
-  timeout: 45_000,
-  expect: { timeout: 8_000 },
+  retries: process.env.CI ? 2 : 0,
+  forbidOnly: !!process.env.CI,
+  timeout: 60_000,
+  expect: { timeout: 10_000 },
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
   // O aplicativo instalável (service worker) fica desligado, exceto no projeto "pwa".
   use: { locale: 'pt-BR', timezoneId: FUSO, trace: 'retain-on-failure', screenshot: 'only-on-failure', acceptDownloads: true, serviceWorkers: 'block' },

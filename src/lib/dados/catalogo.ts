@@ -28,6 +28,15 @@ function comMinimoLocal(empresaId: string, produto: Produto): Produto {
   return local === undefined ? produto : { ...produto, estoque_minimo: local }
 }
 
+/** Grava o ponto de pedido direto na coluna (ou no aparelho, se a migration ainda não chegou). */
+async function gravarMinimo(empresaId: string, produtoId: string, minimo: number | null) {
+  const valor = minimo === null || !Number.isFinite(minimo) || minimo <= 0 ? null : arred(minimo)
+  const { error } = await sb.from('produtos').update({ estoque_minimo: valor }).eq('id', produtoId).select('id').single()
+  if (error && !semColunaMinimo(error)) throw traduzirErro(error)
+  if (error) gravarMinimoLocal(empresaId, produtoId, valor)
+  return valor
+}
+
 function paraProduto(r: Record<string, unknown>): Produto {
   return {
     ...(r as unknown as Produto),
@@ -111,7 +120,12 @@ export async function salvarProduto(empresaId: string, dados: ProdutoDados, codi
   }
   if (r.error) throw traduzirErro(r.error)
   const produtoId = r.data as string
-  if (bancoSemColuna) gravarMinimoLocal(empresaId, produtoId, minimo)
+  try {
+    await gravarMinimo(empresaId, produtoId, minimo)
+  } catch (e) {
+    if (bancoSemColuna) gravarMinimoLocal(empresaId, produtoId, minimo)
+    else throw e
+  }
   return produtoId
 }
 
@@ -120,11 +134,7 @@ export async function salvarProduto(empresaId: string, dados: ProdutoDados, codi
  * Edita só este campo: não passa pelos códigos de barras nem pelo restante do cadastro.
  */
 export async function salvarEstoqueMinimo(empresaId: string, produto: Produto, minimo: number | null): Promise<null> {
-  const valor = minimo === null || !Number.isFinite(minimo) || minimo <= 0 ? null : arred(minimo)
-  const { error } = await sb.from('produtos').update({ estoque_minimo: valor }).eq('id', produto.id).select('id').single()
-  if (error && !semColunaMinimo(error)) throw traduzirErro(error)
-  // Sem a coluna no banco (ou sem permissão de UPDATE direto), guarda no aparelho: a tela funciona igual.
-  if (error || produto.estoque_minimo !== valor) gravarMinimoLocal(empresaId, produto.id, valor)
+  await gravarMinimo(empresaId, produto.id, minimo)
   return null
 }
 
@@ -153,4 +163,59 @@ export async function excluirCategoria(id: string) {
 export async function atualizarLote(loteId: string, dados: { lote: string; validade: string | null }) {
   const { error } = await sb.from('lotes').update(dados).eq('id', loteId).select('id').single()
   if (error) throw error.code === 'PGRST116' ? new Error('Somente dono ou gerente corrigem lotes.') : traduzirErro(error)
+}
+
+/** Cria um lote vazio para a contagem de inventário de um produto que ainda não tinha lote. */
+export async function criarLote(empresaId: string, produtoId: string, lote: string, validade: string | null): Promise<string> {
+  const nome = lote.trim().toUpperCase()
+  const { data, error } = await sb
+    .from('lotes')
+    .insert({ empresa_id: empresaId, produto_id: produtoId, lote: nome, validade })
+    .select('id')
+    .single()
+  if (!error) return data.id as string
+
+  if (error.code === '23505') {
+    let consulta = sb.from('lotes').select('id').eq('empresa_id', empresaId).eq('produto_id', produtoId).eq('lote', nome)
+    consulta = validade ? consulta.eq('validade', validade) : consulta.is('validade', null)
+    const existente = await consulta.single()
+    if (!existente.error) return existente.data.id as string
+  }
+  throw traduzirErro(error)
+}
+
+export interface LinhaImportacao {
+  linha: number
+  nome: string
+  codigo_interno: string
+  categoria: string
+  unidade: string
+  conteudo_embalagem: number | null
+  preco_venda: number | null
+  estoque_minimo: number | null
+  quantidade: number
+  lote: string
+  validade: string | null
+  fabricante: string
+  observacao: string
+  controla_estoque: boolean
+  rastreio: 'nenhum' | 'lote' | 'serie'
+  codigos: CodigoProduto[]
+}
+
+export interface ResultadoImportacao {
+  criados: number
+  estoques: number
+  erros: { linha: number; mensagem: string }[]
+}
+
+/** Importa catálogo + saldo inicial numa única chamada (cada linha tem sua própria subtransação no banco). */
+export async function importarCatalogo(empresaId: string, lojaId: string, linhas: LinhaImportacao[]): Promise<ResultadoImportacao> {
+  const { data, error } = await sb.rpc('importar_catalogo', {
+    p_empresa: empresaId,
+    p_loja: lojaId,
+    p_linhas: linhas,
+  })
+  if (error) throw traduzirErro(error)
+  return data as ResultadoImportacao
 }

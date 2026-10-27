@@ -101,14 +101,14 @@ export function Movimentar() {
 
       {ultimo && !produtoAtual && (
         <div className="mb-5 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
-          <CircleCheck className="mt-0.5 size-5 shrink-0 text-emerald-700" />
+          <CircleCheck className="mt-0.5 size-5 shrink-0 text-marca" />
           <div className="min-w-0 flex-1 text-sm">
             <p className="font-semibold">{ultimo.texto}</p>
-            <Link to={`/produtos/${ultimo.produto.id}`} className="text-emerald-800 underline underline-offset-2">
+            <Link to={`/produtos/${ultimo.produto.id}`} className="text-marca-escura underline underline-offset-2">
               Ver {ultimo.produto.nome}
             </Link>
           </div>
-          <button onClick={() => setUltimo(null)} className="-m-1 p-1 text-emerald-700" aria-label="Fechar">
+          <button onClick={() => setUltimo(null)} className="-m-1 p-1 text-marca" aria-label="Fechar">
             <X className="size-4" />
           </button>
         </div>
@@ -335,7 +335,7 @@ function FormSaida({ produto, extras, loteInicial, aoConcluir }: { produto: Prod
                   `linha-${sit}`,
                 )}
               >
-                <input type="radio" name="lote" className="size-4.5 accent-emerald-700" checked={ativo} onChange={() => setLoteId(l.lote_id)} />
+                <input type="radio" name="lote" className="size-4.5 accent-marca" checked={ativo} onChange={() => setLoteId(l.lote_id)} />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold">{l.lote ? `Lote ${l.lote}` : 'Sem lote'}</p>
                   <p className="text-xs opacity-75">Validade {formatarValidade(l.validade)}</p>
@@ -358,7 +358,7 @@ function FormSaida({ produto, extras, loteInicial, aoConcluir }: { produto: Prod
         {lote && (
           <button
             type="button"
-            className="mt-2 text-sm font-semibold text-emerald-800 hover:underline"
+            className="mt-2 text-sm font-semibold text-marca-escura hover:underline"
             onClick={() => {
               setInicialQtd(lote.saldo)
               setChaveQtd(k => k + 1)

@@ -30,8 +30,10 @@ import { useAuth } from '../contexto/Auth'
 import { useDados } from '../contexto/Dados'
 import { useAtiva } from '../contexto/Empresa'
 import { formatarData } from '../lib/formato'
+import { configurarMonitoramento } from '../lib/monitoramento'
 import { NOME_PAPEL } from '../lib/permissoes'
 import type { Vinculo } from '../lib/tipos'
+import { Avatar } from './Avatar'
 import { Aviso, Modal, cx } from './ui'
 
 /** Nome do sistema (marca do produto) — a empresa do cliente aparece ao lado. */
@@ -104,6 +106,14 @@ export function Layout() {
   const atualizacao = useAtualizacao()
   const [tentando, setTentando] = useState(false)
   const [escolhendo, setEscolhendo] = useState(false)
+
+  useEffect(() => {
+    configurarMonitoramento({
+      empresaId: empresa.empresa_id,
+      lojaId: loja.id,
+      usuarioId: usuario?.id ?? null,
+    })
+  }, [empresa.empresa_id, loja.id, usuario?.id])
   const online = useOnline()
   const local = useLocation()
 
@@ -150,7 +160,7 @@ export function Layout() {
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto px-3">
           {pode.vender && (
-            <Link to="/pdv" className="mb-2 flex items-center gap-3 rounded-xl bg-emerald-700 px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-800">
+            <Link to="/pdv" className="mb-2 flex items-center gap-3 rounded-xl bg-marca px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-marca-escura">
               <ShoppingCart className="size-5" /> Abrir o caixa (PDV)
             </Link>
           )}
@@ -161,7 +171,7 @@ export function Layout() {
               className={({ isActive }) =>
                 cx(
                   'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition',
-                  isActive ? 'bg-emerald-50 text-emerald-800' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+                  isActive ? 'bg-emerald-50 text-marca-escura' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
                 )
               }
             >
@@ -173,9 +183,7 @@ export function Layout() {
         </nav>
         <div className="border-t border-slate-100 p-3">
           <div className="flex items-center gap-3 rounded-xl px-2 py-2">
-            <div className="grid size-9 place-items-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-800">
-              {usuario?.nome.slice(0, 1).toUpperCase()}
-            </div>
+            <Avatar nome={usuario?.nome} tamanho="sm" className="bg-emerald-100 text-marca-escura" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-slate-800">{usuario?.nome}</p>
               <p className="text-xs text-slate-500">{NOME_PAPEL[empresa.papel]}</p>
@@ -188,7 +196,7 @@ export function Layout() {
       </aside>
 
       {/* Barra superior (celular) */}
-      <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-emerald-800 bg-emerald-700 px-4 py-2.5 lg:hidden">
+      <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-marca-escura bg-marca px-4 py-2.5 lg:hidden">
         <button className="min-w-0 text-left" onClick={() => setEscolhendo(true)} aria-label="Trocar de empresa ou loja">
           <Marca claro titulo={empresa.nome} subtitulo={subtitulo} />
         </button>
@@ -257,12 +265,12 @@ export function Layout() {
                   <span
                     className={cx(
                       'grid size-14 place-items-center rounded-2xl text-white shadow-lg shadow-emerald-900/25 ring-4 ring-white transition',
-                      isActive ? 'bg-emerald-800' : 'bg-emerald-700',
+                      isActive ? 'bg-marca-escura' : 'bg-marca',
                     )}
                   >
                     <ScanBarcode className="size-7" />
                   </span>
-                  <span className={cx('text-[11px] font-semibold', isActive ? 'text-emerald-800' : 'text-slate-600')}>Movimentar</span>
+                  <span className={cx('text-[11px] font-semibold', isActive ? 'text-marca-escura' : 'text-slate-600')}>Movimentar</span>
                 </>
               )}
             </NavLink>
@@ -304,7 +312,7 @@ function EscolherEmpresa({ aberto, aoFechar, trocarLoja }: { aberto: boolean; ao
                 <button key={l.id} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-slate-50" onClick={() => { trocarLoja(l.id); aoFechar() }}>
                   <Store className="size-4.5 text-slate-400" />
                   <span className="flex-1 font-medium text-slate-800">{l.nome}</span>
-                  {l.id === loja.id && <Check className="size-4.5 text-emerald-700" />}
+                  {l.id === loja.id && <Check className="size-4.5 text-marca" />}
                 </button>
               ))}
             </div>
@@ -324,10 +332,10 @@ function EscolherEmpresa({ aberto, aoFechar, trocarLoja }: { aberto: boolean; ao
                   <span className="block truncate font-medium text-slate-800">{v.nome}</span>
                   <span className="block text-xs text-slate-500">{NOME_PAPEL[v.papel]}</span>
                 </span>
-                {v.empresa_id === empresa.empresa_id && <Check className="size-4.5 text-emerald-700" />}
+                {v.empresa_id === empresa.empresa_id && <Check className="size-4.5 text-marca" />}
               </button>
             ))}
-            <Link to="/empresas/nova" onClick={aoFechar} className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-emerald-800 hover:bg-slate-50">
+            <Link to="/empresas/nova" onClick={aoFechar} className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-marca-escura hover:bg-slate-50">
               <Plus className="size-4.5" /> Cadastrar outra empresa
             </Link>
           </div>
@@ -341,7 +349,7 @@ function ItemInferior({ para, rotulo, icone: Icone, ativoEm }: { para: string; r
   const { pathname } = useLocation()
   const ativo = (ativoEm ?? [para]).some(p => pathname.startsWith(p))
   return (
-    <NavLink to={para} className={cx('flex flex-col items-center gap-1 py-2.5 text-[11px] font-semibold', ativo ? 'text-emerald-800' : 'text-slate-500')}>
+    <NavLink to={para} className={cx('flex flex-col items-center gap-1 py-2.5 text-[11px] font-semibold', ativo ? 'text-marca-escura' : 'text-slate-500')}>
       <Icone className="size-6" strokeWidth={ativo ? 2.25 : 1.75} />
       {rotulo}
     </NavLink>

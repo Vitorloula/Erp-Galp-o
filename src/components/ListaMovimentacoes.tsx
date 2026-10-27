@@ -60,7 +60,7 @@ export function ListaMovimentacoes({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       {mostrarProduto && (
-                        <Link to={`/produtos/${m.produto_id}`} className="block truncate font-semibold text-slate-900 hover:text-emerald-800">
+                        <Link to={`/produtos/${m.produto_id}`} className="block truncate font-semibold text-slate-900 hover:text-marca-escura">
                           {produto?.nome ?? 'Produto'}
                         </Link>
                       )}
@@ -69,7 +69,7 @@ export function ListaMovimentacoes({
                         {lote?.validade && ` · val. ${formatarValidade(lote.validade)}`}
                       </p>
                     </div>
-                    <p className={cx('shrink-0 text-right font-bold tabular-nums', m.delta > 0 ? 'text-emerald-700' : 'text-red-700')}>
+                    <p className={cx('shrink-0 text-right font-bold tabular-nums', m.delta > 0 ? 'text-marca' : 'text-red-700')}>
                       {formatarDelta(m.delta, unidade)}
                     </p>
                   </div>
@@ -85,7 +85,7 @@ export function ListaMovimentacoes({
                   {m.observacao && <p className="mt-1 text-sm text-slate-600">{m.observacao}</p>}
                 </div>
                 {aoCorrigir && (m.tipo === 'ENTRADA' || m.tipo === 'SAIDA') && (
-                  <button onClick={() => aoCorrigir(m)} className="btn btn-fantasma -mr-2 shrink-0 px-2 py-1.5 text-xs text-slate-500" title="Lançar correção">
+                  <button onClick={() => aoCorrigir(m)} className="btn btn-fantasma -mr-2 shrink-0 px-2 py-1.5 text-xs text-slate-500" title="Lançar correção" aria-label="Corrigir lançamento">
                     <RotateCcw className="size-4" />
                     <span className="hidden sm:inline">Corrigir</span>
                   </button>
@@ -106,7 +106,7 @@ export function ListaMovimentacoes({
             {totais.lancamentos} lançamento{totais.lancamentos === 1 ? '' : 's'}
           </span>
           <span className="tabular-nums">
-            Entradas <strong className="font-bold text-emerald-700">{formatarDelta(totais.entradas.soma, unidadeTotal)}</strong>
+            Entradas <strong className="font-bold text-marca">{formatarDelta(totais.entradas.soma, unidadeTotal)}</strong>
           </span>
           <span className="tabular-nums">
             Saídas <strong className="font-bold text-red-700">{formatarDelta(totais.saidas.soma, unidadeTotal)}</strong>

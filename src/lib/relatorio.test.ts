@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { calcularCobertura, sugerirCompra } from './estoque'
 import { intervaloRapido } from './periodos'
-import { montarRelatorio } from './relatorio'
+import { exportarComToast, mensagemExportacao, montarRelatorio } from './relatorio'
 import type { Lote, Movimentacao, Produto } from './tipos'
 
 const lote = (produto_id: string, saldo: number): Lote => ({
@@ -88,5 +88,59 @@ describe('relatório: lista de compras (reposição)', () => {
     const lotes = [lote('p1', 1), lote('p2', 2)]
     const r = montarRelatorio(intervalo, produtos, lotes, [mov], () => 'Cat', 'p1')
     expect(r.compras.map(c => c.produto)).toEqual(['Produto p1'])
+  })
+})
+
+describe('exportarComToast (T-018)', () => {
+  const avisos = () => ({ sucesso: vi.fn(), erro: vi.fn() })
+
+  it('usa a mesma mensagem de sucesso para Excel e PDF', () => {
+    expect(mensagemExportacao('xlsx')).toBe('Planilha Excel gerada.')
+    expect(mensagemExportacao('pdf')).toBe('PDF gerado.')
+  })
+
+  it('gera, baixa e avisa sucesso, controlando o estado "gerando"', async () => {
+    const toast = avisos()
+    const baixar = vi.fn()
+    const estados: Array<'xlsx' | 'pdf' | null> = []
+    const conteudo = new Blob(['ok'])
+
+    const ok = await exportarComToast({
+      formato: 'pdf',
+      nome: 'relatorio.pdf',
+      gerar: async () => conteudo,
+      avisos: toast,
+      aoMudarEstado: estado => estados.push(estado),
+      baixar,
+    })
+
+    expect(ok).toBe(true)
+    expect(baixar).toHaveBeenCalledWith(conteudo, 'relatorio.pdf')
+    expect(toast.sucesso).toHaveBeenCalledWith('PDF gerado.')
+    expect(toast.erro).not.toHaveBeenCalled()
+    expect(estados).toEqual(['pdf', null])
+  })
+
+  it('transforma falha do gerador em toast de erro e sempre limpa o estado', async () => {
+    const toast = avisos()
+    const baixar = vi.fn()
+    const estados: Array<'xlsx' | 'pdf' | null> = []
+
+    const ok = await exportarComToast({
+      formato: 'xlsx',
+      nome: 'relatorio.xlsx',
+      gerar: async () => {
+        throw new Error('sem permissão')
+      },
+      avisos: toast,
+      aoMudarEstado: estado => estados.push(estado),
+      baixar,
+    })
+
+    expect(ok).toBe(false)
+    expect(baixar).not.toHaveBeenCalled()
+    expect(toast.erro).toHaveBeenCalledWith('Não foi possível gerar o arquivo: sem permissão')
+    expect(toast.sucesso).not.toHaveBeenCalled()
+    expect(estados).toEqual(['xlsx', null])
   })
 })

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="index,follow">
+  <title>Termos de Uso — ERP Galpão</title>
+  <style>
+    :root { color-scheme: light; --verde:#047857; --texto:#0f172a; --suave:#475569; --linha:#e2e8f0; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:#f8fafc; color:var(--texto); font:16px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif; }
+    main { max-width:820px; margin:0 auto; padding:40px 20px 64px; }
+    header { margin-bottom:28px; }
+    h1 { font-size:1.8rem; line-height:1.2; margin:0 0 8px; }
+    h2 { font-size:1.15rem; margin:30px 0 8px; }
+    p, li { color:var(--suave); }
+    ul { padding-left:22px; }
+    a { color:var(--verde); }
+    .voltar { display:inline-block; margin-bottom:20px; font-weight:600; text-decoration:none; }
+    .caixa { background:#fff; border:1px solid var(--linha); border-radius:16px; padding:24px; box-shadow:0 8px 30px rgb(15 23 42 / .05); }
+    .aviso { background:#ecfdf5; border:1px solid #a7f3d0; border-radius:12px; padding:12px 14px; color:#065f46; }
+    footer { margin-top:32px; font-size:.85rem; color:#64748b; }
+  </style>
+</head>
+<body>
+<main>
+  <a class="voltar" href="/">← Voltar ao sistema</a>
+  <div class="caixa">
+    <header>
+      <h1>Termos de Uso</h1>
+      <p>Versão do piloto — atualizada em 27/10/2026.</p>
+    </header>
+
+    <p class="aviso">Estes termos valem para o piloto controlado do ERP Galpão. O piloto é uma etapa de validação em loja real, com escopo limitado e sem promessa de substituição completa de sistemas fiscais ou contábeis.</p>
+
+    <h2>1. Objeto</h2>
+    <p>O ERP Galpão disponibiliza cadastro de produtos, controle de estoque por lote, movimentações, inventário, relatórios e um PDV <strong>não fiscal</strong>. O acesso é nominal, por usuário, empresa e loja.</p>
+
+    <h2>2. Escopo do piloto</h2>
+    <ul>
+      <li>Uma loja por empresa no piloto controlado, salvo acordo escrito em contrário.</li>
+      <li>O PDV não emite NFC-e/NF-e. Os cupons são comprovantes internos com a marcação “DOCUMENTO SEM VALOR FISCAL”.</li>
+      <li>Cobrança automática (Asaas), emissão fiscal e integrações de produção ainda não estão disponíveis.</li>
+      <li>O piloto pode usar uma assinatura de cortesia ou período de teste combinado com o suporte.</li>
+    </ul>
+
+    <h2>3. Conta e responsabilidades da empresa</h2>
+    <ul>
+      <li>Manter a veracidade dos dados cadastrados e a guarda das credenciais.</li>
+      <li>Definir os papéis da equipe e remover acessos de quem sair.</li>
+      <li>Conferir saldos, inventários, preços e relatórios antes de usá-los na operação.</li>
+      <li>Garantir base legal e informar seus próprios clientes sobre o tratamento de dados, quando aplicável.</li>
+      <li>Não inserir dados ilícitos, de terceiros sem autorização ou conteúdo que viole direitos.</li>
+    </ul>
+
+    <h2>4. Disponibilidade e suporte</h2>
+    <p>Buscamos manter o sistema disponível, mas o piloto pode ter janelas de manutenção, instabilidade de internet, indisponibilidade de provedores e correções. O suporte atende pelo canal informado no contrato do piloto, em horário comercial combinado. O PDV foi desenhado para continuar vendendo offline e sincronizar depois, mas a empresa deve ter um plano de contingência manual.</p>
+
+    <h2>5. Dados e backup</h2>
+    <p>Os dados pertencem à empresa contratante. O sistema mantém histórico de movimentações e permite exportação em JSON pelo dono. A empresa deve guardar cópias periódicas dos relatórios e da exportação. A recuperação de desastres do ambiente de produção depende da configuração do provedor de banco (Supabase) e será validada antes de ampliar o piloto.</p>
+
+    <h2>6. Privacidade</h2>
+    <p>O tratamento de dados pessoais segue a <a href="/privacidade.html">Política de Privacidade</a> e a LGPD. Solicitações de titular podem ser feitas pelo canal de suporte.</p>
+
+    <h2>7. Propriedade intelectual</h2>
+    <p>O software, a marca, a documentação e os componentes do ERP Galpão pertencem ao fornecedor. A empresa recebe licença de uso durante o piloto, sem direito de revender, copiar ou sublicenciar o sistema.</p>
+
+    <h2>8. Limitação de responsabilidade</h2>
+    <p>O piloto é fornecido no estado em que se encontra, para validação. O fornecedor não responde por lucros cessantes, perdas indiretas, decisões tomadas com base em relatórios não conferidos, falhas de internet/dispositivos do cliente ou uso fora do escopo. Nada nestes termos afasta direitos inderrogáveis do consumidor ou responsabilidades legais.</p>
+
+    <h2>9. Suspensão e encerramento</h2>
+    <p>O acesso pode ser suspenso por inadimplência, uso indevido, risco de segurança ou encerramento do piloto. Antes do encerramento, a empresa será informada e poderá exportar seus dados. Após o prazo combinado, os dados podem ser eliminados, ressalvadas obrigações legais de retenção.</p>
+
+    <h2>10. Alterações</h2>
+    <p>Podemos ajustar estes termos durante o piloto. Mudanças relevantes serão comunicadas pelo canal de suporte. O uso contínuo após a atualização representa concordância com a nova versão.</p>
+
+    <h2>11. Contato</h2>
+    <p>Dúvidas sobre estes termos: <a href="mailto:suporte@erpgalpao.com">suporte@erpgalpao.com</a>.</p>
+
+    <footer>ERP Galpão · Termos de Uso do piloto · <a href="/privacidade.html">Política de Privacidade</a></footer>
+  </div>
+</main>
+</body>
+</html>
