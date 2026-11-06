@@ -20,3 +20,6 @@ agents/venv/
 venv/
 __pycache__/
 *.pyc
+
+# Estado temporário local do Supabase CLI.
+supabase/.temp/

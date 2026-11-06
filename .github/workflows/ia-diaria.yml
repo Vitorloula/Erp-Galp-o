@@ -50,12 +50,13 @@ jobs:
 
       - name: 🏗️ Executar a Fábrica Autônoma
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # Se usar DeepSeek (ou outro endpoint OpenAI-compatível), adicione os
-          # secrets OPENAI_API_BASE e OPENAI_MODEL_NAME abaixo:
-          OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
-          OPENAI_MODEL_NAME: ${{ secrets.OPENAI_MODEL_NAME }}
-          # Modelo por papel (opcional): LLM_MODEL, LLM_MODEL_ARQUITETO, LLM_MODEL_PO...
+          # Cadastre a chave da OpenCode Console (Go) em Settings > Secrets
+          # como OPENCODE_GO_API_KEY.
+          OPENAI_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+          OPENAI_API_BASE: https://opencode.ai/inference/go/openai/v1
+          OPENAI_MODEL_NAME: glm-5.3-flash
+          LLM_MODEL: openai/glm-5.3-flash
+          # Overrides opcionais por papel: LLM_MODEL_ARQUITETO, LLM_MODEL_PO etc.
           MAX_CICLOS: '2'
           AGENT_MAX_ITER: '12'
         run: python agents/main.py
