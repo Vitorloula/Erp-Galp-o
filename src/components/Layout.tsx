@@ -36,8 +36,8 @@ import type { Vinculo } from '../lib/tipos'
 import { Avatar } from './Avatar'
 import { Aviso, Modal, cx } from './ui'
 
-/** Nome do sistema (marca do produto) — a empresa do cliente aparece ao lado. */
-export const NOME_SISTEMA = (import.meta.env.VITE_NOME_SISTEMA as string | undefined) || 'Controle de Estoque'
+/** Nome do produto; o nome da empresa aparece separadamente no seletor. */
+export const NOME_SISTEMA = (import.meta.env.VITE_NOME_SISTEMA as string | undefined) || 'ponto'
 
 interface ItemMenu {
   para: string
@@ -61,13 +61,13 @@ function useOnline() {
   return online
 }
 
-export function Marca({ claro, titulo = NOME_SISTEMA, subtitulo = 'Estoque e vendas' }: { claro?: boolean; titulo?: string; subtitulo?: string }) {
+export function Marca({ claro, titulo = NOME_SISTEMA, subtitulo = 'gestão de loja' }: { claro?: boolean; titulo?: string; subtitulo?: string }) {
   return (
     <div className="flex min-w-0 items-center gap-2.5">
-      <img src="/icone.svg" alt="" className="size-9 shrink-0 rounded-xl" />
+      <img src="/icone.svg" alt="" className="size-8 shrink-0 rounded-[9px]" />
       <div className="min-w-0 leading-tight">
-        <p className={cx('truncate text-sm font-bold', claro ? 'text-white' : 'text-slate-900')}>{titulo}</p>
-        <p className={cx('truncate text-xs', claro ? 'text-emerald-200' : 'text-slate-500')}>{subtitulo}</p>
+        <p className={cx('truncate text-[17px] font-bold tracking-[-.5px]', claro ? 'text-white' : 'text-ponto')}>{titulo}</p>
+        <p className={cx('truncate text-[11px]', claro ? 'text-slate-300' : 'text-texto-secundario')}>{subtitulo}</p>
       </div>
     </div>
   )
@@ -128,12 +128,12 @@ export function Layout() {
   }, [pode.verDivergencias, empresa.empresa_id, loja.id, versao, local.pathname])
 
   const menu: ItemMenu[] = [
-    { para: '/painel', rotulo: 'Painel', icone: LayoutDashboard },
+    { para: '/painel', rotulo: 'Visão geral', icone: LayoutDashboard },
+    { para: '/vendas', rotulo: 'Vendas e caixa', icone: Banknote },
+    { para: '/produtos', rotulo: 'Produtos', icone: Package },
     { para: '/estoque', rotulo: 'Estoque', icone: Boxes },
     ...(pode.movimentar ? [{ para: '/movimentar', rotulo: 'Movimentar', icone: ArrowLeftRight }] : []),
     { para: '/historico', rotulo: 'Histórico', icone: History },
-    { para: '/produtos', rotulo: 'Produtos', icone: Package },
-    { para: '/vendas', rotulo: 'Vendas', icone: Banknote },
     ...(pode.verDivergencias ? [{ para: '/divergencias', rotulo: 'Divergências', icone: AlertOctagon, contador: divergencias }] : []),
     { para: '/relatorios', rotulo: 'Relatórios', icone: FileSpreadsheet },
     ...(pode.movimentar ? [{ para: '/inventario', rotulo: 'Inventário', icone: ClipboardList }] : []),
@@ -141,27 +141,33 @@ export function Layout() {
     { para: '/empresa', rotulo: 'Empresa', icone: Building2 },
   ]
   const variasLojas = (lojas?.length ?? 0) > 1
-  const subtitulo = variasLojas ? loja.nome : NOME_SISTEMA
 
   return (
-    <div className="min-h-dvh lg:pl-64">
+    <div className="min-h-dvh lg:pl-[236px]">
       {/* Menu lateral (computador) */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-slate-200 bg-white lg:flex">
-        <div className="space-y-2 px-4 py-4">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[236px] flex-col border-r border-borda-loja bg-superficie lg:flex">
+        <div className="space-y-5 px-4 py-5">
+          <Marca />
           <button
-            className="flex w-full items-center gap-2 rounded-xl p-1 text-left transition hover:bg-slate-50"
+            className="flex w-full items-center gap-2.5 rounded-xl border border-borda-loja bg-white px-3 py-2.5 text-left transition hover:bg-white"
             onClick={() => setEscolhendo(true)}
             title="Trocar de empresa"
+            aria-label={`Trocar de empresa: ${empresa.nome}`}
           >
-            <Marca titulo={empresa.nome} subtitulo={subtitulo} />
-            <ChevronsUpDown className="ml-auto size-4 shrink-0 text-slate-400" />
+            <Store className="size-4 shrink-0 text-texto-secundario" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-xs font-semibold text-slate-900">{empresa.nome}</span>
+              <span className="block truncate text-[11px] text-texto-secundario">Empresa ativa</span>
+            </span>
+            <ChevronsUpDown className="size-4 shrink-0 text-slate-400" />
           </button>
           {variasLojas && <SeletorLoja />}
         </div>
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3">
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3 pt-1">
+          <p className="px-3 pb-2 text-[10px] font-semibold tracking-[1.1px] text-slate-400">MENU</p>
           {pode.vender && (
-            <Link to="/pdv" className="mb-2 flex items-center gap-3 rounded-xl bg-marca px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-marca-escura">
-              <ShoppingCart className="size-5" /> Abrir o caixa (PDV)
+            <Link to="/pdv" className="mb-2 flex items-center gap-3 rounded-[9px] bg-ponto px-3 py-2.5 text-sm font-semibold text-white hover:bg-neutral-800">
+              <ShoppingCart className="size-5 text-letreiro" /> Abrir o caixa (PDV)
             </Link>
           )}
           {menu.map(item => (
@@ -170,8 +176,8 @@ export function Layout() {
               to={item.para}
               className={({ isActive }) =>
                 cx(
-                  'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition',
-                  isActive ? 'bg-emerald-50 text-marca-escura' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+                  'flex items-center gap-3 rounded-[9px] px-3 py-2.5 text-sm font-medium transition',
+                  isActive ? 'bg-letreiro text-ponto' : 'text-slate-600 hover:bg-white hover:text-ponto',
                 )
               }
             >
@@ -181,7 +187,12 @@ export function Layout() {
             </NavLink>
           ))}
         </nav>
-        <div className="border-t border-slate-100 p-3">
+        <div className="border-t border-borda-loja p-3">
+          <div className="mb-2 rounded-xl border border-borda-loja bg-white p-3">
+            <p className="text-[10px] font-medium tracking-[.8px] text-slate-400">LOJA ATIVA</p>
+            <p className="mt-1 truncate text-xs font-semibold text-slate-900">{loja.nome}</p>
+            <p className="mt-0.5 truncate text-[11px] text-texto-secundario">Ponto de venda</p>
+          </div>
           <div className="flex items-center gap-3 rounded-xl px-2 py-2">
             <Avatar nome={usuario?.nome} tamanho="sm" className="bg-emerald-100 text-marca-escura" />
             <div className="min-w-0 flex-1">
@@ -196,14 +207,14 @@ export function Layout() {
       </aside>
 
       {/* Barra superior (celular) */}
-      <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-marca-escura bg-marca px-4 py-2.5 lg:hidden">
-        <button className="min-w-0 text-left" onClick={() => setEscolhendo(true)} aria-label="Trocar de empresa ou loja">
-          <Marca claro titulo={empresa.nome} subtitulo={subtitulo} />
+      <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-borda-loja bg-white px-4 py-2.5 lg:hidden">
+        <button className="min-w-0 flex-1 text-left" onClick={() => setEscolhendo(true)} aria-label="Trocar de empresa ou loja">
+          <Marca subtitulo={`${empresa.nome} · ${loja.nome}`} />
         </button>
-        {(variasLojas || (vinculos?.length ?? 0) > 1) && <ChevronsUpDown className="size-4 shrink-0 text-emerald-200" />}
+        {(variasLojas || (vinculos?.length ?? 0) > 1) && <ChevronsUpDown className="size-4 shrink-0 text-slate-500" />}
       </header>
 
-      <div className="space-y-2 px-4 pt-3 empty:hidden sm:px-6 lg:px-8">
+      <div className="space-y-2 px-4 pt-3 empty:hidden sm:px-6 lg:px-10">
         {!online && (
           <Aviso tom="erro">
             <span className="flex items-center gap-2">
@@ -247,14 +258,14 @@ export function Layout() {
         )}
       </div>
 
-      <main className="mx-auto max-w-7xl px-4 pb-28 pt-4 sm:px-6 lg:px-8 lg:pb-10 lg:pt-6">
+      <main className="mx-auto w-full max-w-[1600px] px-4 pb-28 pt-5 sm:px-6 lg:px-10 lg:pb-10 lg:pt-[30px]">
         <div key={local.pathname} className="animar-entrada">
           <Outlet />
         </div>
       </main>
 
       {/* Navegação inferior (celular) */}
-      <nav className="pb-seguro fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur lg:hidden">
+      <nav className="pb-seguro fixed inset-x-0 bottom-0 z-30 border-t border-borda-loja bg-white/95 backdrop-blur lg:hidden">
         <div className={cx('mx-auto grid max-w-md items-end px-2', pode.movimentar ? 'grid-cols-5' : 'grid-cols-4')}>
           <ItemInferior para="/painel" rotulo="Painel" icone={LayoutDashboard} />
           <ItemInferior para="/estoque" rotulo="Estoque" icone={Boxes} />
@@ -264,13 +275,13 @@ export function Layout() {
                 <>
                   <span
                     className={cx(
-                      'grid size-14 place-items-center rounded-2xl text-white shadow-lg shadow-emerald-900/25 ring-4 ring-white transition',
-                      isActive ? 'bg-marca-escura' : 'bg-marca',
+                      'grid size-14 place-items-center rounded-2xl text-letreiro shadow-sm ring-4 ring-white transition',
+                      isActive ? 'bg-ponto' : 'bg-ponto',
                     )}
                   >
                     <ScanBarcode className="size-7" />
                   </span>
-                  <span className={cx('text-[11px] font-semibold', isActive ? 'text-marca-escura' : 'text-slate-600')}>Movimentar</span>
+                  <span className={cx('text-[11px] font-semibold', isActive ? 'text-ponto' : 'text-slate-600')}>Movimentar</span>
                 </>
               )}
             </NavLink>
@@ -349,7 +360,7 @@ function ItemInferior({ para, rotulo, icone: Icone, ativoEm }: { para: string; r
   const { pathname } = useLocation()
   const ativo = (ativoEm ?? [para]).some(p => pathname.startsWith(p))
   return (
-    <NavLink to={para} className={cx('flex flex-col items-center gap-1 py-2.5 text-[11px] font-semibold', ativo ? 'text-marca-escura' : 'text-slate-500')}>
+    <NavLink to={para} className={cx('flex flex-col items-center gap-1 py-2.5 text-[11px] font-semibold', ativo ? 'text-ponto' : 'text-slate-500')}>
       <Icone className="size-6" strokeWidth={ativo ? 2.25 : 1.75} />
       {rotulo}
     </NavLink>

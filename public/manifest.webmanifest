@@ -1,14 +1,14 @@
 {
-  "name": "Controle de Estoque",
-  "short_name": "Estoque",
-  "description": "Estoque com lote e validade, caixa (PDV) que vende sem internet e relatórios.",
+  "name": "Ponto — Gestão de Loja",
+  "short_name": "Ponto",
+  "description": "Vendas, caixa e produtos para a rotina da sua loja.",
   "lang": "pt-BR",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#f8fafc",
-  "theme_color": "#047857",
+  "background_color": "#FAFAF8",
+  "theme_color": "#FAFAF8",
   "icons": [
     { "src": "/icone.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ],

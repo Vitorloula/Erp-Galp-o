@@ -1,4 +1,4 @@
-import { Building2, Cpu, LoaderCircle, LogOut, MailOpen, ShoppingBasket, Sparkles, Warehouse, type LucideIcon } from 'lucide-react'
+import { Cpu, LoaderCircle, LogOut, MailOpen, ShoppingBasket, Sparkles, Store, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { guardarConvite } from '../components/Convite'
@@ -11,10 +11,9 @@ import { empresas } from '../lib/dados'
 import type { Segmento } from '../lib/tipos'
 
 export const SEGMENTOS: { valor: Segmento; nome: string; texto: string; icone: LucideIcon }[] = [
-  { valor: 'galpao', nome: 'Galpão / distribuidora', texto: 'Lote e validade, defensivos, fertilizantes', icone: Warehouse },
-  { valor: 'mercadinho', nome: 'Mercadinho / conveniência', texto: 'Venda rápida, balança, bebidas e mercearia', icone: ShoppingBasket },
+  { valor: 'mercadinho', nome: 'Loja de bairro / conveniência', texto: 'Venda rápida, produtos do dia a dia e caixa', icone: ShoppingBasket },
   { valor: 'eletronicos', nome: 'Loja de eletrônicos', texto: 'Celulares, acessórios, série e garantia', icone: Cpu },
-  { valor: 'outro', nome: 'Outro tipo de negócio', texto: 'Comece com uma categoria geral', icone: Building2 },
+  { valor: 'outro', nome: 'Loja de varejo', texto: 'Catálogo, preços, vendas e caixa', icone: Store },
 ]
 
 /**
@@ -27,7 +26,7 @@ export function BoasVindas({ dentroDoSistema }: { dentroDoSistema?: boolean }) {
   const toast = useToast()
   const navegar = useNavigate()
   const [nome, setNome] = useState('')
-  const [segmento, setSegmento] = useState<Segmento>('galpao')
+  const [segmento, setSegmento] = useState<Segmento>('outro')
   const [nomeLoja, setNomeLoja] = useState('')
   const [link, setLink] = useState('')
   const [ocupado, setOcupado] = useState<'criar' | 'exemplo' | null>(null)
@@ -92,7 +91,7 @@ export function BoasVindas({ dentroDoSistema }: { dentroDoSistema?: boolean }) {
           </div>
         </fieldset>
         <div>
-          <label className="rotulo" htmlFor="emp-loja">Nome da loja ou do galpão</label>
+          <label className="rotulo" htmlFor="emp-loja">Nome da loja</label>
           <input id="emp-loja" className="campo" value={nomeLoja} onChange={e => setNomeLoja(e.target.value)} placeholder="Loja principal" />
           <p className="mt-1 text-xs text-slate-500">Outras lojas/filiais podem ser cadastradas depois.</p>
         </div>

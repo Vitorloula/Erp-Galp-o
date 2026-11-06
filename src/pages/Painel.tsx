@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpFromLine, Boxes, ChevronRight, CircleCheck, Clock, History, OctagonAlert, PackageX, ScanBarcode, ShoppingBasket, type LucideIcon } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, Banknote, Boxes, ChevronRight, CircleCheck, Clock, History, OctagonAlert, Package, PackageX, ScanBarcode, ShoppingBasket, ShoppingCart, TrendingUp, type LucideIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { ListaMovimentacoes } from '../components/ListaMovimentacoes'
@@ -6,7 +6,7 @@ import { BadgeReposicao, BadgeSituacao, Carregando, Kpi, Vazio, cx } from '../co
 import { useAuth } from '../contexto/Auth'
 import { useDados } from '../contexto/Dados'
 import { useAtiva } from '../contexto/Empresa'
-import { movimentos } from '../lib/dados'
+import { movimentos, vendas as dadosVendas } from '../lib/dados'
 import {
   PRIORIDADE,
   PRIORIDADE_ATENCAO,
@@ -17,7 +17,9 @@ import {
   type Situacao,
 } from '../lib/estoque'
 import { formatarQtd, formatarValidade, hojeISO } from '../lib/formato'
+import { centavos, formatarReais } from '../pdv/venda'
 import type { Movimentacao, Unidade } from '../lib/tipos'
+import type { Venda } from '../lib/dados/vendas'
 
 function saudacao() {
   const h = new Date().getHours()
@@ -25,13 +27,13 @@ function saudacao() {
 }
 
 function Atalho({ para, icone: Icone, titulo, tom }: { para: string; icone: LucideIcon; titulo: string; tom: 'entrada' | 'saida' | 'destaque' }) {
-  const iconeClasse = tom === 'entrada' ? 'bg-emerald-100 text-marca' : tom === 'saida' ? 'bg-sky-100 text-sky-700' : 'bg-white/15 text-white'
+  const iconeClasse = tom === 'entrada' ? 'bg-[#fff8dd] text-ponto' : tom === 'saida' ? 'bg-slate-100 text-slate-700' : 'bg-letreiro text-ponto'
   return (
     <Link
       to={para}
       className={cx(
-        'cartao flex flex-col items-center gap-1.5 p-3 text-center text-sm font-semibold',
-        tom === 'destaque' ? 'bg-marca text-white active:bg-marca-escura' : 'text-slate-700 active:bg-slate-50',
+        'flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center text-sm font-semibold transition',
+        tom === 'destaque' ? 'border-ponto bg-ponto text-white active:bg-neutral-800' : 'border-borda-loja bg-white text-slate-700 active:bg-superficie',
       )}
     >
       <span className={cx('grid size-10 place-items-center rounded-xl', iconeClasse)}>
@@ -62,9 +64,35 @@ export function Painel() {
   const { produtos, lotes, carregando, versao } = useDados()
   const navegar = useNavigate()
   const [recentes, setRecentes] = useState<Movimentacao[] | null>(null)
+  const [vendasSemana, setVendasSemana] = useState<Venda[] | null>(null)
+  const [falhaVendas, setFalhaVendas] = useState(false)
 
   useEffect(() => {
     movimentos.listarMovimentacoes(empresa.empresa_id, loja.id, { limite: 8 }).then(setRecentes).catch(() => setRecentes([]))
+  }, [versao, empresa.empresa_id, loja.id])
+
+  useEffect(() => {
+    let ativo = true
+    setVendasSemana(null)
+    setFalhaVendas(false)
+    const agora = new Date()
+    const desde = new Date(agora)
+    desde.setDate(desde.getDate() - 6)
+    desde.setHours(0, 0, 0, 0)
+    const ate = new Date(agora)
+    ate.setHours(23, 59, 59, 999)
+    dadosVendas
+      .listarVendas(empresa.empresa_id, loja.id, { desde: desde.toISOString(), ate: ate.toISOString() })
+      .then(lista => ativo && setVendasSemana(lista))
+      .catch(() => {
+        if (ativo) {
+          setVendasSemana([])
+          setFalhaVendas(true)
+        }
+      })
+    return () => {
+      ativo = false
+    }
   }, [versao, empresa.empresa_id, loja.id])
 
   const linhas = useMemo(() => montarLinhasEstoque(produtos, lotes), [produtos, lotes])
@@ -135,49 +163,168 @@ export function Painel() {
 
   const hoje = hojeISO()
   const movHoje = (recentes ?? []).filter(m => hojeISO(new Date(m.ocorrido_em)) === hoje)
+  const vendasHoje = (vendasSemana ?? []).filter(v => v.status === 'concluida' && hojeISO(new Date(v.ocorrido_em)) === hoje)
+  const totalVendidoHoje = vendasHoje.reduce((soma, venda) => soma + centavos(venda.total), 0)
+  const ticketMedio = vendasHoje.length ? Math.round(totalVendidoHoje / vendasHoje.length) : 0
+  const diasVendas = useMemo(() => {
+    const base = new Date()
+    return Array.from({ length: 7 }, (_, indice) => {
+      const data = new Date(base)
+      data.setDate(base.getDate() - (6 - indice))
+      const iso = hojeISO(data)
+      const total = (vendasSemana ?? [])
+        .filter(v => v.status === 'concluida' && hojeISO(new Date(v.ocorrido_em)) === iso)
+        .reduce((soma, venda) => soma + centavos(venda.total), 0)
+      return {
+        iso,
+        total,
+        rotulo: data.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase(),
+        hoje: iso === hoje,
+      }
+    })
+  }, [vendasSemana, hoje])
+  const maiorDia = Math.max(1, ...diasVendas.map(dia => dia.total))
 
   if (carregando) return <Carregando />
 
   const dataExtenso = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
+  const nomeCurto = usuario?.nome.split(' ')[0]
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-sm text-slate-500 first-letter:uppercase">{dataExtenso}</p>
-        <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
-          {saudacao()}, {usuario?.nome.split(' ')[0]}
-        </h1>
-      </div>
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-xs font-medium uppercase tracking-[.06em] text-texto-secundario">{dataExtenso}</p>
+          <h1 className="mt-1 text-2xl font-bold leading-9 tracking-[-1.1px] text-ponto sm:text-[30px]">
+            {saudacao()}{nomeCurto ? `, ${nomeCurto}` : ''}<span className="text-letreiro">.</span>
+          </h1>
+          <p className="mt-1 text-sm text-texto-secundario">Veja o que está acontecendo na sua loja hoje.</p>
+        </div>
+        {pode.vender && (
+          <Link to="/pdv" className="btn btn-primario shrink-0">
+            <ShoppingCart className="size-4 text-letreiro" /> Abrir caixa
+          </Link>
+        )}
+      </header>
+
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="Vendas de hoje">
+        <Kpi
+          titulo="Vendas hoje"
+          valor={vendasSemana === null || falhaVendas ? '—' : formatarReais(totalVendidoHoje)}
+          icone={Banknote}
+          tom="verde"
+          detalhe={falhaVendas ? 'Não foi possível atualizar' : `${vendasHoje.length} vendas finalizadas`}
+        />
+        <Kpi
+          titulo="Vendas realizadas"
+          valor={vendasSemana === null || falhaVendas ? '—' : vendasHoje.length}
+          icone={ShoppingCart}
+          detalhe={falhaVendas ? 'Tente novamente mais tarde' : 'desde a abertura da loja'}
+        />
+        <Kpi
+          titulo="Ticket médio"
+          valor={vendasSemana === null || falhaVendas ? '—' : formatarReais(ticketMedio)}
+          icone={TrendingUp}
+          detalhe="por compra concluída hoje"
+        />
+      </section>
 
       {pode.movimentar && (
-      <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:hidden">
-        <Atalho para="/movimentar?tipo=entrada" icone={ArrowDownToLine} titulo="Entrada" tom="entrada" />
-        <Atalho para="/movimentar?tipo=saida&camera=1" icone={ScanBarcode} titulo="Escanear baixa" tom="destaque" />
-        <Atalho para="/movimentar?tipo=saida" icone={ArrowUpFromLine} titulo="Saída manual" tom="saida" />
-      </div>
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:hidden">
+          <Atalho para="/movimentar?tipo=entrada" icone={ArrowDownToLine} titulo="Entrada" tom="entrada" />
+          <Atalho para="/movimentar?tipo=saida&camera=1" icone={ScanBarcode} titulo="Escanear baixa" tom="destaque" />
+          <Atalho para="/movimentar?tipo=saida" icone={ArrowUpFromLine} titulo="Saída manual" tom="saida" />
+        </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <Kpi titulo="Produtos com saldo" valor={comSaldo} icone={Boxes} tom="verde" detalhe={`${produtos.filter(p => p.ativo).length} cadastrados`} onClick={() => navegar('/estoque')} />
-        <Kpi
-          titulo="Para repor"
-          valor={paraRepor.length}
-          icone={ShoppingBasket}
-          tom={paraRepor.length ? 'amarelo' : 'neutro'}
-          detalhe="saldo no mínimo"
-          onClick={() => navegar('/estoque?filtro=abaixo')}
-        />
-        <Kpi titulo="Vencidos" valor={contagem.vencido} icone={OctagonAlert} tom={contagem.vencido ? 'vermelho' : 'neutro'} detalhe="lotes com saldo" onClick={() => navegar('/estoque?filtro=vencido')} />
-        <Kpi titulo="Vencem em 30 dias" valor={contagem.vencendo} icone={Clock} tom={contagem.vencendo ? 'amarelo' : 'neutro'} detalhe="alerta preventivo" onClick={() => navegar('/estoque?filtro=vencendo')} />
-        <Kpi titulo="Estoque zerado" valor={contagem.zerado} icone={PackageX} tom={contagem.zerado ? 'vermelho' : 'neutro'} detalhe="produtos sem saldo" onClick={() => navegar('/estoque?filtro=zerado')} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_270px]">
+        <section className="cartao flex min-h-[300px] min-w-0 flex-col p-5" aria-labelledby="movimento-vendas">
+          <div className="mb-5 flex items-start justify-between gap-4">
+            <div>
+              <h2 id="movimento-vendas" className="text-sm font-semibold text-ponto">Movimento de vendas</h2>
+              <p className="mt-1 text-xs text-texto-secundario">Acompanhe o ritmo da sua loja · últimos 7 dias</p>
+            </div>
+            <span className="shrink-0 text-xs font-semibold text-marca">
+              {vendasSemana === null || falhaVendas ? '—' : formatarReais(totalVendidoHoje)} hoje
+            </span>
+          </div>
+          <div className="flex h-[190px] items-end justify-around gap-3 border-b border-slate-100 px-1" role="img" aria-label="Vendas concluídas nos últimos sete dias">
+            {diasVendas.map(dia => {
+              const altura = dia.total === 0 ? 4 : Math.max(10, Math.round((dia.total / maiorDia) * 100))
+              return (
+                <div key={dia.iso} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
+                  <div className="flex h-[158px] w-full items-end justify-center" title={`${dia.rotulo}: ${formatarReais(dia.total)}`}>
+                    <div
+                      className={cx('w-full max-w-10 rounded-t-[5px] transition-[height]', dia.hoje ? 'bg-letreiro' : 'bg-slate-200')}
+                      style={{ height: `${altura}%` }}
+                    />
+                  </div>
+                  <span className={cx('text-[10px]', dia.hoje ? 'font-semibold text-ponto' : 'text-slate-400')}>{dia.rotulo}</span>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+
+        <aside className="cartao hidden flex-col gap-3 p-4 lg:flex" aria-label="Atalhos da loja">
+          <div className="pb-1">
+            <h2 className="text-sm font-semibold text-ponto">Atalhos da loja</h2>
+            <p className="mt-1 text-xs text-texto-secundario">O que você precisa fazer?</p>
+          </div>
+          {pode.vender && (
+            <Link to="/pdv" className="flex h-[52px] items-center gap-3 rounded-[9px] bg-ponto px-3 text-sm font-semibold text-white transition hover:bg-neutral-800">
+              <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-letreiro text-ponto"><ShoppingCart className="size-4" /></span>
+              <span className="min-w-0 flex-1 truncate">Iniciar uma venda</span>
+              <ChevronRight className="size-4 shrink-0 text-slate-300" />
+            </Link>
+          )}
+          <Link to="/produtos" className="flex h-12 items-center gap-3 border-b border-slate-100 px-1 text-sm text-slate-700 transition hover:text-ponto">
+            <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-superficie text-slate-600"><Package className="size-4" /></span>
+            <span className="min-w-0 flex-1 truncate">Ver produtos</span>
+            <ChevronRight className="size-4 shrink-0 text-slate-400" />
+          </Link>
+          <Link to="/vendas" className="flex h-12 items-center gap-3 px-1 text-sm text-slate-700 transition hover:text-ponto">
+            <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-superficie text-slate-600"><Banknote className="size-4" /></span>
+            <span className="min-w-0 flex-1 truncate">Vendas e caixa</span>
+            <ChevronRight className="size-4 shrink-0 text-slate-400" />
+          </Link>
+          {pode.movimentar && (
+            <Link to="/movimentar?tipo=entrada" className="mt-auto flex items-center gap-2 rounded-[9px] bg-[#fff8dd] px-3 py-2.5 text-xs font-medium text-[#6d6440]">
+              <span className="size-2 shrink-0 rounded-full bg-marca" /> Loja pronta para atender
+            </Link>
+          )}
+        </aside>
       </div>
+
+      <section aria-label="Indicadores de produtos">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-ponto">Produtos e disponibilidade</h2>
+          <Link to="/estoque" className="flex shrink-0 items-center text-xs font-semibold text-ponto hover:underline">
+            Ver disponibilidade <ChevronRight className="size-4" />
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <Kpi titulo="Produtos com saldo" valor={comSaldo} icone={Boxes} tom="verde" detalhe={`${produtos.filter(p => p.ativo).length} cadastrados`} onClick={() => navegar('/estoque')} />
+          <Kpi
+            titulo="Para repor"
+            valor={paraRepor.length}
+            icone={ShoppingBasket}
+            tom={paraRepor.length ? 'amarelo' : 'neutro'}
+            detalhe="saldo no mínimo"
+            onClick={() => navegar('/estoque?filtro=abaixo')}
+          />
+          <Kpi titulo="Vencidos" valor={contagem.vencido} icone={OctagonAlert} tom={contagem.vencido ? 'vermelho' : 'neutro'} detalhe="lotes com saldo" onClick={() => navegar('/estoque?filtro=vencido')} />
+          <Kpi titulo="Vencem em 30 dias" valor={contagem.vencendo} icone={Clock} tom={contagem.vencendo ? 'amarelo' : 'neutro'} detalhe="alerta preventivo" onClick={() => navegar('/estoque?filtro=vencendo')} />
+          <Kpi titulo="Estoque zerado" valor={contagem.zerado} icone={PackageX} tom={contagem.zerado ? 'vermelho' : 'neutro'} detalhe="produtos sem saldo" onClick={() => navegar('/estoque?filtro=zerado')} />
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-5">
         <section className="xl:col-span-3">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="font-semibold text-slate-900">Precisa de atenção</h2>
-            <Link to="/estoque" className="flex items-center text-sm font-medium text-marca-escura hover:underline">
-              Ver estoque <ChevronRight className="size-4" />
+            <h2 className="text-sm font-semibold text-ponto">Atenção na loja</h2>
+            <Link to="/estoque" className="flex items-center text-xs font-semibold text-ponto hover:underline">
+              Ver disponibilidade <ChevronRight className="size-4" />
             </Link>
           </div>
           {atencao.length === 0 ? (
@@ -211,11 +358,11 @@ export function Painel() {
 
         <section className="xl:col-span-2">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="font-semibold text-slate-900">
+            <h2 className="text-sm font-semibold text-ponto">
               Últimas movimentações
-              {movHoje.length > 0 && <span className="ml-2 text-sm font-normal text-slate-500">{movHoje.length} hoje</span>}
+              {movHoje.length > 0 && <span className="ml-2 text-xs font-normal text-texto-secundario">{movHoje.length} hoje</span>}
             </h2>
-            <Link to="/historico" className="flex items-center text-sm font-medium text-marca-escura hover:underline">
+            <Link to="/historico" className="flex items-center text-xs font-semibold text-ponto hover:underline">
               Histórico <ChevronRight className="size-4" />
             </Link>
           </div>

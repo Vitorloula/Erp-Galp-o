@@ -90,8 +90,8 @@ test.describe('Cadastro e primeira empresa', () => {
     await expect(page.getByRole('heading', { name: 'Bem-vindo, Maria!' })).toBeVisible()
 
     await page.getByLabel('Nome da empresa *').fill('Agro Santa Rita')
-    await page.getByText('Galpão / distribuidora').click()
-    await page.getByLabel('Nome da loja ou do galpão').fill('Galpão 1')
+    await page.getByText('Loja de varejo').click()
+    await page.getByLabel('Nome da loja').fill('Loja 1')
     await page.getByRole('button', { name: /Criar empresa/ }).click()
     await expect(toast(page, 'Empresa Agro Santa Rita criada. Bom trabalho!')).toBeVisible()
     await expect(page.getByRole('heading', { name: /Maria/ })).toBeVisible()
@@ -100,8 +100,8 @@ test.describe('Cadastro e primeira empresa', () => {
 
     // Categorias do segmento já vêm prontas
     await page.goto('/produtos')
-    await expect(page.getByLabel('Categoria')).toContainText('Defensivo agrícola')
-    await expect(page.getByText('0 produtos ativos')).toBeVisible()
+    await expect(page.getByLabel('Categoria')).toContainText('Geral')
+    await expect(page.getByText('1 produto ativo')).toBeVisible()
   })
 
   test('conhecer o sistema com a empresa de exemplo', async ({ page, servidor }) => {

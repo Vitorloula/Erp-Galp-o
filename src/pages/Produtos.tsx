@@ -41,12 +41,13 @@ export function Produtos() {
   }, [termo, categoria, inativos])
 
   if (carregando) return <Carregando />
+  const ativos = produtos.filter(p => p.ativo).length
 
   return (
     <div>
       <Cabecalho
         titulo="Produtos"
-        subtitulo={`${produtos.filter(p => p.ativo).length} produtos ativos`}
+        subtitulo={`${ativos} ${ativos === 1 ? 'produto ativo' : 'produtos ativos'}`}
         acoes={
           <>
             {pode.gerenciarCategorias && (

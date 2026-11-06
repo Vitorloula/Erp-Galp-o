@@ -132,7 +132,7 @@ export function instalarMonitoramento() {
 /** Texto pronto para colar no suporte (sem enviar nada automaticamente). */
 export function diagnosticoParaSuporte(extra: Record<string, string | number | boolean> = {}): string {
   const linhas = [
-    `Sistema: ${import.meta.env.VITE_NOME_SISTEMA || 'Controle de Estoque'}`,
+    `Sistema: ${import.meta.env.VITE_NOME_SISTEMA || 'Ponto'}`,
     `URL: ${urlSegura()}`,
     `Quando: ${new Date().toISOString()}`,
     `Online: ${navigator.onLine ? 'sim' : 'não'}`,

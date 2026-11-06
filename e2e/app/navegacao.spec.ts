@@ -6,6 +6,7 @@ const TELAS = [
   { rota: '/movimentar', titulo: 'Movimentar estoque' },
   { rota: '/historico', titulo: 'Histórico de movimentações' },
   { rota: '/produtos', titulo: 'Produtos' },
+  { rota: '/vendas', titulo: 'Vendas' },
   { rota: '/relatorios', titulo: 'Relatórios' },
   { rota: '/equipe', titulo: 'Equipe' },
   { rota: '/empresa', titulo: 'Empresa' },
@@ -47,7 +48,7 @@ test.describe('Navegação', () => {
       await expect(page.locator('aside')).toBeHidden()
     } else {
       const menu = page.locator('aside nav')
-      for (const [item, rota] of [['Estoque', '/estoque'], ['Movimentar', '/movimentar'], ['Histórico', '/historico'], ['Produtos', '/produtos'], ['Relatórios', '/relatorios'], ['Equipe', '/equipe'], ['Empresa', '/empresa'], ['Painel', '/painel']] as const) {
+      for (const [item, rota] of [['Vendas e caixa', '/vendas'], ['Produtos', '/produtos'], ['Estoque', '/estoque'], ['Movimentar', '/movimentar'], ['Histórico', '/historico'], ['Relatórios', '/relatorios'], ['Equipe', '/equipe'], ['Empresa', '/empresa'], ['Visão geral', '/painel']] as const) {
         await menu.getByRole('link', { name: item }).click()
         await expect(page).toHaveURL(new RegExp(rota + '$'))
       }

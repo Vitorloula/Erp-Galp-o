@@ -146,7 +146,7 @@ export function EmpresaConfig() {
 
       <section className="cartao p-4">
         <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 font-semibold text-slate-900"><Store className="size-5 text-marca" /> Lojas e galpões</h2>
+          <h2 className="flex items-center gap-2 font-semibold text-slate-900"><Store className="size-5 text-marca" /> Lojas</h2>
           {pode.gerenciarEmpresa && pode.gravavel && (
             <button className="btn btn-secundario px-3 py-1.5 text-sm" onClick={() => setLojaEditando({ nome: '', ativo: true })}>
               <Plus className="size-4" /> Nova loja

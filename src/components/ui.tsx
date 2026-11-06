@@ -245,21 +245,21 @@ export function Kpi({
 }) {
   const tons = {
     neutro: 'bg-slate-100 text-slate-600',
-    vermelho: 'bg-red-100 text-red-700',
-    amarelo: 'bg-amber-100 text-amber-700',
-    verde: 'bg-emerald-100 text-marca',
+    vermelho: 'bg-red-50 text-red-700',
+    amarelo: 'bg-[#fff8dd] text-[#826a1d]',
+    verde: 'bg-emerald-50 text-marca',
   }
   const Tag = onClick ? 'button' : 'div'
   return (
-    <Tag onClick={onClick} className={cx('cartao flex w-full items-start gap-3 p-4 text-left', onClick && 'transition hover:border-slate-300 hover:shadow')}>
-      <span className={cx('grid size-10 shrink-0 place-items-center rounded-xl', tons[tom])}>
-        <Icone className="size-5" />
+    <Tag onClick={onClick} className={cx('cartao flex min-h-[118px] w-full flex-col gap-2.5 p-4 text-left', onClick && 'transition hover:border-slate-300')}>
+      <span className="flex w-full items-center justify-between gap-2">
+        <span className="text-xs font-medium text-texto-secundario">{titulo}</span>
+        <span className={cx('grid size-7 shrink-0 place-items-center rounded-lg', tons[tom])}>
+          <Icone className="size-4" />
+        </span>
       </span>
-      <span className="min-w-0">
-        <span className="block text-2xl font-bold leading-tight tabular-nums text-slate-900">{valor}</span>
-        <span className="block text-sm font-medium text-slate-600">{titulo}</span>
-        {detalhe && <span className="mt-0.5 block text-xs text-slate-400">{detalhe}</span>}
-      </span>
+      <span className="block text-2xl font-bold leading-tight tabular-nums tracking-tight text-ponto">{valor}</span>
+      {detalhe && <span className="block text-[11px] leading-[14px] text-texto-secundario">{detalhe}</span>}
     </Tag>
   )
 }
@@ -296,10 +296,10 @@ export function Segmentado<T extends string>({
 
 export function Cabecalho({ titulo, subtitulo, acoes }: { titulo: string; subtitulo?: ReactNode; acoes?: ReactNode }) {
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
       <div className="min-w-0">
-        <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">{titulo}</h1>
-        {subtitulo && <p className="mt-0.5 text-sm text-slate-500">{subtitulo}</p>}
+        <h1 className="text-2xl font-bold leading-9 tracking-[-1px] text-ponto sm:text-[30px]">{titulo}</h1>
+        {subtitulo && <p className="mt-1 text-sm text-texto-secundario">{subtitulo}</p>}
       </div>
       {acoes && <div className="flex flex-wrap gap-2">{acoes}</div>}
     </div>
