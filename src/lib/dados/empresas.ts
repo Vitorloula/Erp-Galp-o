@@ -29,14 +29,20 @@ export async function criarEmpresaExemplo(): Promise<string> {
 }
 
 export async function dadosEmpresa(empresaId: string): Promise<DadosEmpresa> {
-  return exigir(await sb.from('empresas').select('id, nome, razao_social, documento').eq('id', empresaId).single()) as DadosEmpresa
+  return exigir(await sb.from('empresas').select('id, nome, razao_social, documento, config').eq('id', empresaId).single()) as DadosEmpresa
 }
 
 export async function salvarEmpresa(empresaId: string, dados: Omit<DadosEmpresa, 'id'>) {
   if (!dados.nome.trim()) throw new Error('Informe o nome da empresa.')
+  const atualizacao: Record<string, unknown> = {
+    nome: dados.nome.trim(),
+    razao_social: dados.razao_social?.trim() || null,
+    documento: dados.documento?.replace(/\D/g, '') || null,
+  }
+  if (dados.config !== undefined) atualizacao.config = dados.config
   const { error } = await sb
     .from('empresas')
-    .update({ nome: dados.nome.trim(), razao_social: dados.razao_social?.trim() || null, documento: dados.documento?.replace(/\D/g, '') || null })
+    .update(atualizacao)
     .eq('id', empresaId)
     .select('id')
     .single()
@@ -46,15 +52,35 @@ export async function salvarEmpresa(empresaId: string, dados: Omit<DadosEmpresa,
 // ------------------------------------------------------------------ lojas
 
 export async function listarLojas(empresaId: string): Promise<Loja[]> {
-  const lojas = exigir(await sb.from('lojas').select('id, nome, cnpj, endereco, ativo').eq('empresa_id', empresaId).order('criado_em')) as Loja[]
+  const lojas = exigir(await sb.from('lojas').select('id, nome, cnpj, ie, endereco, cod_municipio_ibge, uf, ativo').eq('empresa_id', empresaId).order('criado_em')) as Loja[]
   return lojas
 }
 
-export async function salvarLoja(empresaId: string, dados: { nome: string; ativo?: boolean }, id?: string) {
+export async function salvarLoja(
+  empresaId: string,
+  dados: {
+    nome: string
+    cnpj?: string | null
+    ie?: string | null
+    endereco?: string | null
+    cod_municipio_ibge?: string | null
+    uf?: string | null
+    ativo?: boolean
+  },
+  id?: string,
+) {
   if (!dados.nome.trim()) throw new Error('Informe o nome da loja.')
+  const campos = {
+    nome: dados.nome.trim(),
+    cnpj: dados.cnpj?.replace(/\D/g, '') || null,
+    ie: dados.ie?.trim() || null,
+    endereco: dados.endereco?.trim() || null,
+    cod_municipio_ibge: dados.cod_municipio_ibge?.replace(/\D/g, '') || null,
+    uf: dados.uf?.trim().toUpperCase().slice(0, 2) || null,
+  }
   const r = id
-    ? await sb.from('lojas').update({ nome: dados.nome.trim(), ativo: dados.ativo ?? true }).eq('id', id).select('id').single()
-    : await sb.from('lojas').insert({ empresa_id: empresaId, nome: dados.nome.trim() }).select('id').single()
+    ? await sb.from('lojas').update({ ...campos, ativo: dados.ativo ?? true }).eq('id', id).select('id').single()
+    : await sb.from('lojas').insert({ empresa_id: empresaId, ...campos }).select('id').single()
   if (r.error) throw r.error.code === 'PGRST116' ? new Error('Somente o dono altera as lojas.') : traduzirErro(r.error)
 }
 

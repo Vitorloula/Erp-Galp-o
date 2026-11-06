@@ -240,7 +240,7 @@ export function TelaVenda({ abrirMenu }: { abrirMenu: () => void }) {
           <div className="m-auto flex flex-col items-center gap-2 p-10 text-center text-slate-400">
             <ShoppingCart className="size-10" />
             <p className="text-sm">Passe o código de barras ou digite o código/nome do produto.</p>
-            <p className="text-xs">F2 buscar · F3 desconto · F4 pagar · F10 menu</p>
+            <p className="hidden text-xs lg:block">F2 buscar · F3 desconto · F4 pagar · F10 menu</p>
             {/* Versão nova só é aplicada com a venda vazia */}
             {atualizacao.disponivel && (
               <button className="btn btn-secundario mt-3 text-sm text-slate-700" onClick={atualizacao.atualizar}>
@@ -251,8 +251,8 @@ export function TelaVenda({ abrirMenu }: { abrirMenu: () => void }) {
         ) : (
           <ul className="flex-1 divide-y divide-slate-100 overflow-y-auto">
             {itens.map((i, k) => (
-              <li key={i.id} data-item={i.descricao}>
-                <button type="button" className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-slate-50" onClick={() => setEditando(i)}>
+              <li key={i.id} data-item={i.descricao} className="flex items-center hover:bg-slate-50">
+                <button type="button" className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left" onClick={() => setEditando(i)}>
                   <span className="w-6 text-xs font-semibold text-slate-400">{k + 1}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-semibold text-slate-900">{i.descricao}</span>
@@ -263,6 +263,47 @@ export function TelaVenda({ abrirMenu }: { abrirMenu: () => void }) {
                   </span>
                   <span className="font-bold tabular-nums text-slate-900">{formatarReais(brutoItem(i) - Math.min(i.descontoItem, brutoItem(i)))}</span>
                 </button>
+                <div className="hidden items-center gap-1 pr-2 sm:flex">
+                  {i.unidade === 'un' && (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-fantasma p-1.5 text-slate-400 hover:text-slate-700"
+                        onClick={() =>
+                          setItens(l =>
+                            i.quantidade <= 1
+                              ? l.filter(x => x.id !== i.id)
+                              : l.map(x => (x.id === i.id ? { ...x, quantidade: Math.round((x.quantidade - 1) * 1000) / 1000 } : x)),
+                          )
+                        }
+                        title="Diminuir quantidade"
+                        aria-label={`Diminuir ${i.descricao}`}
+                      >
+                        <Minus className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-fantasma p-1.5 text-slate-400 hover:text-slate-700"
+                        onClick={() =>
+                          setItens(l => l.map(x => (x.id === i.id ? { ...x, quantidade: Math.round((x.quantidade + 1) * 1000) / 1000 } : x)))
+                        }
+                        title="Aumentar quantidade"
+                        aria-label={`Aumentar ${i.descricao}`}
+                      >
+                        <Plus className="size-3.5" />
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-fantasma p-1.5 text-slate-400 hover:text-red-600"
+                    onClick={() => setItens(l => l.filter(x => x.id !== i.id))}
+                    title="Remover item"
+                    aria-label={`Remover ${i.descricao}`}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -687,10 +728,10 @@ function TelaPagamento({ total, aoVoltar, aoConcluir }: { total: number; aoVolta
                 key={f.valor}
                 type="button"
                 onClick={() => adicionar(f.valor)}
-                className={cx('flex flex-col items-center rounded-xl border px-1 py-2 text-xs font-semibold', forma === f.valor ? 'border-emerald-600 bg-emerald-50 text-marca-escura' : 'border-slate-200 text-slate-700')}
+                className={cx('flex flex-col items-center rounded-xl border px-1 py-2 text-xs font-semibold', forma === f.valor ? 'border-ponto bg-[#fff8dd] text-ponto' : 'border-slate-200 text-slate-700')}
               >
                 {f.nome}
-                <span className="text-[10px] font-normal text-slate-400">{f.atalho}</span>
+                <span className="hidden text-[10px] font-normal text-slate-400 lg:inline">{f.atalho}</span>
               </button>
             ))}
           </div>
@@ -722,7 +763,7 @@ function TelaPagamento({ total, aoVoltar, aoConcluir }: { total: number; aoVolta
         </div>
         <div className="shrink-0 border-t border-slate-100 bg-white px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]" data-modal-rodape>
           <button type="button" className="btn btn-primario btn-grande w-full" disabled={!!conf.erro || concluindo || cpfInvalido} onClick={concluir}>
-            <Check className="size-5" /> Concluir venda (Enter)
+            <Check className="size-5" /> Concluir venda <span className="hidden lg:inline">(Enter)</span>
           </button>
         </div>
       </div>

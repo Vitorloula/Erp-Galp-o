@@ -188,13 +188,15 @@ export function Layout() {
           ))}
         </nav>
         <div className="border-t border-borda-loja p-3">
-          <div className="mb-2 rounded-xl border border-borda-loja bg-white p-3">
-            <p className="text-[10px] font-medium tracking-[.8px] text-slate-400">LOJA ATIVA</p>
-            <p className="mt-1 truncate text-xs font-semibold text-slate-900">{loja.nome}</p>
-            <p className="mt-0.5 truncate text-[11px] text-texto-secundario">Ponto de venda</p>
-          </div>
+          {!variasLojas && (
+            <div className="mb-2 rounded-xl border border-borda-loja bg-white p-3">
+              <p className="text-[10px] font-medium tracking-[.8px] text-slate-400">LOJA ATIVA</p>
+              <p className="mt-1 truncate text-xs font-semibold text-slate-900">{loja.nome}</p>
+              <p className="mt-0.5 truncate text-[11px] text-texto-secundario">Ponto de venda</p>
+            </div>
+          )}
           <div className="flex items-center gap-3 rounded-xl px-2 py-2">
-            <Avatar nome={usuario?.nome} tamanho="sm" className="bg-emerald-100 text-marca-escura" />
+            <Avatar nome={usuario?.nome} tamanho="sm" className="bg-letreiro text-ponto" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-slate-800">{usuario?.nome}</p>
               <p className="text-xs text-slate-500">{NOME_PAPEL[empresa.papel]}</p>
@@ -287,7 +289,13 @@ export function Layout() {
             </NavLink>
           )}
           <ItemInferior para="/historico" rotulo="Histórico" icone={History} />
-          <ItemInferior para="/mais" rotulo="Mais" icone={Ellipsis} ativoEm={['/mais', '/produtos', '/relatorios', '/inventario', '/equipe', '/empresa', '/vendas', '/divergencias']} />
+          <ItemInferior
+            para="/mais"
+            rotulo="Mais"
+            icone={Ellipsis}
+            contador={divergencias}
+            ativoEm={['/mais', '/produtos', '/relatorios', '/inventario', '/equipe', '/empresa', '/vendas', '/divergencias']}
+          />
         </div>
       </nav>
 
@@ -299,10 +307,10 @@ export function Layout() {
 function SeletorLoja() {
   const { loja, lojas, trocarLoja } = useAtiva()
   return (
-    <label className="flex items-center gap-2 rounded-xl bg-slate-50 px-2.5 py-1.5">
+    <label className="flex items-center gap-2 rounded-xl border border-borda-loja bg-white px-2.5 py-2">
       <Store className="size-4 shrink-0 text-slate-500" />
       <span className="sr-only">Loja</span>
-      <select className="w-full bg-transparent text-sm font-medium text-slate-700 outline-none" value={loja.id} onChange={e => trocarLoja(e.target.value)} aria-label="Loja">
+      <select className="w-full bg-transparent text-xs font-semibold text-slate-800 outline-none" value={loja.id} onChange={e => trocarLoja(e.target.value)} aria-label="Loja">
         {lojas!.map(l => <option key={l.id} value={l.id}>{l.nome}</option>)}
       </select>
     </label>
@@ -356,12 +364,19 @@ function EscolherEmpresa({ aberto, aoFechar, trocarLoja }: { aberto: boolean; ao
   )
 }
 
-function ItemInferior({ para, rotulo, icone: Icone, ativoEm }: { para: string; rotulo: string; icone: LucideIcon; ativoEm?: string[] }) {
+function ItemInferior({ para, rotulo, icone: Icone, ativoEm, contador }: { para: string; rotulo: string; icone: LucideIcon; ativoEm?: string[]; contador?: number }) {
   const { pathname } = useLocation()
   const ativo = (ativoEm ?? [para]).some(p => pathname.startsWith(p))
   return (
-    <NavLink to={para} className={cx('flex flex-col items-center gap-1 py-2.5 text-[11px] font-semibold', ativo ? 'text-ponto' : 'text-slate-500')}>
-      <Icone className="size-6" strokeWidth={ativo ? 2.25 : 1.75} />
+    <NavLink to={para} aria-label={rotulo} className={cx('relative flex flex-col items-center gap-1 py-2.5 text-[11px] font-semibold', ativo ? 'text-ponto' : 'text-slate-500')}>
+      <span className="relative">
+        <Icone className="size-6" strokeWidth={ativo ? 2.25 : 1.75} />
+        {!!contador && (
+          <span aria-hidden="true" className="absolute -right-2 -top-1 rounded-full bg-red-600 px-1 text-[10px] font-bold leading-4 text-white">
+            {contador}
+          </span>
+        )}
+      </span>
       {rotulo}
     </NavLink>
   )

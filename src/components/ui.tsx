@@ -162,6 +162,7 @@ export function Modal({
   largura?: string
 }) {
   const idTitulo = useId()
+  const painelRef = useRef<HTMLDivElement>(null)
   // Guarda o callback em uma ref para o efeito não ser refeito a cada render
   // (as telas costumam passar `aoFechar` inline). Sem isso, o body era
   // desbloqueado/reloqueado a cada render, permitindo a página rolar atrás.
@@ -169,13 +170,37 @@ export function Modal({
   fechar.current = aoFechar
   useEffect(() => {
     if (!aberto) return
-    const tecla = (e: KeyboardEvent) => e.key === 'Escape' && fechar.current()
+    const anterior = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        fechar.current()
+        return
+      }
+      if (e.key === 'Tab' && painelRef.current) {
+        const focaveis = Array.from(
+          painelRef.current.querySelectorAll<HTMLElement>(
+            'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+          ),
+        ).filter(el => el.offsetParent !== null)
+        if (focaveis.length === 0) return
+        const primeiro = focaveis[0]
+        const ultimo = focaveis[focaveis.length - 1]
+        if (e.shiftKey && (document.activeElement === primeiro || !painelRef.current.contains(document.activeElement))) {
+          e.preventDefault()
+          ultimo.focus()
+        } else if (!e.shiftKey && document.activeElement === ultimo) {
+          e.preventDefault()
+          primeiro.focus()
+        }
+      }
+    }
     document.addEventListener('keydown', tecla)
     const overflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => {
       document.removeEventListener('keydown', tecla)
       document.body.style.overflow = overflow
+      if (anterior && document.contains(anterior)) anterior.focus()
     }
   }, [aberto])
 
@@ -202,6 +227,7 @@ export function Modal({
     >
       <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]" onClick={aoFechar} aria-hidden="true" />
       <div
+        ref={painelRef}
         className={cx(
           'animar-modal relative flex max-h-[calc(100dvh-1rem)] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl',
           largura,

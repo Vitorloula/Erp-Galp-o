@@ -1,4 +1,4 @@
-import { Cpu, LoaderCircle, LogOut, MailOpen, ShoppingBasket, Sparkles, Store, type LucideIcon } from 'lucide-react'
+import { Cpu, LoaderCircle, LogOut, MailOpen, ShoppingBasket, Sparkles, Store, Warehouse, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { guardarConvite } from '../components/Convite'
@@ -11,7 +11,8 @@ import { empresas } from '../lib/dados'
 import type { Segmento } from '../lib/tipos'
 
 export const SEGMENTOS: { valor: Segmento; nome: string; texto: string; icone: LucideIcon }[] = [
-  { valor: 'mercadinho', nome: 'Loja de bairro / conveniência', texto: 'Venda rápida, produtos do dia a dia e caixa', icone: ShoppingBasket },
+  { valor: 'galpao', nome: 'Galpão / distribuidora', texto: 'Insumos, lotes, validade e embalagens', icone: Warehouse },
+  { valor: 'mercadinho', nome: 'Mercadinho / conveniência', texto: 'Venda rápida, produtos do dia a dia e caixa', icone: ShoppingBasket },
   { valor: 'eletronicos', nome: 'Loja de eletrônicos', texto: 'Celulares, acessórios, série e garantia', icone: Cpu },
   { valor: 'outro', nome: 'Loja de varejo', texto: 'Catálogo, preços, vendas e caixa', icone: Store },
 ]
@@ -77,11 +78,11 @@ export function BoasVindas({ dentroDoSistema }: { dentroDoSistema?: boolean }) {
                 key={s.valor}
                 className={cx(
                   'flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition',
-                  segmento === s.valor ? 'border-emerald-600 bg-emerald-50 ring-2 ring-emerald-600/20' : 'border-slate-200 hover:border-slate-300',
+                  segmento === s.valor ? 'border-ponto bg-[#fff8dd]/50 ring-2 ring-letreiro/60' : 'border-slate-200 hover:border-slate-300',
                 )}
               >
                 <input type="radio" name="segmento" className="sr-only" checked={segmento === s.valor} onChange={() => setSegmento(s.valor)} />
-                <s.icone className="mt-0.5 size-5 shrink-0 text-marca" />
+                <s.icone className="mt-0.5 size-5 shrink-0 text-ponto" />
                 <span>
                   <span className="block text-sm font-semibold text-slate-900">{s.nome}</span>
                   <span className="block text-xs text-slate-500">{s.texto}</span>

@@ -243,8 +243,8 @@ function NovoConvite({ aberto, aoFechar, aoCriar }: { aberto: boolean; aoFechar:
             <legend className="rotulo">O que a pessoa vai fazer</legend>
             <div className="space-y-2">
               {papeis.map(p => (
-                <label key={p} className={cx('flex cursor-pointer items-start gap-3 rounded-xl border p-3', papel === p ? 'border-emerald-600 ring-2 ring-emerald-600/20' : 'border-slate-200')}>
-                  <input type="radio" name="papel" className="mt-0.5 size-4.5 accent-marca" checked={papel === p} onChange={() => setPapel(p)} />
+                <label key={p} className={cx('flex cursor-pointer items-start gap-3 rounded-xl border p-3', papel === p ? 'border-ponto bg-[#fff8dd]/50 ring-2 ring-letreiro/60' : 'border-slate-200')}>
+                  <input type="radio" name="papel" className="mt-0.5 size-4.5 accent-ponto" checked={papel === p} onChange={() => setPapel(p)} />
                   <span>
                     <span className="block text-sm font-semibold text-slate-900">{NOME_PAPEL[p]}</span>
                     <span className="block text-xs text-slate-500">{DESCRICAO_PAPEL[p]}</span>

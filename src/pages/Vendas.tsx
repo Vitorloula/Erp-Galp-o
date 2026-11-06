@@ -1,5 +1,6 @@
 import { Banknote, Receipt, ShoppingCart, XCircle } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { Paginacao } from '../components/Paginacao'
 import { useToast } from '../components/Toast'
 import { Aviso, Cabecalho, Carregando, Kpi, Modal, Segmentado, Vazio, cx } from '../components/ui'
 import { useDados } from '../contexto/Dados'
@@ -7,9 +8,13 @@ import { useAtiva } from '../contexto/Empresa'
 import { vendas as dados } from '../lib/dados'
 import type { Caixa, ItemVenda, PagamentoVenda, Sessao, Venda } from '../lib/dados/vendas'
 import { formatarData, formatarDataHora, formatarHora, formatarNumero, hojeISO } from '../lib/formato'
+import { paginar } from '../lib/paginacao'
 import { PERIODOS, intervaloParaInstantes, intervaloRapido, type Intervalo, type PeriodoRapido } from '../lib/periodos'
 import { NOME_FORMA, centavos, formatarReais, numeroVenda, type FormaPagamento } from '../pdv/venda'
 import { cancelarNFCeDaVenda, emitirVendasPendentes } from '../lib/emissao'
+import { criarEmissorNFCe } from '../lib/nfce'
+
+const POR_PAGINA = 50
 
 const NFCE_STATUS: Record<Venda['nfce_status'], { rotulo: string; classe: string }> = {
   pendente: { rotulo: 'Nota pendente', classe: 'bg-amber-100 text-amber-800 ring-amber-200' },
@@ -33,7 +38,13 @@ export function Vendas() {
   const [aberta, setAberta] = useState<Venda | null>(null)
   const [emitindo, setEmitindo] = useState(false)
   const [msgEmitir, setMsgEmitir] = useState('')
+  const [pagina, setPagina] = useState(1)
+  const emissorConfigurado = useMemo(() => criarEmissorNFCe().configurado, [])
   const intervalo = periodo === 'personalizado' ? personalizado : intervaloRapido(periodo)
+
+  useEffect(() => {
+    setPagina(1)
+  }, [caixaId, intervalo.de, intervalo.ate])
 
   useEffect(() => {
     dados.listarCaixas(empresa.empresa_id, loja.id).then(setCaixas, () => {})
@@ -59,7 +70,8 @@ export function Vendas() {
   }, [empresa.empresa_id, loja.id, intervalo.de, intervalo.ate, versao])
 
   const numeroCaixa = useMemo(() => new Map(caixas.map(c => [c.id, c])), [caixas])
-  const filtradas = (lista ?? []).filter(v => !caixaId || v.caixa_id === caixaId)
+  const filtradas = useMemo(() => (lista ?? []).filter(v => !caixaId || v.caixa_id === caixaId), [lista, caixaId])
+  const paginados = useMemo(() => paginar(filtradas, pagina, POR_PAGINA), [filtradas, pagina])
   const concluidas = filtradas.filter(v => v.status === 'concluida')
   const total = concluidas.reduce((s, v) => s + centavos(v.total), 0)
   const ids = new Set(concluidas.map(v => v.id))
@@ -91,9 +103,11 @@ export function Vendas() {
         titulo="Vendas"
         subtitulo="Vendas dos caixas, já sincronizadas. As feitas sem internet aparecem quando o caixa se conecta."
         acoes={
-          <button type="button" className="btn btn-secundario" onClick={emitirPendentes} disabled={emitindo}>
-            {emitindo ? 'Emitindo...' : 'Emitir notas pendentes'}
-          </button>
+          emissorConfigurado ? (
+            <button type="button" className="btn btn-secundario" onClick={emitirPendentes} disabled={emitindo}>
+              {emitindo ? 'Emitindo...' : 'Emitir notas pendentes'}
+            </button>
+          ) : undefined
         }
       />
       {msgEmitir && <Aviso tom="info">{msgEmitir}</Aviso>}
@@ -154,28 +168,39 @@ export function Vendas() {
                 <Vazio icone={ShoppingCart} titulo="Nenhuma venda no período" />
               </div>
             ) : (
-              <div className="cartao divide-y divide-slate-100 overflow-hidden">
-                {filtradas.map(v => (
-                  <button key={v.id} data-venda={rotulo(v)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-slate-50" onClick={() => setAberta(v)}>
-                    <div className="min-w-0 flex-1">
-                      <p className={cx('font-semibold', v.status === 'cancelada' ? 'text-slate-400 line-through' : 'text-slate-900')}>
-                        {rotulo(v)} <span className="font-normal text-slate-500">· {numeroCaixa.get(v.caixa_id)?.nome}</span>
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {periodo === 'hoje' ? formatarHora(v.ocorrido_em) : formatarDataHora(v.ocorrido_em)} · {v.operador_nome}
-                        {v.status === 'cancelada' && ` · cancelada por ${v.cancelada_por_nome}`}
-                        {v.relogio_suspeito && ' · horário corrigido'}
-                      </p>
-                    </div>
-                    <span className="font-bold tabular-nums">{formatarReais(centavos(v.total))}</span>
-                    {v.nfce_status !== 'pendente' && (
-                      <span className={cx('shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset', NFCE_STATUS[v.nfce_status].classe)}>
-                        {NFCE_STATUS[v.nfce_status].rotulo}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
+              <>
+                <div className="cartao divide-y divide-slate-100 overflow-hidden">
+                  {paginados.itens.map(v => (
+                    <button key={v.id} data-venda={rotulo(v)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-slate-50" onClick={() => setAberta(v)}>
+                      <div className="min-w-0 flex-1">
+                        <p className={cx('font-semibold', v.status === 'cancelada' ? 'text-slate-400 line-through' : 'text-slate-900')}>
+                          {rotulo(v)} <span className="font-normal text-slate-500">· {numeroCaixa.get(v.caixa_id)?.nome}</span>
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {periodo === 'hoje' ? formatarHora(v.ocorrido_em) : formatarDataHora(v.ocorrido_em)} · {v.operador_nome}
+                          {v.status === 'cancelada' && ` · cancelada por ${v.cancelada_por_nome}`}
+                          {v.relogio_suspeito && ' · horário corrigido'}
+                        </p>
+                      </div>
+                      <span className="font-bold tabular-nums">{formatarReais(centavos(v.total))}</span>
+                      {v.nfce_status !== 'pendente' && (
+                        <span className={cx('shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset', NFCE_STATUS[v.nfce_status].classe)}>
+                          {NFCE_STATUS[v.nfce_status].rotulo}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <Paginacao
+                  pagina={paginados.pagina}
+                  totalPaginas={paginados.totalPaginas}
+                  primeiro={paginados.primeiro}
+                  ultimo={paginados.ultimo}
+                  total={paginados.total}
+                  rotulo="vendas"
+                  aoMudar={setPagina}
+                />
+              </>
             )
           ) : (
             <Sessoes sessoes={sessoes ?? []} caixas={numeroCaixa} />

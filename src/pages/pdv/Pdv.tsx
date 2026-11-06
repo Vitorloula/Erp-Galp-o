@@ -69,7 +69,7 @@ function BarraTopo({ aoAbrirMenu }: { aoAbrirMenu?: () => void }) {
   const { empresa, loja, lojas } = useAtiva()
   const { caixa } = usePdv()
   return (
-    <header className="flex items-center gap-2 bg-slate-900 px-3 py-2 text-white sm:px-4">
+    <header className="flex items-center gap-2 bg-ponto px-3 py-2 text-white sm:px-4">
       <Link to="/painel" className="btn btn-fantasma -ml-1 p-2 text-slate-300 hover:bg-white/10 hover:text-white" title="Voltar à retaguarda" aria-label="Voltar à retaguarda">
         <ArrowLeft className="size-5" />
       </Link>

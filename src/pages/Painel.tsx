@@ -184,6 +184,9 @@ export function Painel() {
     })
   }, [vendasSemana, hoje])
   const maiorDia = Math.max(1, ...diasVendas.map(dia => dia.total))
+  const totalSemana = diasVendas.reduce((soma, dia) => soma + dia.total, 0)
+  const [diaSelecionado, setDiaSelecionado] = useState<string | null>(null)
+  const diaAtivo = diasVendas.find(d => d.iso === diaSelecionado) ?? diasVendas.find(d => d.hoje) ?? diasVendas[diasVendas.length - 1]
 
   if (carregando) return <Carregando />
 
@@ -242,25 +245,39 @@ export function Painel() {
           <div className="mb-5 flex items-start justify-between gap-4">
             <div>
               <h2 id="movimento-vendas" className="text-sm font-semibold text-ponto">Movimento de vendas</h2>
-              <p className="mt-1 text-xs text-texto-secundario">Acompanhe o ritmo da sua loja · últimos 7 dias</p>
+              <p className="mt-1 text-xs text-texto-secundario">
+                Últimos 7 dias · {vendasSemana === null || falhaVendas ? '—' : formatarReais(totalSemana)} acumulados
+              </p>
             </div>
-            <span className="shrink-0 text-xs font-semibold text-marca">
-              {vendasSemana === null || falhaVendas ? '—' : formatarReais(totalVendidoHoje)} hoje
+            <span className="shrink-0 text-right text-xs font-semibold text-marca tabular-nums">
+              {vendasSemana === null || falhaVendas
+                ? '—'
+                : `${formatarReais(diaAtivo.total)} ${diaAtivo.hoje ? 'hoje' : `(${diaAtivo.rotulo.toLowerCase()})`}`}
             </span>
           </div>
           <div className="flex h-[190px] items-end justify-around gap-3 border-b border-slate-100 px-1" role="img" aria-label="Vendas concluídas nos últimos sete dias">
             {diasVendas.map(dia => {
               const altura = dia.total === 0 ? 4 : Math.max(10, Math.round((dia.total / maiorDia) * 100))
+              const selecionado = dia.iso === diaAtivo.iso
               return (
-                <div key={dia.iso} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
+                <button
+                  key={dia.iso}
+                  type="button"
+                  onClick={() => setDiaSelecionado(dia.iso)}
+                  aria-label={`${dia.rotulo}: ${formatarReais(dia.total)}`}
+                  className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2 outline-none"
+                >
                   <div className="flex h-[158px] w-full items-end justify-center" title={`${dia.rotulo}: ${formatarReais(dia.total)}`}>
                     <div
-                      className={cx('w-full max-w-10 rounded-t-[5px] transition-[height]', dia.hoje ? 'bg-letreiro' : 'bg-slate-200')}
+                      className={cx(
+                        'w-full max-w-10 rounded-t-[5px] transition-[height,background-color]',
+                        dia.hoje ? 'bg-letreiro' : selecionado ? 'bg-ponto/70' : 'bg-slate-200 group-hover:bg-slate-300',
+                      )}
                       style={{ height: `${altura}%` }}
                     />
                   </div>
-                  <span className={cx('text-[10px]', dia.hoje ? 'font-semibold text-ponto' : 'text-slate-400')}>{dia.rotulo}</span>
-                </div>
+                  <span className={cx('text-[10px]', dia.hoje || selecionado ? 'font-semibold text-ponto' : 'text-slate-400')}>{dia.rotulo}</span>
+                </button>
               )
             })}
           </div>
@@ -283,15 +300,20 @@ export function Painel() {
             <span className="min-w-0 flex-1 truncate">Ver produtos</span>
             <ChevronRight className="size-4 shrink-0 text-slate-400" />
           </Link>
-          <Link to="/vendas" className="flex h-12 items-center gap-3 px-1 text-sm text-slate-700 transition hover:text-ponto">
+          <Link to="/vendas" className="flex h-12 items-center gap-3 border-b border-slate-100 px-1 text-sm text-slate-700 transition hover:text-ponto">
             <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-superficie text-slate-600"><Banknote className="size-4" /></span>
             <span className="min-w-0 flex-1 truncate">Vendas e caixa</span>
             <ChevronRight className="size-4 shrink-0 text-slate-400" />
           </Link>
           {pode.movimentar && (
-            <Link to="/movimentar?tipo=entrada" className="mt-auto flex items-center gap-2 rounded-[9px] bg-[#fff8dd] px-3 py-2.5 text-xs font-medium text-[#6d6440]">
-              <span className="size-2 shrink-0 rounded-full bg-marca" /> Loja pronta para atender
-            </Link>
+            <div className="mt-auto grid grid-cols-2 gap-2 pt-1">
+              <Link to="/movimentar?tipo=entrada" className="flex items-center justify-center gap-1.5 rounded-[9px] bg-[#fff8dd] px-2.5 py-2.5 text-xs font-semibold text-ponto transition hover:brightness-95">
+                <ArrowDownToLine className="size-3.5" /> Entrada
+              </Link>
+              <Link to="/movimentar?tipo=saida" className="flex items-center justify-center gap-1.5 rounded-[9px] border border-borda-loja bg-superficie px-2.5 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100">
+                <ArrowUpFromLine className="size-3.5" /> Saída
+              </Link>
+            </div>
           )}
         </aside>
       </div>

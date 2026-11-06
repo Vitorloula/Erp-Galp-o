@@ -50,8 +50,19 @@ export interface Loja {
   id: string
   nome: string
   cnpj: string | null
+  ie: string | null
   endereco: string | null
+  cod_municipio_ibge: string | null
+  uf: string | null
   ativo: boolean
+}
+
+export interface ConfigEmpresa {
+  dias_alerta?: number
+  exemplo?: boolean
+  venda_sem_estoque?: 'permitir' | 'avisar' | 'bloquear'
+  balanca?: { prefixo: string; digitos_codigo: number; tipo: 'preco' | 'peso'; digitos_valor?: number }
+  [chave: string]: unknown
 }
 
 export interface DadosEmpresa {
@@ -59,6 +70,7 @@ export interface DadosEmpresa {
   nome: string
   razao_social: string | null
   documento: string | null
+  config: ConfigEmpresa
 }
 
 export interface Membro {

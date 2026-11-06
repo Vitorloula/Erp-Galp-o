@@ -3,14 +3,17 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { CorrecaoModal } from '../components/CorrecaoModal'
 import { ListaMovimentacoes } from '../components/ListaMovimentacoes'
+import { Paginacao } from '../components/Paginacao'
 import { Aviso, Cabecalho, Carregando, Vazio, cx } from '../components/ui'
 import { useDados } from '../contexto/Dados'
 import { useAtiva } from '../contexto/Empresa'
 import { movimentos } from '../lib/dados'
 import { exibirCodigo, formatarData, hojeISO, normalizarBusca } from '../lib/formato'
-// 🔧 CORREÇÃO: adicionar `intervaloRapido` no import
+import { paginar } from '../lib/paginacao'
 import { PERIODOS, intervaloParaInstantes, intervaloRapido, periodoDaUrl, type Intervalo, type PeriodoRapido } from '../lib/periodos'
 import type { Movimentacao, TipoMov } from '../lib/tipos'
+
+const POR_PAGINA = 50
 
 const TIPOS_FILTRO: { valor: TipoMov; nome: string }[] = [
   { valor: 'ENTRADA', nome: 'Entradas' },
@@ -43,6 +46,7 @@ export function Historico() {
   const [movs, setMovs] = useState<Movimentacao[] | null>(null)
   const [erro, setErro] = useState('')
   const [corrigindo, setCorrigindo] = useState<Movimentacao | null>(null)
+  const [pagina, setPagina] = useState(1)
   const primeiroChip = useRef<HTMLButtonElement>(null)
 
   // 🔧 CORREÇÃO: estado para o período (o Relatorios.tsx já tinha; o Historico esqueceu)
@@ -90,6 +94,11 @@ export function Historico() {
         .some(c => c && normalizarBusca(c).includes(t))
     })
   }, [movs, tipo, termo, produtoPorId, lotePorId])
+  const paginados = useMemo(() => paginar(filtradas, pagina, POR_PAGINA), [filtradas, pagina])
+
+  useEffect(() => {
+    setPagina(1)
+  }, [tipo, termo, intervalo.de, intervalo.ate])
 
   function escrever(mudancas: Record<string, string | null>) {
     setParams(juntarParams(params, mudancas), { replace: true })
@@ -217,7 +226,18 @@ export function Historico() {
           </Vazio>
         </div>
       ) : (
-        <ListaMovimentacoes movimentacoes={filtradas} aoCorrigir={pode.movimentar ? setCorrigindo : undefined} resumo />
+        <>
+          <ListaMovimentacoes movimentacoes={paginados.itens} aoCorrigir={pode.movimentar ? setCorrigindo : undefined} resumo />
+          <Paginacao
+            pagina={paginados.pagina}
+            totalPaginas={paginados.totalPaginas}
+            primeiro={paginados.primeiro}
+            ultimo={paginados.ultimo}
+            total={paginados.total}
+            rotulo="lançamentos"
+            aoMudar={setPagina}
+          />
+        </>
       )}
 
       <CorrecaoModal movimentacao={corrigindo} aoFechar={() => setCorrigindo(null)} />

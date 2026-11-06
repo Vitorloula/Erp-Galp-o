@@ -41,7 +41,7 @@ function Menu({ irPara }: { irPara: (t: Tela) => void }) {
   const { sync } = usePdv()
   const Item = ({ tela, icone: Icone, titulo, texto, perigo }: { tela: Tela; icone: LucideIcon; titulo: string; texto: string; perigo?: boolean }) => (
     <button className="flex w-full items-center gap-3 px-1 py-3 text-left hover:bg-slate-50" onClick={() => irPara(tela)}>
-      <span className={cx('grid size-10 place-items-center rounded-xl', perigo ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-marca')}>
+      <span className={cx('grid size-10 place-items-center rounded-xl', perigo ? 'bg-red-50 text-red-700' : 'bg-[#fff8dd] text-ponto')}>
         <Icone className="size-5" />
       </span>
       <span className="min-w-0 flex-1">

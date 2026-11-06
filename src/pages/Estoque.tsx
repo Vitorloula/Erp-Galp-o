@@ -2,6 +2,7 @@ import { ArrowUpFromLine, Boxes, FileSpreadsheet, FileText, LoaderCircle, Search
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { ListaReposicao } from '../components/ListaReposicao'
+import { Paginacao } from '../components/Paginacao'
 import { ReposicaoForm } from '../components/ReposicaoForm'
 import { useToast } from '../components/Toast'
 import { Aviso, BadgeSituacao, Cabecalho, Carregando, Vazio, cx } from '../components/ui'
@@ -20,9 +21,12 @@ import {
   type Situacao,
 } from '../lib/estoque'
 import { formatarData, formatarEmbalagens, formatarNumero, formatarValidade } from '../lib/formato'
+import { paginar } from '../lib/paginacao'
 import { juntarFiltros } from '../lib/periodos'
 import { exportarComToast, nomeArquivoListaCompra, tituloEmpresa } from '../lib/relatorio'
 import type { Produto } from '../lib/tipos'
+
+const POR_PAGINA = 50
 
 type Filtro = 'todos' | Situacao | 'abaixo'
 type Ordem = 'nome' | 'validade' | 'situacao'
@@ -75,6 +79,11 @@ export function Estoque() {
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
   const [gerando, setGerando] = useState<'xlsx' | 'pdf' | null>(null)
   const [dicaVisivel, setDicaVisivel] = useState(false)
+  const [pagina, setPagina] = useState(1)
+
+  useEffect(() => {
+    setPagina(1)
+  }, [termo, categoria, filtro, ordem])
 
   // Linhas por lote: alimentam os chips Vencidos/Zerados/Vencem/Em dia e o filtro "Todos".
   const todas = useMemo(() => montarLinhasEstoque(produtos, lotes), [produtos, lotes])
@@ -109,9 +118,11 @@ export function Estoque() {
     () => ordenar(filtro === 'todos' ? base : base.filter(l => l.situacao === filtro), ordem),
     [base, filtro, ordem],
   )
+  const paginados = useMemo(() => paginar(linhas, pagina, POR_PAGINA), [linhas, pagina])
 
   /** Lista de compras já na ordem escolhida na tela (a mesma da tabela e do arquivo). */
   const itensRepor = useMemo(() => ordenarReposicao(visiveisReposicao, ordem), [visiveisReposicao, ordem])
+  const paginadosRepor = useMemo(() => paginar(itensRepor, pagina, POR_PAGINA), [itensRepor, pagina])
 
   // Seleção só faz sentido dentro da lista de compras.
   useEffect(() => {
@@ -257,7 +268,7 @@ export function Estoque() {
           )}
 
           <ListaReposicao
-            itens={itensRepor}
+            itens={paginadosRepor.itens}
             aoEditar={pode.movimentar ? setEditando : undefined}
             selecionados={selecionados}
             aoAlternar={alternar}
@@ -287,6 +298,15 @@ export function Estoque() {
                     ),
                   }
             }
+          />
+          <Paginacao
+            pagina={paginadosRepor.pagina}
+            totalPaginas={paginadosRepor.totalPaginas}
+            primeiro={paginadosRepor.primeiro}
+            ultimo={paginadosRepor.ultimo}
+            total={paginadosRepor.total}
+            rotulo="produtos"
+            aoMudar={setPagina}
           />
 
           {itensRepor.length > 0 && (
@@ -368,7 +388,7 @@ export function Estoque() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/70">
-                {linhas.map(l => (
+                {paginados.itens.map(l => (
                   <tr key={l.chave} data-linha-estoque data-situacao={l.situacao} onClick={() => navegar(`/produtos/${l.produto.id}`)} className={cx('cursor-pointer transition hover:brightness-[.97]', `linha-${l.situacao}`)}>
                     <td className="px-4 py-3">
                       <p className="font-semibold">{l.produto.nome}</p>
@@ -406,7 +426,7 @@ export function Estoque() {
 
           {/* Cartões (celular) */}
           <div className="space-y-2 md:hidden">
-            {linhas.map(l => (
+            {paginados.itens.map(l => (
               <Link key={l.chave} data-linha-estoque data-situacao={l.situacao} to={`/produtos/${l.produto.id}`} className={cx('block rounded-2xl border border-slate-200 p-3.5 shadow-sm', `linha-${l.situacao}`)}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -431,6 +451,15 @@ export function Estoque() {
               </Link>
             ))}
           </div>
+          <Paginacao
+            pagina={paginados.pagina}
+            totalPaginas={paginados.totalPaginas}
+            primeiro={paginados.primeiro}
+            ultimo={paginados.ultimo}
+            total={paginados.total}
+            rotulo="lotes"
+            aoMudar={setPagina}
+          />
           <p className="mt-3 text-xs text-slate-500">
             <span className="mr-1 inline-block size-2.5 rounded-sm bg-red-500 align-middle" /> Vermelho: vencido ou sem estoque ·{' '}
             <span className="mx-1 inline-block size-2.5 rounded-sm bg-amber-400 align-middle" /> Amarelo: vence em até {DIAS_ALERTA} dias ·{' '}

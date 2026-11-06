@@ -141,6 +141,7 @@ function GerenciarCategorias({ aberto, aoFechar }: { aberto: boolean; aoFechar: 
   const toast = useToast()
   const [nova, setNova] = useState('')
   const [editando, setEditando] = useState<Categoria | null>(null)
+  const [excluindo, setExcluindo] = useState<string | null>(null)
   const [nome, setNome] = useState('')
   const [erro, setErro] = useState('')
 
@@ -160,7 +161,16 @@ function GerenciarCategorias({ aberto, aoFechar }: { aberto: boolean; aoFechar: 
   const emUso = (id: string) => produtos.filter(p => p.categoria_id === id).length
 
   return (
-    <Modal aberto={aberto} aoFechar={aoFechar} titulo="Categorias de produtos">
+    <Modal
+      aberto={aberto}
+      aoFechar={() => {
+        setEditando(null)
+        setExcluindo(null)
+        setErro('')
+        aoFechar()
+      }}
+      titulo="Categorias de produtos"
+    >
       <div className="space-y-4">
         {erro && <Aviso tom="erro">{erro}</Aviso>}
         <form
@@ -186,17 +196,37 @@ function GerenciarCategorias({ aberto, aoFechar }: { aberto: boolean; aoFechar: 
                 >
                   <input className="campo py-1.5" value={nome} onChange={e => setNome(e.target.value)} aria-label={`Novo nome para ${c.nome}`} autoFocus />
                   <button className="btn btn-primario shrink-0 px-3 py-1.5 text-sm">Salvar</button>
+                  <button type="button" className="btn btn-fantasma shrink-0 px-2 py-1.5 text-sm" onClick={() => setEditando(null)}>Cancelar</button>
                 </form>
+              ) : excluindo === c.id ? (
+                <div className="flex flex-1 items-center justify-between gap-2 text-sm">
+                  <span className="truncate font-medium text-red-800">Excluir {c.nome}?</span>
+                  <div className="flex shrink-0 gap-1.5">
+                    <button type="button" className="btn btn-secundario px-2.5 py-1 text-xs" onClick={() => setExcluindo(null)}>
+                      Não
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-perigo px-2.5 py-1 text-xs"
+                      onClick={async () => {
+                        setExcluindo(null)
+                        await fazer(() => catalogo.excluirCategoria(c.id), `Categoria ${c.nome} excluída.`)
+                      }}
+                    >
+                      Confirmar
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <>
                   <span className="flex-1 text-sm font-medium text-slate-800">{c.nome}</span>
                   <span className="text-xs text-slate-400">{emUso(c.id)} produto(s)</span>
-                  <button className="btn btn-fantasma p-1.5" onClick={() => { setEditando(c); setNome(c.nome) }} aria-label={`Renomear ${c.nome}`}>
+                  <button className="btn btn-fantasma p-1.5" onClick={() => { setExcluindo(null); setEditando(c); setNome(c.nome) }} aria-label={`Renomear ${c.nome}`}>
                     <Pencil className="size-4" />
                   </button>
                   <button
                     className="btn btn-fantasma p-1.5 text-red-700"
-                    onClick={() => fazer(() => catalogo.excluirCategoria(c.id), `Categoria ${c.nome} excluída.`)}
+                    onClick={() => { setEditando(null); setExcluindo(c.id) }}
                     aria-label={`Excluir ${c.nome}`}
                   >
                     <Trash2 className="size-4" />

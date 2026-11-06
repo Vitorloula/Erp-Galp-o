@@ -1,6 +1,7 @@
 import { ArrowDownToLine, ArrowUpFromLine, FileSpreadsheet, FileText, LoaderCircle, RotateCcw, ShoppingCart, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
+import { Paginacao } from '../components/Paginacao'
 import { useToast } from '../components/Toast'
 import { Aviso, BadgeReposicao, BadgeSituacao, BadgeTipo, Cabecalho, Carregando, Cobertura, Kpi, Segmentado, Vazio, cx } from '../components/ui'
 import { useDados } from '../contexto/Dados'
@@ -9,9 +10,12 @@ import { movimentos } from '../lib/dados'
 import { filtrarProdutos } from '../lib/estoque'
 import type { Secoes } from '../lib/exportar/excel'
 import { formatarDataHora, formatarEmbalagens, formatarNumero, formatarValidade, hojeISO } from '../lib/formato'
+import { paginar } from '../lib/paginacao'
 import { PERIODOS, intervaloParaInstantes, intervaloRapido, juntarFiltros, periodoDaUrl, produtoDaUrl, type Intervalo, type PeriodoRapido } from '../lib/periodos'
 import { exportarComToast, montarRelatorio, nomeArquivo, tituloEmpresa, type LinhaCompraRel } from '../lib/relatorio'
 import type { Movimentacao } from '../lib/tipos'
+
+const POR_PAGINA = 50
 
 type Aba = 'resumo' | 'movimentacoes' | 'posicao' | 'compras'
 
@@ -42,12 +46,13 @@ const ROTULO_SITUACAO: Record<string, string> = {
 interface TabelaComprasProps {
   /** Já vem montada por montarRelatorio (montarReposicao): só 'abaixo'|'no_minimo', ordenada por cobertura. */
   linhas: LinhaCompraRel[]
+  total: number
   /** Conteúdo por embalagem do produto (multiplica a apresentação "x emb."). */
   conteudos: Map<string, number | null>
 }
 
-function TabelaCompras({ linhas, conteudos }: TabelaComprasProps) {
-  if (linhas.length === 0)
+function TabelaCompras({ linhas, total, conteudos }: TabelaComprasProps) {
+  if (total === 0)
     return (
       <Vazio
         icone={ShoppingCart}
@@ -58,7 +63,7 @@ function TabelaCompras({ linhas, conteudos }: TabelaComprasProps) {
   return (
     <>
       <p className="border-b border-slate-100 bg-white px-4 py-2 text-xs text-slate-500">
-        {linhas.length} produto(s) para comprar · do mais crítico ao menos crítico
+        {total} produto(s) para comprar · do mais crítico ao menos crítico
       </p>
       <table className="w-full min-w-[720px] text-sm">
         <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -134,6 +139,11 @@ export function Relatorios() {
   const [aba, setAba] = useState<Aba>('resumo')
   const [secoes, setSecoes] = useState<Secoes>({ resumo: true, movimentacoes: true, posicao: true, compras: true })
   const [gerando, setGerando] = useState<'xlsx' | 'pdf' | null>(null)
+  const [pagina, setPagina] = useState(1)
+
+  useEffect(() => {
+    setPagina(1)
+  }, [aba, intervalo.de, intervalo.ate, produtoId, filtrosEstoque.q, filtrosEstoque.categoria, filtrosEstoque.situacao])
 
   const intervalo = periodo === 'personalizado' ? personalizado : intervaloRapido(periodo)
 
@@ -201,17 +211,27 @@ export function Relatorios() {
 
   const algumaSecao = secoes.resumo || secoes.movimentacoes || secoes.posicao || secoes.compras
 
-  // Seções escolhidas que sairiam sem nenhuma linha (T-022): avisar antes de baixar.
-  const secoesVazias = useMemo(() => {
-    if (!relatorio) return []
-    const contagens: Record<keyof Secoes, number> = {
+  const contagensSecoes = useMemo<Record<keyof Secoes, number> | null>(() => {
+    if (!relatorio) return null
+    return {
       resumo: relatorio.resumo.length,
       movimentacoes: relatorio.movimentacoes.length,
       posicao: relatorio.posicao.length,
       compras: relatorio.compras.length,
     }
-    return SECOES.filter(([k]) => secoes[k] && contagens[k] === 0).map(([, nome]) => nome)
-  }, [relatorio, secoes])
+  }, [relatorio])
+
+  // Seções escolhidas que sairiam sem nenhuma linha (T-022): avisar antes de baixar.
+  const secoesVazias = useMemo(() => {
+    if (!contagensSecoes) return []
+    return SECOES.filter(([k]) => secoes[k] && contagensSecoes[k] === 0).map(([, nome]) => nome)
+  }, [contagensSecoes, secoes])
+
+  const resumoPag = useMemo(() => paginar(relatorio?.resumo ?? [], pagina, POR_PAGINA), [relatorio?.resumo, pagina])
+  const movsReversas = useMemo(() => [...(relatorio?.movimentacoes ?? [])].reverse(), [relatorio?.movimentacoes])
+  const movsPag = useMemo(() => paginar(movsReversas, pagina, POR_PAGINA), [movsReversas, pagina])
+  const posicaoPag = useMemo(() => paginar(relatorio?.posicao ?? [], pagina, POR_PAGINA), [relatorio?.posicao, pagina])
+  const comprasPag = useMemo(() => paginar(relatorio?.compras ?? [], pagina, POR_PAGINA), [relatorio?.compras, pagina])
 
   async function exportar(formato: 'xlsx' | 'pdf') {
     if (!relatorio) return
@@ -349,17 +369,28 @@ export function Relatorios() {
         <div role="group" aria-labelledby="r-secoes">
           <p className="rotulo" id="r-secoes">Incluir no arquivo</p>
           <div className="flex flex-wrap gap-x-5 gap-y-2.5 text-sm text-slate-700">
-            {SECOES.map(([k, nome]) => (
-              <label key={k} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  className="size-4 shrink-0 accent-marca"
-                  checked={secoes[k]}
-                  onChange={e => setSecoes(s => ({ ...s, [k]: e.target.checked }))}
-                />
-                <span className="leading-snug">{nome}</span>
-              </label>
-            ))}
+            {SECOES.map(([k, nome]) => {
+              const qtd = contagensSecoes?.[k]
+              return (
+                <label key={k} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    aria-label={nome}
+                    className="size-4 shrink-0 accent-marca"
+                    checked={secoes[k]}
+                    onChange={e => setSecoes(s => ({ ...s, [k]: e.target.checked }))}
+                  />
+                  <span className="leading-snug">
+                    {nome}
+                    {qtd !== undefined && (
+                      <span className={cx('ml-1 text-xs tabular-nums', qtd === 0 ? 'text-amber-700' : 'text-slate-400')}>
+                        ({qtd})
+                      </span>
+                    )}
+                  </span>
+                </label>
+              )
+            })}
           </div>
         </div>
         {secoesVazias.length > 0 && (
@@ -405,7 +436,7 @@ export function Relatorios() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 tabular-nums">
-                  {relatorio.resumo.map(l => (
+                  {resumoPag.itens.map(l => (
                     <tr key={l.codigo} className={l.saldoFinal <= 0 ? 'linha-zerado' : ''}>
                       <td className="px-4 py-2">
                         <span className="font-medium">{l.produto}</span> <span className="text-xs text-slate-500">({l.unidade})</span>
@@ -437,7 +468,7 @@ export function Relatorios() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {[...relatorio.movimentacoes].reverse().map(m => (
+                    {movsPag.itens.map(m => (
                       <tr key={m.id}>
                         <td className="whitespace-nowrap px-4 py-2 text-slate-600">{formatarDataHora(m.data.toISOString())}</td>
                         <td className="px-3 py-2"><BadgeTipo tipo={m.tipo} /></td>
@@ -466,7 +497,7 @@ export function Relatorios() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200/70">
-                  {relatorio.posicao.map((l, i) => (
+                  {posicaoPag.itens.map((l, i) => (
                     <tr key={i} className={`linha-${l.situacao}`}>
                       <td className="px-4 py-2 font-medium">{l.produto}</td>
                       <td className="px-3 py-2 font-mono text-xs">{l.lote || '—'}</td>
@@ -478,8 +509,52 @@ export function Relatorios() {
                 </tbody>
               </table>
             )}
-            {aba === 'compras' && <TabelaCompras linhas={relatorio.compras} conteudos={conteudos} />}
+            {aba === 'compras' && <TabelaCompras linhas={comprasPag.itens} total={comprasPag.total} conteudos={conteudos} />}
           </div>
+          {aba === 'resumo' && (
+            <Paginacao
+              pagina={resumoPag.pagina}
+              totalPaginas={resumoPag.totalPaginas}
+              primeiro={resumoPag.primeiro}
+              ultimo={resumoPag.ultimo}
+              total={resumoPag.total}
+              rotulo="produtos"
+              aoMudar={setPagina}
+            />
+          )}
+          {aba === 'movimentacoes' && (
+            <Paginacao
+              pagina={movsPag.pagina}
+              totalPaginas={movsPag.totalPaginas}
+              primeiro={movsPag.primeiro}
+              ultimo={movsPag.ultimo}
+              total={movsPag.total}
+              rotulo="lançamentos"
+              aoMudar={setPagina}
+            />
+          )}
+          {aba === 'posicao' && (
+            <Paginacao
+              pagina={posicaoPag.pagina}
+              totalPaginas={posicaoPag.totalPaginas}
+              primeiro={posicaoPag.primeiro}
+              ultimo={posicaoPag.ultimo}
+              total={posicaoPag.total}
+              rotulo="lotes"
+              aoMudar={setPagina}
+            />
+          )}
+          {aba === 'compras' && (
+            <Paginacao
+              pagina={comprasPag.pagina}
+              totalPaginas={comprasPag.totalPaginas}
+              primeiro={comprasPag.primeiro}
+              ultimo={comprasPag.ultimo}
+              total={comprasPag.total}
+              rotulo="produtos"
+              aoMudar={setPagina}
+            />
+          )}
         </>
       )}
     </div>

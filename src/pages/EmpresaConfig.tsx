@@ -1,4 +1,4 @@
-import { Building2, CreditCard, Download, Monitor, Pencil, Plus, ShieldCheck, Store } from 'lucide-react'
+import { Building2, CreditCard, Download, Monitor, Pencil, Plus, ShieldCheck, SlidersHorizontal, Store } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useToast } from '../components/Toast'
 import { Aviso, Cabecalho, Carregando, Modal, cx } from '../components/ui'
@@ -8,7 +8,7 @@ import type { Caixa } from '../lib/dados/vendas'
 import { formatarData } from '../lib/formato'
 import { NOME_PAPEL } from '../lib/permissoes'
 import { baixarArquivo } from '../lib/relatorio'
-import type { DadosEmpresa, Loja, Vinculo } from '../lib/tipos'
+import type { ConfigEmpresa, DadosEmpresa, Loja, Vinculo } from '../lib/tipos'
 import { SEGMENTOS } from './BoasVindas'
 
 const ESTADO: Record<Vinculo['estado'], { texto: string; classe: string }> = {
@@ -145,6 +145,25 @@ export function EmpresaConfig() {
       </section>
 
       <section className="cartao p-4">
+        <h2 className="mb-3 flex items-center gap-2 font-semibold text-slate-900"><SlidersHorizontal className="size-5 text-marca" /> Regras de operação e balança</h2>
+        {!dados ? (
+          <Carregando />
+        ) : (
+          <RegrasOperacao
+            config={dados.config ?? {}}
+            podeEditar={pode.gerenciarEmpresa && pode.gravavel}
+            aoSalvar={async novaConfig => {
+              const atualizado = { ...dados, config: { ...dados.config, ...novaConfig } }
+              await empresas.salvarEmpresa(empresa.empresa_id, atualizado)
+              setDados(atualizado)
+              await recarregar()
+              toast.sucesso('Configurações de operação salvas.')
+            }}
+          />
+        )}
+      </section>
+
+      <section className="cartao p-4">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="flex items-center gap-2 font-semibold text-slate-900"><Store className="size-5 text-marca" /> Lojas</h2>
           {pode.gerenciarEmpresa && pode.gravavel && (
@@ -160,9 +179,16 @@ export function EmpresaConfig() {
             {todasLojas.map(l => (
               <li key={l.id} className={cx('flex items-center gap-3 py-2.5', !l.ativo && 'opacity-55')}>
                 <Store className="size-4.5 text-slate-400" />
-                <span className="flex-1 text-sm font-medium text-slate-800">
-                  {l.nome} {!l.ativo && <span className="ml-1 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">inativa</span>}
-                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-slate-800">
+                    {l.nome} {!l.ativo && <span className="ml-1 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">inativa</span>}
+                  </p>
+                  {(l.endereco || l.uf || l.cnpj) && (
+                    <p className="truncate text-xs text-slate-500">
+                      {[l.cnpj ? `CNPJ ${l.cnpj}` : null, l.endereco, l.uf].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
+                </div>
                 {pode.gerenciarEmpresa && (
                   <button className="btn btn-fantasma p-1.5" onClick={() => setLojaEditando(l)} aria-label={`Editar ${l.nome}`}>
                     <Pencil className="size-4" />
@@ -188,16 +214,165 @@ export function EmpresaConfig() {
   )
 }
 
+function RegrasOperacao({
+  config,
+  podeEditar,
+  aoSalvar,
+}: {
+  config: ConfigEmpresa
+  podeEditar: boolean
+  aoSalvar: (c: ConfigEmpresa) => Promise<void>
+}) {
+  const toast = useToast()
+  const [vendaSemEstoque, setVendaSemEstoque] = useState<'permitir' | 'avisar' | 'bloquear'>(config.venda_sem_estoque ?? 'avisar')
+  const [diasAlerta, setDiasAlerta] = useState(String(config.dias_alerta ?? 30))
+  const [usarBalanca, setUsarBalanca] = useState(!!config.balanca)
+  const [prefixo, setPrefixo] = useState(config.balanca?.prefixo ?? '2')
+  const [digitosCodigo, setDigitosCodigo] = useState<4 | 5 | 6>((config.balanca?.digitos_codigo as 4 | 5 | 6) ?? 4)
+  const [tipoBalanca, setTipoBalanca] = useState<'preco' | 'peso'>(config.balanca?.tipo ?? 'preco')
+  const [salvando, setSalvando] = useState(false)
+
+  useEffect(() => {
+    setVendaSemEstoque(config.venda_sem_estoque ?? 'avisar')
+    setDiasAlerta(String(config.dias_alerta ?? 30))
+    setUsarBalanca(!!config.balanca)
+    setPrefixo(config.balanca?.prefixo ?? '2')
+    setDigitosCodigo((config.balanca?.digitos_codigo as 4 | 5 | 6) ?? 4)
+    setTipoBalanca(config.balanca?.tipo ?? 'preco')
+  }, [config])
+
+  async function salvar(e: React.FormEvent) {
+    e.preventDefault()
+    const dias = Math.max(1, Math.min(365, Number(diasAlerta) || 30))
+    setSalvando(true)
+    try {
+      const nova: ConfigEmpresa = {
+        ...config,
+        venda_sem_estoque: vendaSemEstoque,
+        dias_alerta: dias,
+      }
+      if (usarBalanca) {
+        nova.balanca = {
+          prefixo: prefixo.replace(/\D/g, '').slice(0, 1) || '2',
+          digitos_codigo: digitosCodigo,
+          tipo: tipoBalanca,
+        }
+      } else {
+        delete nova.balanca
+      }
+      await aoSalvar(nova)
+    } catch (er) {
+      toast.erro((er as Error).message)
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <form onSubmit={salvar} className="space-y-4">
+      <fieldset disabled={!podeEditar} className="space-y-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label className="rotulo" htmlFor="cfg-sem-estoque">Venda sem saldo no caixa (PDV)</label>
+            <select
+              id="cfg-sem-estoque"
+              className="campo"
+              value={vendaSemEstoque}
+              onChange={e => setVendaSemEstoque(e.target.value as 'permitir' | 'avisar' | 'bloquear')}
+            >
+              <option value="avisar">Avisar o operador e permitir vender</option>
+              <option value="permitir">Permitir vender sem aviso</option>
+              <option value="bloquear">Bloquear venda quando sem saldo</option>
+            </select>
+          </div>
+          <div>
+            <label className="rotulo" htmlFor="cfg-dias-alerta">Alerta de vencimento (dias)</label>
+            <input
+              id="cfg-dias-alerta"
+              type="number"
+              min={1}
+              max={365}
+              className="campo"
+              value={diasAlerta}
+              onChange={e => setDiasAlerta(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-3 rounded-xl border border-slate-200 p-3">
+          <label className="flex items-center gap-2.5 text-sm font-medium text-slate-800">
+            <input type="checkbox" className="size-4.5 accent-ponto" checked={usarBalanca} onChange={e => setUsarBalanca(e.target.checked)} />
+            Etiqueta de balança no caixa (EAN-13)
+          </label>
+          {usarBalanca && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div>
+                <label className="rotulo" htmlFor="cfg-bal-prefixo">Dígito inicial</label>
+                <input
+                  id="cfg-bal-prefixo"
+                  className="campo"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={prefixo}
+                  onChange={e => setPrefixo(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="rotulo" htmlFor="cfg-bal-digitos">Dígitos do PLU</label>
+                <select
+                  id="cfg-bal-digitos"
+                  className="campo"
+                  value={digitosCodigo}
+                  onChange={e => setDigitosCodigo(Number(e.target.value) as 4 | 5 | 6)}
+                >
+                  <option value={4}>4 dígitos (padrão Filizola/Toledo)</option>
+                  <option value={5}>5 dígitos</option>
+                  <option value={6}>6 dígitos</option>
+                </select>
+              </div>
+              <div>
+                <label className="rotulo" htmlFor="cfg-bal-tipo">Valor na etiqueta</label>
+                <select
+                  id="cfg-bal-tipo"
+                  className="campo"
+                  value={tipoBalanca}
+                  onChange={e => setTipoBalanca(e.target.value as 'preco' | 'peso')}
+                >
+                  <option value="preco">Preço total (R$)</option>
+                  <option value="peso">Peso (kg)</option>
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+      </fieldset>
+      {podeEditar && (
+        <button className="btn btn-primario" disabled={salvando}>
+          {salvando ? 'Salvando...' : 'Salvar regras'}
+        </button>
+      )}
+    </form>
+  )
+}
+
 function EditarLoja({ loja, aoFechar, aoSalvar }: { loja: Partial<Loja> | null; aoFechar: () => void; aoSalvar: () => Promise<void> }) {
   const { empresa } = useAtiva()
   const toast = useToast()
   const [nome, setNome] = useState('')
+  const [cnpj, setCnpj] = useState('')
+  const [ie, setIe] = useState('')
+  const [endereco, setEndereco] = useState('')
+  const [uf, setUf] = useState('')
   const [ativo, setAtivo] = useState(true)
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)
 
   useEffect(() => {
     setNome(loja?.nome ?? '')
+    setCnpj(loja?.cnpj ?? '')
+    setIe(loja?.ie ?? '')
+    setEndereco(loja?.endereco ?? '')
+    setUf(loja?.uf ?? '')
     setAtivo(loja?.ativo ?? true)
     setErro('')
   }, [loja])
@@ -207,7 +382,7 @@ function EditarLoja({ loja, aoFechar, aoSalvar }: { loja: Partial<Loja> | null; 
     setErro('')
     setSalvando(true)
     try {
-      await empresas.salvarLoja(empresa.empresa_id, { nome, ativo }, loja?.id)
+      await empresas.salvarLoja(empresa.empresa_id, { nome, cnpj, ie, endereco, uf, ativo }, loja?.id)
       await aoSalvar()
       toast.sucesso(loja?.id ? 'Loja atualizada.' : `Loja ${nome.trim()} criada.`)
       aoFechar()
@@ -236,9 +411,29 @@ function EditarLoja({ loja, aoFechar, aoSalvar }: { loja: Partial<Loja> | null; 
           <label className="rotulo" htmlFor="loja-nome">Nome da loja *</label>
           <input id="loja-nome" className="campo" value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex.: Filial Centro" autoFocus />
         </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label className="rotulo" htmlFor="loja-cnpj">CNPJ da loja</label>
+            <input id="loja-cnpj" className="campo" inputMode="numeric" value={cnpj} onChange={e => setCnpj(e.target.value)} placeholder="Opcional" />
+          </div>
+          <div>
+            <label className="rotulo" htmlFor="loja-ie">Inscrição Estadual (IE)</label>
+            <input id="loja-ie" className="campo" value={ie} onChange={e => setIe(e.target.value)} placeholder="Opcional" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_5.5rem]">
+          <div>
+            <label className="rotulo" htmlFor="loja-endereco">Endereço</label>
+            <input id="loja-endereco" className="campo" value={endereco} onChange={e => setEndereco(e.target.value)} placeholder="Rua, número, bairro, cidade" />
+          </div>
+          <div>
+            <label className="rotulo" htmlFor="loja-uf">UF</label>
+            <input id="loja-uf" className="campo uppercase" maxLength={2} value={uf} onChange={e => setUf(e.target.value)} placeholder="SP" />
+          </div>
+        </div>
         {loja?.id && (
           <label className="flex items-center gap-2.5 text-sm font-medium text-slate-700">
-            <input type="checkbox" className="size-4.5 accent-marca" checked={ativo} onChange={e => setAtivo(e.target.checked)} />
+            <input type="checkbox" className="size-4.5 accent-ponto" checked={ativo} onChange={e => setAtivo(e.target.checked)} />
             Loja ativa (desmarque para esconder sem apagar o histórico)
           </label>
         )}

@@ -12,7 +12,7 @@ import { NOME_PAPEL } from '../lib/permissoes'
 function Item({ para, icone: Icone, titulo, texto }: { para: string; icone: LucideIcon; titulo: string; texto: string }) {
   return (
     <Link to={para} className="flex items-center gap-3 px-4 py-3.5 transition hover:bg-slate-50">
-      <span className="grid size-10 place-items-center rounded-xl bg-emerald-50 text-marca">
+      <span className="grid size-10 place-items-center rounded-xl bg-[#fff8dd] text-ponto">
         <Icone className="size-5" />
       </span>
       <span className="min-w-0 flex-1">
@@ -34,7 +34,7 @@ export function Mais() {
       <Cabecalho titulo="Mais opções" />
 
       <div className="cartao flex items-center gap-3 p-4">
-        <Avatar nome={usuario?.nome} tamanho="lg" className="bg-emerald-100 text-marca-escura" />
+        <Avatar nome={usuario?.nome} tamanho="lg" className="bg-letreiro text-ponto" />
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold text-slate-900">{usuario?.nome}</p>
           <p className="truncate text-sm text-slate-500">
