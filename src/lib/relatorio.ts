@@ -1,4 +1,4 @@
-import { descreverSituacao, montarLinhasEstoque, montarReposicao, type Situacao, type SituacaoReposicao } from './estoque'
+import { DIAS_ALERTA, descreverSituacao, montarLinhasEstoque, montarReposicao, type Situacao, type SituacaoReposicao } from './estoque'
 import { NOME_TIPO, arred, grupoDoTipo, hojeISO } from './formato'
 import type { Intervalo } from './periodos'
 import { intervaloParaInstantes } from './periodos'
@@ -89,6 +89,7 @@ export function montarRelatorio(
   produtoId?: string,
   /** Produtos já recortados por busca/categoria (aplicados só a Posição e Compras). */
   recorteProdutos?: Produto[],
+  diasAlerta = DIAS_ALERTA,
 ): Relatorio {
   // Compara instantes (e não textos): o banco pode devolver "…Z" ou "…-03:00".
   const fim = Date.parse(intervaloParaInstantes(intervalo).ate)
@@ -152,7 +153,7 @@ export function montarRelatorio(
     })
   }
 
-  const posicao: LinhaPosicaoRel[] = montarLinhasEstoque(produtosRecorte.filter(p => doFiltro(p.id)), lotes).map(l => ({
+  const posicao: LinhaPosicaoRel[] = montarLinhasEstoque(produtosRecorte.filter(p => doFiltro(p.id)), lotes, undefined, diasAlerta).map(l => ({
     codigo: l.produto.codigo_interno,
     produto: l.produto.nome,
     categoria: nomeCategoria(l.produto.categoria_id),
@@ -172,6 +173,7 @@ export function montarRelatorio(
     lotes,
     undefined,
     { incluirSemMinimo: false },
+    diasAlerta,
   ).flatMap(i =>
     i.situacao === 'abaixo' || i.situacao === 'no_minimo'
       ? [

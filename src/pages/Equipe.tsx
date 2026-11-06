@@ -261,7 +261,7 @@ function NovoConvite({ aberto, aoFechar, aoCriar }: { aberto: boolean; aoFechar:
                   <label key={l.id} className="chip chip-inativo cursor-pointer">
                     <input
                       type="checkbox"
-                      className="accent-marca"
+                      className="accent-ponto"
                       checked={lojasEscolhidas.includes(l.id)}
                       onChange={e => setLojasEscolhidas(s => (e.target.checked ? [...s, l.id] : s.filter(x => x !== l.id)))}
                     />

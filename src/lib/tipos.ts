@@ -215,6 +215,7 @@ export interface NovaEntrada {
   lote: string
   validade: string | null
   quantidade: number
+  custo?: number | null
   documento?: string
   observacao?: string
 }

@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpFromLine, CircleCheck, ScanBarcode, SlidersHorizontal, X } from 'lucide-react'
+import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, CircleCheck, ScanBarcode, SlidersHorizontal, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { BuscaProduto, type ExtrasLeitura } from '../components/BuscaProduto'
@@ -8,11 +8,11 @@ import { Aviso, BadgeSituacao, Cabecalho, Segmentado, cx } from '../components/u
 import { useDados } from '../contexto/Dados'
 import { useAtiva } from '../contexto/Empresa'
 import { movimentos } from '../lib/dados'
-import { ordenarFefo, resumirProduto, situacaoLote, situacaoValidade } from '../lib/estoque'
-import { arred, exibirCodigo, formatarData, formatarDelta, formatarEmbalagens, formatarQtd, formatarValidade, hojeISO } from '../lib/formato'
+import { DIAS_ALERTA, ordenarFefo, resumirProduto, situacaoLote, situacaoValidade } from '../lib/estoque'
+import { arred, exibirCodigo, formatarData, formatarDelta, formatarEmbalagens, formatarQtd, formatarValidade, hojeISO, lerNumero } from '../lib/formato'
 import type { Produto } from '../lib/tipos'
 
-type Modo = 'entrada' | 'saida' | 'ajuste'
+type Modo = 'entrada' | 'saida' | 'ajuste' | 'transferencia'
 
 interface UltimoLancamento {
   texto: string
@@ -23,7 +23,7 @@ export function Movimentar() {
   const [params, setParams] = useSearchParams()
   const { produtoPorId } = useDados()
   const { pode, loja, lojas } = useAtiva()
-  const modo: Modo = (['entrada', 'saida', 'ajuste'] as const).find(m => m === params.get('tipo')) ?? 'saida'
+  const modo: Modo = (['entrada', 'saida', 'ajuste', 'transferencia'] as const).find(m => m === params.get('tipo')) ?? 'saida'
   const produtoParam = params.get('produto')
   const [produto, setProduto] = useState<Produto | null>(null)
   const [extras, setExtras] = useState<ExtrasLeitura | undefined>()
@@ -96,6 +96,7 @@ export function Movimentar() {
           { valor: 'entrada', rotulo: <><ArrowDownToLine className="size-4.5" /> Entrada</> },
           { valor: 'saida', rotulo: <><ArrowUpFromLine className="size-4.5" /> Saída</> },
           { valor: 'ajuste', rotulo: <><SlidersHorizontal className="size-4.5" /> Ajuste</> },
+          ...(lojas && lojas.length > 1 ? [{ valor: 'transferencia' as const, rotulo: <><ArrowLeftRight className="size-4.5" /> Transferir</> }] : []),
         ]}
       />
 
@@ -122,6 +123,7 @@ export function Movimentar() {
           {modo === 'entrada' && <FormEntrada key={chaveForm} produto={produtoAtual} extras={extras} aoConcluir={concluido} />}
           {modo === 'saida' && <FormSaida key={chaveForm} produto={produtoAtual} extras={extras} loteInicial={params.get('lote')} aoConcluir={concluido} />}
           {modo === 'ajuste' && <FormAjuste key={chaveForm} produto={produtoAtual} loteInicial={params.get('lote')} aoConcluir={concluido} />}
+          {modo === 'transferencia' && <FormTransferencia key={chaveForm} produto={produtoAtual} origem={loja.id} lojas={lojas ?? []} aoConcluir={concluido} />}
         </div>
       )}
     </div>
@@ -130,7 +132,9 @@ export function Movimentar() {
 
 function CartaoProduto({ produto, aoTrocar }: { produto: Produto; aoTrocar: () => void }) {
   const { lotesPorProduto } = useDados()
-  const r = resumirProduto(lotesPorProduto.get(produto.id) ?? [])
+  const { empresa } = useAtiva()
+  const diasAlerta = empresa.config.dias_alerta ?? DIAS_ALERTA
+  const r = resumirProduto(lotesPorProduto.get(produto.id) ?? [], undefined, diasAlerta)
   const emb = formatarEmbalagens(r.saldo, produto.conteudo_embalagem)
   return (
     <div className="cartao flex items-start gap-3 p-4">
@@ -206,16 +210,19 @@ function useEnvio() {
 
 function FormEntrada({ produto, extras, aoConcluir }: { produto: Produto; extras?: ExtrasLeitura; aoConcluir: (t: string) => void }) {
   const { lotesPorProduto } = useDados()
+  const { empresa } = useAtiva()
+  const diasAlerta = empresa.config.dias_alerta ?? DIAS_ALERTA
   const lotes = lotesPorProduto.get(produto.id) ?? []
   const [lote, setLote] = useState(extras?.lote ?? '')
   const [validade, setValidade] = useState(extras?.validade ?? '')
   const [quantidade, setQuantidade] = useState<number | null>(null)
+  const [custo, setCusto] = useState('')
   const [documento, setDocumento] = useState('')
   const [observacao, setObservacao] = useState('')
   const { salvando, erro, setErro, enviar, lojaId } = useEnvio()
   const comLote = produto.rastreio !== 'nenhum'
 
-  const situacao = validade ? situacaoValidade(validade) : null
+  const situacao = validade ? situacaoValidade(validade, hojeISO(), diasAlerta) : null
   const existentes = useMemo(() => ordenarFefo(lotes.filter(l => l.lote)), [lotes])
 
   function escolherLote(valor: string) {
@@ -227,8 +234,10 @@ function FormEntrada({ produto, extras, aoConcluir }: { produto: Produto; extras
   function registrar(e: React.FormEvent) {
     e.preventDefault()
     if (!quantidade) return setErro('Informe a quantidade recebida.')
+    const custoLido = custo.trim() ? lerNumero(custo) : null
+    if (custo.trim() && (custoLido === null || custoLido < 0)) return setErro('Custo unitário inválido.')
     enviar(async origemId => {
-      const dados = { produtoId: produto.id, lote: comLote ? lote : '', validade: comLote ? validade || null : null, quantidade, documento, observacao }
+      const dados = { produtoId: produto.id, lote: comLote ? lote : '', validade: comLote ? validade || null : null, quantidade, custo: custoLido, documento, observacao }
       await movimentos.registrarEntrada(lojaId, dados, origemId)
       return `Entrada registrada: ${formatarDelta(quantidade, produto.unidade)} de ${produto.nome}${lote ? ` (lote ${lote.trim().toUpperCase()})` : ''}.`
     }, aoConcluir)
@@ -265,6 +274,17 @@ function FormEntrada({ produto, extras, aoConcluir }: { produto: Produto; extras
       )}
 
       <CampoQuantidade produto={produto} aoMudar={setQuantidade} rotulo="Quantidade recebida" inicial={extras?.fator && extras.fator > 1 ? extras.fator : null} />
+      <div>
+        <label className="rotulo" htmlFor="custo-entrada">Custo unitário (R$)</label>
+        <input
+          id="custo-entrada"
+          className="campo"
+          inputMode="decimal"
+          value={custo}
+          onChange={e => setCusto(e.target.value)}
+          placeholder="Opcional — atualiza o último custo do produto"
+        />
+      </div>
       <Campos documento={documento} setDocumento={setDocumento} observacao={observacao} setObservacao={setObservacao} rotuloDoc="Nota fiscal / documento" />
       {erro && <Aviso tom="erro">{erro}</Aviso>}
       <button className="btn btn-primario btn-grande w-full" disabled={salvando || !quantidade}>
@@ -281,6 +301,8 @@ const MOTIVOS_SAIDA = ['Venda / entrega', 'Uso próprio', 'Transferência', 'Des
 
 function FormSaida({ produto, extras, loteInicial, aoConcluir }: { produto: Produto; extras?: ExtrasLeitura; loteInicial: string | null; aoConcluir: (t: string) => void }) {
   const { lotesPorProduto } = useDados()
+  const { empresa } = useAtiva()
+  const diasAlerta = empresa.config.dias_alerta ?? DIAS_ALERTA
   const hoje = hojeISO()
   const disponiveis = useMemo(() => ordenarFefo((lotesPorProduto.get(produto.id) ?? []).filter(l => l.saldo > 0)), [lotesPorProduto, produto.id])
   const [loteId, setLoteId] = useState<string>(() => {
@@ -324,18 +346,18 @@ function FormSaida({ produto, extras, loteInicial, aoConcluir }: { produto: Prod
         <legend className="rotulo">Lote (o que vence primeiro aparece primeiro)</legend>
         <div className="space-y-2">
           {disponiveis.map(l => {
-            const sit = situacaoLote(l, hoje)
+            const sit = situacaoLote(l, hoje, diasAlerta)
             const ativo = l.lote_id === loteId
             return (
               <label
                 key={l.lote_id}
                 className={cx(
                   'flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition',
-                  ativo ? 'border-emerald-600 ring-2 ring-emerald-600/20' : 'border-slate-200 hover:border-slate-300',
+                  ativo ? 'border-ponto ring-2 ring-letreiro/60' : 'border-slate-200 hover:border-slate-300',
                   `linha-${sit}`,
                 )}
               >
-                <input type="radio" name="lote" className="size-4.5 accent-marca" checked={ativo} onChange={() => setLoteId(l.lote_id)} />
+                <input type="radio" name="lote" className="size-4.5 accent-ponto" checked={ativo} onChange={() => setLoteId(l.lote_id)} />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold">{l.lote ? `Lote ${l.lote}` : 'Sem lote'}</p>
                   <p className="text-xs opacity-75">Validade {formatarValidade(l.validade)}</p>
@@ -349,7 +371,7 @@ function FormSaida({ produto, extras, loteInicial, aoConcluir }: { produto: Prod
           })}
         </div>
       </fieldset>
-      {lote && situacaoLote(lote, hoje) === 'vencido' && (
+      {lote && situacaoLote(lote, hoje, diasAlerta) === 'vencido' && (
         <Aviso tom="erro">Atenção: este lote está <strong>vencido</strong>. Use a saída apenas para descarte/devolução.</Aviso>
       )}
 
@@ -444,6 +466,93 @@ function FormAjuste({ produto, loteInicial, aoConcluir }: { produto: Produto; lo
       <button className="btn btn-primario btn-grande w-full" disabled={salvando || diferenca === null || diferenca === 0}>
         <SlidersHorizontal className="size-5" />
         {salvando ? 'Registrando...' : 'Registrar ajuste'}
+      </button>
+    </form>
+  )
+}
+
+/* ---------------------------- TRANSFERÊNCIA --------------------------- */
+
+function FormTransferencia({
+  produto,
+  origem,
+  lojas,
+  aoConcluir,
+}: {
+  produto: Produto
+  origem: string
+  lojas: { id: string; nome: string }[]
+  aoConcluir: (t: string) => void
+}) {
+  const { lotesPorProduto } = useDados()
+  const disponiveis = useMemo(() => ordenarFefo((lotesPorProduto.get(produto.id) ?? []).filter(l => l.saldo > 0)), [lotesPorProduto, produto.id])
+  const destinos = lojas.filter(l => l.id !== origem)
+  const [loteId, setLoteId] = useState(disponiveis[0]?.lote_id ?? '')
+  const [destinoId, setDestinoId] = useState(destinos[0]?.id ?? '')
+  const [quantidade, setQuantidade] = useState<number | null>(null)
+  const [motivo, setMotivo] = useState('')
+  const { salvando, erro, setErro, enviar, empresaId, lojaId } = useEnvio()
+  const lote = disponiveis.find(l => l.lote_id === loteId)
+
+  if (destinos.length === 0) return <Aviso tom="alerta">Não há outra loja ativa disponível para receber esta transferência.</Aviso>
+  if (disponiveis.length === 0) return <Aviso tom="erro">Este produto não tem saldo na loja de origem para transferir.</Aviso>
+
+  function registrar(e: React.FormEvent) {
+    e.preventDefault()
+    if (!lote) return setErro('Escolha o lote que será transferido.')
+    if (!destinoId) return setErro('Escolha a loja de destino.')
+    if (!quantidade) return setErro('Informe a quantidade.')
+    if (quantidade > lote.saldo) return setErro(`Saldo insuficiente. Disponível: ${formatarQtd(lote.saldo, produto.unidade)}.`)
+    if (motivo.trim().length < 3) return setErro('Informe o motivo da transferência.')
+    enviar(async transferenciaId => {
+      await movimentos.registrarTransferencia(
+        empresaId,
+        lojaId,
+        { destinoLojaId: destinoId, loteId: lote.lote_id, quantidade, motivo: motivo.trim() },
+        transferenciaId,
+      )
+      const nomeDestino = destinos.find(l => l.id === destinoId)?.nome ?? 'loja de destino'
+      return `Transferência de ${formatarDelta(-quantidade, produto.unidade)} de ${produto.nome} para ${nomeDestino} registrada.`
+    }, aoConcluir)
+  }
+
+  return (
+    <form onSubmit={registrar} className="cartao space-y-4 p-4">
+      <Aviso tom="info">A transferência grava saída e entrada juntas. Se alguma validação falhar, o saldo das duas lojas permanece igual.</Aviso>
+      <div>
+        <label className="rotulo" htmlFor="loja-destino">Loja de destino</label>
+        <select id="loja-destino" className="campo" value={destinoId} onChange={e => setDestinoId(e.target.value)}>
+          {destinos.map(l => <option key={l.id} value={l.id}>{l.nome}</option>)}
+        </select>
+      </div>
+      <fieldset>
+        <legend className="rotulo">Lote disponível na loja de origem</legend>
+        <div className="space-y-2">
+          {disponiveis.map(l => (
+            <label key={l.lote_id} className={cx('flex cursor-pointer items-center gap-3 rounded-xl border p-3', loteId === l.lote_id ? 'border-ponto ring-2 ring-letreiro/50' : 'border-slate-200')}>
+              <input type="radio" name="lote-transferencia" className="size-4 accent-ponto" checked={loteId === l.lote_id} onChange={() => setLoteId(l.lote_id)} />
+              <span className="min-w-0 flex-1">
+                <span className="block font-semibold">{l.lote ? `Lote ${l.lote}` : 'Sem lote'}</span>
+                <span className="block text-xs text-slate-500">Validade {formatarValidade(l.validade)}</span>
+              </span>
+              <strong className="shrink-0 tabular-nums">{formatarQtd(l.saldo, produto.unidade)}</strong>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <div>
+        <CampoQuantidade produto={produto} aoMudar={setQuantidade} rotulo="Quantidade a transferir" />
+        {lote && quantidade !== null && quantidade > lote.saldo && (
+          <p className="mt-1 text-sm font-medium text-red-700">Maior que o saldo disponível ({formatarQtd(lote.saldo, produto.unidade)}).</p>
+        )}
+      </div>
+      <div>
+        <label className="rotulo" htmlFor="motivo-transferencia">Motivo / documento *</label>
+        <input id="motivo-transferencia" className="campo" value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Ex.: abastecimento da filial" />
+      </div>
+      {erro && <Aviso tom="erro">{erro}</Aviso>}
+      <button className="btn btn-primario btn-grande w-full" disabled={salvando || !quantidade || !destinoId || quantidade > (lote?.saldo ?? 0)}>
+        <ArrowLeftRight className="size-5" /> {salvando ? 'Transferindo...' : 'Transferir entre lojas'}
       </button>
     </form>
   )

@@ -4,7 +4,7 @@
 > O sistema atende várias empresas, cada uma com suas lojas, equipe e assinatura, isoladas pelo próprio banco (RLS).
 > A versão entregue ao cliente galpão fica no branch `galpao-1.x` (tags `v1.0.0-galpao`, `v1.0.1-galpao`).
 
-Controle de estoque com lote e validade, **caixa (PDV) que vende sem internet**, leitura de código de barras pela câmera do celular, alertas de vencimento e relatórios em Excel/PDF. Funciona no computador e no celular, e pode ser instalado como aplicativo. Próximas fases: cobrança da assinatura pelo Asaas, série/IMEI para eletrônicos e NFC-e.
+Gestão de loja com estoque por lote, validade e ponto de pedido, **caixa (PDV) que vende sem internet**, importação de catálogo, transferência de estoque entre lojas e relatórios em Excel/PDF. Funciona no computador e no celular, e pode ser instalado como aplicativo. NFC-e e cobrança automática Asaas continuam fora do escopo até homologação e integração server-side.
 
 ## O que o sistema faz
 
@@ -18,6 +18,9 @@ Controle de estoque com lote e validade, **caixa (PDV) que vende sem internet**,
 | Vários códigos por produto | Unidade, caixa fechada (ex.: cada leitura = 12) e códigos de fornecedores diferentes |
 | **Importação de catálogo** | **Produtos → Importar**: CSV ou XLSX com prévia, erros por linha, categoria automática, saldo inicial, lote/validade e ponto de pedido |
 | **Inventário cego por lote** | **Inventário**: conta cada lote sem ver o saldo, salva rascunho no aparelho, revisa a diferença e lança o ajuste no lote contado |
+| **Transferência entre lojas** | **Movimentar → Transferir**: saída e entrada do mesmo lote são atômicas e idempotentes; exige acesso às duas lojas |
+| **Custo de compra** | **Movimentar → Entrada**: custo unitário opcional fica no histórico e atualiza o último custo do produto |
+| **Regras operacionais** | **Empresa → Regras de operação e balança**: dias do alerta de validade, venda sem saldo e formato da etiqueta de balança |
 | Preço de venda e categorias próprias | Cadastro do produto; categorias em **Produtos → Categorias** |
 | Unidades técnicas (L, ml, kg, g, t, sc, gl, cx, un, pc, par, kit, m) | Lançamento na unidade ou **por embalagem** (ex.: 3 galões de 20 L = 60 L) |
 | Validade em data real, exibida como `jun./26` | No Excel é uma data de verdade, filtrável |

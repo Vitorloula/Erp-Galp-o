@@ -9,7 +9,7 @@ import { useAtiva } from '../contexto/Empresa'
 import { movimentos } from '../lib/dados'
 import { filtrarProdutos } from '../lib/estoque'
 import type { Secoes } from '../lib/exportar/excel'
-import { formatarDataHora, formatarEmbalagens, formatarNumero, formatarValidade, hojeISO } from '../lib/formato'
+import { formatarDataHora, formatarEmbalagens, formatarNumero, formatarValidade, hojeISO, normalizarBusca } from '../lib/formato'
 import { paginar } from '../lib/paginacao'
 import { PERIODOS, intervaloParaInstantes, intervaloRapido, juntarFiltros, periodoDaUrl, produtoDaUrl, type Intervalo, type PeriodoRapido } from '../lib/periodos'
 import { exportarComToast, montarRelatorio, nomeArquivo, tituloEmpresa, type LinhaCompraRel } from '../lib/relatorio'
@@ -115,6 +115,7 @@ export function Relatorios() {
   const [periodo, setPeriodo] = useState<PeriodoRapido>(inicial.periodo)
   const [personalizado, setPersonalizado] = useState<Intervalo>(inicial.intervalo)
   const [produtoId, setProdutoId] = useState(() => produtoDaUrl(params))
+  const [buscaProduto, setBuscaProduto] = useState('')
 
   // Filtros vindos do link "Exportar" do Estoque (T-016): busca, categoria e situação.
   const [filtrosEstoque, setFiltrosEstoque] = useState(() => ({
@@ -123,6 +124,14 @@ export function Relatorios() {
     situacao: params.get('situacao') ?? '',
   }))
   const temFiltroEstoque = !!(filtrosEstoque.q || filtrosEstoque.categoria || filtrosEstoque.situacao)
+  const produtoSelecionado = produtos.find(p => p.id === produtoId)
+  const resultadosProduto = useMemo(() => {
+    const termo = normalizarBusca(buscaProduto)
+    if (!termo || produtoId) return []
+    return produtos
+      .filter(p => normalizarBusca(`${p.nome} ${p.codigo_interno}`).includes(termo))
+      .slice(0, 15)
+  }, [produtos, buscaProduto, produtoId])
 
   // Recorte compartilhado com o Estoque (T-019): produtos por busca + categoria.
   const recorte = useMemo(
@@ -140,12 +149,11 @@ export function Relatorios() {
   const [secoes, setSecoes] = useState<Secoes>({ resumo: true, movimentacoes: true, posicao: true, compras: true })
   const [gerando, setGerando] = useState<'xlsx' | 'pdf' | null>(null)
   const [pagina, setPagina] = useState(1)
+  const intervalo = periodo === 'personalizado' ? personalizado : intervaloRapido(periodo)
 
   useEffect(() => {
     setPagina(1)
   }, [aba, intervalo.de, intervalo.ate, produtoId, filtrosEstoque.q, filtrosEstoque.categoria, filtrosEstoque.situacao])
-
-  const intervalo = periodo === 'personalizado' ? personalizado : intervaloRapido(periodo)
 
   function refletirNaUrl(p: PeriodoRapido, i: Intervalo) {
     const proximo = new URLSearchParams(params)
@@ -167,8 +175,13 @@ export function Relatorios() {
   // O select de produto é fonte da URL (?produto=): trocar grava com replace; vazio remove o param.
   function escolherProduto(id: string) {
     setProdutoId(id)
+    setBuscaProduto(produtos.find(p => p.id === id)?.nome ?? '')
     setParams(juntarFiltros(params, { produto: id || '' }), { replace: true })
   }
+
+  useEffect(() => {
+    if (produtoId && produtoSelecionado) setBuscaProduto(produtoSelecionado.nome)
+  }, [produtoId, produtoSelecionado?.id])
 
   // Produto excluído no link (id inexistente): cai em "Todos os produtos", sem quebrar nem avisar.
   useEffect(() => {
@@ -195,7 +208,7 @@ export function Relatorios() {
 
   const relatorio = useMemo(() => {
     if (!movs) return null
-    const r = montarRelatorio(intervalo, produtos, lotes, movs, nomeCategoria, produtoId || undefined, recorte)
+    const r = montarRelatorio(intervalo, produtos, lotes, movs, nomeCategoria, produtoId || undefined, recorte, empresa.config.dias_alerta)
     const sit = filtrosEstoque.situacao
     if (!sit) return r
     if (sit === 'abaixo') {
@@ -204,7 +217,7 @@ export function Relatorios() {
       return { ...r, posicao: r.posicao.filter(l => codigos.has(l.codigo)) }
     }
     return { ...r, posicao: r.posicao.filter(l => l.situacao === sit) }
-  }, [movs, produtos, lotes, produtoId, intervalo.de, intervalo.ate, nomeCategoria, recorte, filtrosEstoque.situacao])
+  }, [movs, produtos, lotes, produtoId, intervalo.de, intervalo.ate, nomeCategoria, recorte, filtrosEstoque.situacao, empresa.config.dias_alerta])
 
   // Conteúdo por embalagem só para exibir "x emb." na aba Compras (a conta vem de lib/estoque.ts).
   const conteudos = useMemo(() => new Map(produtos.map(p => [p.codigo_interno, p.conteudo_embalagem ?? null])), [produtos])
@@ -341,19 +354,59 @@ export function Relatorios() {
               }}
             />
           </div>
-          <div>
+          <div className="relative">
             <label className="rotulo" htmlFor="r-produto">Produto</label>
-            <select id="r-produto" className="campo" value={produtoId} onChange={e => escolherProduto(e.target.value)}>
-              <option value="">Todos os produtos</option>
-              {produtos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-            </select>
+            <div className="flex gap-2">
+              <input
+                id="r-produto"
+                className="campo"
+                value={buscaProduto}
+                onChange={e => {
+                  setBuscaProduto(e.target.value)
+                  if (produtoId) {
+                    setProdutoId('')
+                    setParams(juntarFiltros(params, { produto: '' }), { replace: true })
+                  }
+                }}
+                placeholder="Todos os produtos — digite para buscar"
+                autoComplete="off"
+                role="combobox"
+                aria-expanded={resultadosProduto.length > 0}
+                aria-controls="r-produto-opcoes"
+                aria-autocomplete="list"
+              />
+              {(produtoId || buscaProduto) && (
+                <button type="button" className="btn btn-secundario shrink-0 px-3" onClick={() => escolherProduto('')} aria-label="Limpar produto">
+                  <X className="size-4" />
+                </button>
+              )}
+            </div>
+            {resultadosProduto.length > 0 && (
+              <ul id="r-produto-opcoes" role="listbox" aria-label="Produtos correspondentes" className="absolute inset-x-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+                {resultadosProduto.map(p => (
+                  <li key={p.id} role="option" aria-selected="false">
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-superficie"
+                      onClick={() => escolherProduto(p.id)}
+                    >
+                      <span className="truncate font-medium text-slate-800">{p.nome}</span>
+                      <span className="shrink-0 font-mono text-xs text-slate-400">{p.codigo_interno}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {buscaProduto && !produtoId && resultadosProduto.length === 0 && (
+              <p className="mt-1 text-xs text-slate-500">Nenhum produto correspondente. O relatório continuará mostrando todos.</p>
+            )}
           </div>
         </div>
         {produtoId && (
           <Aviso tom="info">
             <span className="flex flex-wrap items-center justify-between gap-2">
               <span>
-                Relatório e arquivos exportados mostram só <strong>{produtos.find(p => p.id === produtoId)?.nome}</strong>.
+                Relatório e arquivos exportados mostram só <strong>{produtoSelecionado?.nome}</strong>.
               </span>
               <button
                 type="button"
@@ -376,7 +429,7 @@ export function Relatorios() {
                   <input
                     type="checkbox"
                     aria-label={nome}
-                    className="size-4 shrink-0 accent-marca"
+                    className="size-4 shrink-0 accent-ponto"
                     checked={secoes[k]}
                     onChange={e => setSecoes(s => ({ ...s, [k]: e.target.checked }))}
                   />

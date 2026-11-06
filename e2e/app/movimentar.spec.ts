@@ -11,6 +11,7 @@ test.describe('Entrada', () => {
     const validade = dataDaqui(20)
     await page.getByLabel('Lote').fill('gl-teste 01')
     await page.getByLabel('Validade').fill(validade.iso)
+    await page.getByLabel('Custo unitário (R$)').fill('12,50')
     await expect(page.getByText(`Validade: ${validade.exibida}`)).toBeVisible()
     await expect(page.getByText('Vence em 20 dias')).toBeVisible()
 
@@ -29,6 +30,10 @@ test.describe('Entrada', () => {
     await expect(linha).toContainText('60')
     await expect(linha).toContainText(validade.exibida)
     await expect(linha).toHaveAttribute('data-situacao', 'vencendo')
+    await page.goto('/produtos')
+    await page.getByLabel('Buscar').fill('Glifosato')
+    await page.getByRole('link', { name: /Glifosato 480 SL/ }).click()
+    await expect(page.getByText('Último custo de entrada').locator('..')).toContainText('R$ 12,50')
   })
 
   test('lote existente reaproveita a validade e soma ao saldo', async ({ page }) => {

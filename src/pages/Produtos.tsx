@@ -9,7 +9,7 @@ import { Aviso, BadgeSituacao, Cabecalho, Carregando, Modal, Vazio, cx } from '.
 import { useDados } from '../contexto/Dados'
 import { useAtiva } from '../contexto/Empresa'
 import { catalogo } from '../lib/dados'
-import { produtoCombina, resumirProduto } from '../lib/estoque'
+import { DIAS_ALERTA, produtoCombina, resumirProduto } from '../lib/estoque'
 import { exibirCodigo, formatarMoeda, formatarNumero, formatarValidade } from '../lib/formato'
 import { paginar } from '../lib/paginacao'
 import type { Categoria } from '../lib/tipos'
@@ -18,7 +18,8 @@ const POR_PAGINA = 50
 
 export function Produtos() {
   const { produtos, categorias, nomeCategoria, lotesPorProduto, carregando } = useDados()
-  const { pode } = useAtiva()
+  const { pode, empresa } = useAtiva()
+  const diasAlerta = empresa.config.dias_alerta ?? DIAS_ALERTA
   const [termo, setTermo] = useState('')
   const [categoria, setCategoria] = useState('')
   const [inativos, setInativos] = useState(false)
@@ -31,8 +32,8 @@ export function Produtos() {
     () =>
       produtos
         .filter(p => (inativos || p.ativo) && (!categoria || p.categoria_id === categoria) && produtoCombina(p, termo))
-        .map(p => ({ p, r: resumirProduto(lotesPorProduto.get(p.id) ?? []) })),
-    [produtos, lotesPorProduto, termo, categoria, inativos],
+        .map(p => ({ p, r: resumirProduto(lotesPorProduto.get(p.id) ?? [], undefined, diasAlerta) })),
+    [produtos, lotesPorProduto, termo, categoria, inativos, diasAlerta],
   )
   const paginados = useMemo(() => paginar(lista, pagina, POR_PAGINA), [lista, pagina])
 
@@ -79,7 +80,7 @@ export function Produtos() {
           {categorias.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
         </select>
         <label className="flex items-center gap-2 whitespace-nowrap text-sm text-slate-600">
-          <input type="checkbox" className="size-4 accent-marca" checked={inativos} onChange={e => setInativos(e.target.checked)} />
+          <input type="checkbox" className="size-4 accent-ponto" checked={inativos} onChange={e => setInativos(e.target.checked)} />
           Mostrar inativos
         </label>
       </div>

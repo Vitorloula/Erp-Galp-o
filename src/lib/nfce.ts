@@ -11,7 +11,6 @@
  *  - abstrai o emissor atrás de uma interface: hoje é um stub "desligado" —
  *    para ligar, é só colocar as keys/API (idealmente numa Supabase Edge Function).
  */
-import { formatarData } from './formato'
 import type { Produto } from './tipos'
 
 /** Estado da NFC-e de uma venda. */
@@ -117,54 +116,15 @@ export async function emitirVenda(emissor: EmissorNFCe, dados: DadosNFCe): Promi
 
 // ───────────────────────── Configuração / emissor ─────────────────────────
 
-interface ConfigNFCe {
-  url: string
-  token: string
-  csc: string
-  cscId: string
-  seriePadrao: string
-}
-
-function lerConfig(): ConfigNFCe | null {
-  const url = import.meta.env.VITE_NFCE_URL
-  const token = import.meta.env.VITE_NFCE_TOKEN
-  const csc = import.meta.env.VITE_NFCE_CSC
-  const cscId = import.meta.env.VITE_NFCE_CSC_ID
-  const seriePadrao = import.meta.env.VITE_NFCE_SERIE || '1'
-  if (!url || !token || !csc || !cscId) return null
-  return { url, token, csc, cscId, seriePadrao }
-}
-
-/**
- * Devolve o emissor de NFC-e. Hoje é um stub: sem keys, fica "desligado".
- * Quando as keys/API existirem, troque o corpo desta função pela chamada real
- * (Supabase Edge Function ou emissor terceiro) — sem mudar a interface.
- */
+/** Fiscal fica desligado até existir integração homologada no servidor. */
 export function criarEmissorNFCe(): EmissorNFCe {
-  const cfg = lerConfig()
-  if (!cfg) {
-    return {
-      configurado: false,
-      async emitir(venda) {
-        // Sem keys: o caixa segue normalmente, só o cupom não fiscal.
-        console.info(`[NFC-e] não configurada — venda ${venda.numero} de ${formatarData(venda.emitidaEm)} não emitida.`)
-        return { status: 'nao_configurado', mensagem: 'NFC-e não configurada' }
-      },
-      async cancelar() {
-        return { status: 'nao_configurado', mensagem: 'NFC-e não configurada' }
-      },
-    }
-  }
   return {
-    configurado: true,
-    async emitir(_venda) {
-      // TODO(integração NFC-e): chamar a API do emissor com cfg.url/token/csc/cscId.
-      // Retorno real: { status: 'emitida', chave: '...', qrcode: '...' } ou { status: 'erro', mensagem }.
-      return { status: 'nao_configurado', mensagem: 'Integração NFC-e pendente' }
+    configurado: false,
+    async emitir() {
+      return { status: 'nao_configurado', mensagem: 'Integração NFC-e não homologada nem configurada no servidor.' }
     },
-    async cancelar(_chave, _motivo) {
-      // TODO(integração NFC-e): chamar o endpoint de cancelamento do emissor.
-      return { status: 'nao_configurado', mensagem: 'Integração NFC-e pendente' }
+    async cancelar() {
+      return { status: 'nao_configurado', mensagem: 'Integração NFC-e não configurada no servidor.' }
     },
   }
 }

@@ -36,17 +36,17 @@ export function diasParaVencer(validade: string | null, hoje = hojeISO()): numbe
   return validade ? diferencaDias(hoje, validade) : null
 }
 
-export function situacaoValidade(validade: string | null, hoje = hojeISO()): Situacao {
+export function situacaoValidade(validade: string | null, hoje = hojeISO(), diasAlerta = DIAS_ALERTA): Situacao {
   const dias = diasParaVencer(validade, hoje)
   if (dias === null) return 'ok'
   if (dias < 0) return 'vencido'
-  if (dias <= DIAS_ALERTA) return 'vencendo'
+  if (dias <= diasAlerta) return 'vencendo'
   return 'ok'
 }
 
-export function situacaoLote(lote: Pick<Lote, 'saldo' | 'validade'>, hoje = hojeISO()): Situacao {
+export function situacaoLote(lote: Pick<Lote, 'saldo' | 'validade'>, hoje = hojeISO(), diasAlerta = DIAS_ALERTA): Situacao {
   if (lote.saldo <= 0) return 'zerado'
-  return situacaoValidade(lote.validade, hoje)
+  return situacaoValidade(lote.validade, hoje, diasAlerta)
 }
 
 export function descreverSituacao(situacao: Situacao, validade: string | null, hoje = hojeISO()): string {
@@ -87,7 +87,7 @@ export interface LinhaEstoque {
  * Monta as linhas no mesmo padrão da planilha da empresa:
  * uma linha por produto/lote com saldo; produtos sem saldo aparecem em uma linha vermelha.
  */
-export function montarLinhasEstoque(produtos: Produto[], lotes: Lote[], hoje = hojeISO()): LinhaEstoque[] {
+export function montarLinhasEstoque(produtos: Produto[], lotes: Lote[], hoje = hojeISO(), diasAlerta = DIAS_ALERTA): LinhaEstoque[] {
   const porProduto = agruparLotes(lotes)
   const linhas: LinhaEstoque[] = []
   for (const produto of produtos) {
@@ -105,7 +105,7 @@ export function montarLinhasEstoque(produtos: Produto[], lotes: Lote[], hoje = h
         lote,
         saldo: lote.saldo,
         validade: lote.validade,
-        situacao: situacaoLote(lote, hoje),
+        situacao: situacaoLote(lote, hoje, diasAlerta),
       })
     }
   }
@@ -130,13 +130,13 @@ export interface ResumoProduto {
 }
 
 /** Situação consolidada do produto: a pior situação entre seus lotes com saldo. */
-export function resumirProduto(lotesDoProduto: Lote[], hoje = hojeISO()): ResumoProduto {
+export function resumirProduto(lotesDoProduto: Lote[], hoje = hojeISO(), diasAlerta = DIAS_ALERTA): ResumoProduto {
   const comSaldo = ordenarFefo(lotesDoProduto.filter(l => l.saldo > 0))
   const saldo = comSaldo.reduce((s, l) => s + l.saldo, 0)
   if (comSaldo.length === 0) return { saldo: 0, proximaValidade: null, situacao: 'zerado', lotesComSaldo: 0 }
   let situacao: Situacao = 'ok'
   for (const l of comSaldo) {
-    const s = situacaoLote(l, hoje)
+    const s = situacaoLote(l, hoje, diasAlerta)
     if (PRIORIDADE[s] < PRIORIDADE[situacao]) situacao = s
   }
   return {
@@ -265,13 +265,13 @@ export interface OpcoesReposicao {
  * Com `incluirSemMinimo` a listagem fica completa para a tela de configuração, incluindo os
  * produtos sem ponto de pedido (ordem: no ponto de pedido primeiro, sem mínimo no fim).
  */
-export function montarReposicao(produtos: Produto[], lotes: Lote[], hoje = hojeISO(), opcoes: OpcoesReposicao = {}): ReposicaoProduto[] {
+export function montarReposicao(produtos: Produto[], lotes: Lote[], hoje = hojeISO(), opcoes: OpcoesReposicao = {}, diasAlerta = DIAS_ALERTA): ReposicaoProduto[] {
   const porProduto = agruparLotes(lotes)
   const itens: ReposicaoProduto[] = []
   const incluirSemMinimo = opcoes.incluirSemMinimo === true
   for (const produto of produtos) {
     if (!produto.controla_estoque) continue
-    const resumo = resumirProduto(porProduto.get(produto.id) ?? [], hoje)
+    const resumo = resumirProduto(porProduto.get(produto.id) ?? [], hoje, diasAlerta)
     if (!produto.ativo && resumo.saldo <= 0) continue
     const minimo = produto.estoque_minimo ?? null
     const situacao = situacaoReposicao(resumo.saldo, minimo)

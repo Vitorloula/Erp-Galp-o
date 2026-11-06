@@ -44,6 +44,19 @@ test.describe('Empresa e lojas', () => {
     await expect(toast(page, 'Dados da empresa salvos.')).toBeVisible()
     await page.reload()
     await expect(page.getByLabel('CNPJ ou CPF')).toHaveValue('12345678000190')
+
+    await page.getByLabel('Alerta de vencimento (dias)').fill('45')
+    await page.getByLabel('Venda sem saldo no caixa (PDV)').selectOption('bloquear')
+    await page.getByLabel('Etiqueta de balança no caixa (EAN-13)').check()
+    await page.getByLabel('Dígitos do PLU').selectOption('5')
+    await page.getByLabel('Valor na etiqueta').selectOption('peso')
+    await page.getByRole('button', { name: 'Salvar regras' }).click()
+    await expect(toast(page, 'Configurações de operação salvas.')).toBeVisible()
+    await page.reload()
+    await expect(page.getByLabel('Alerta de vencimento (dias)')).toHaveValue('45')
+    await expect(page.getByLabel('Venda sem saldo no caixa (PDV)')).toHaveValue('bloquear')
+    await expect(page.getByLabel('Dígitos do PLU')).toHaveValue('5')
+    await expect(page.getByLabel('Valor na etiqueta')).toHaveValue('peso')
   })
 
   test('cada loja tem o próprio estoque', async ({ page }, info) => {
@@ -67,14 +80,30 @@ test.describe('Empresa e lojas', () => {
     await page.getByRole('button', { name: 'Registrar entrada de 15 L' }).click()
     await expect(toast(page, /Entrada registrada: \+15 L/)).toBeVisible()
 
-    // A loja principal continua com os 260 L de antes
+    await page.goto('/produtos')
+    await page.getByLabel('Buscar').fill('Glifosato')
+    const glifosatoHref = await page.getByRole('link', { name: /Glifosato 480 SL/ }).getAttribute('href')
+    const produtoId = glifosatoHref!.split('/').at(-1)!
+    await page.goto(`/movimentar?tipo=transferencia&produto=${produtoId}`)
+    await expect(page.getByRole('button', { name: /Transferir entre lojas/ })).toBeVisible()
+    await page.getByLabel('Quantidade a transferir').fill('5')
+    await page.getByLabel('Motivo / documento').fill('Abastecimento da matriz')
+    await page.getByRole('button', { name: 'Transferir entre lojas' }).click()
+    await expect(toast(page, /Transferência de −5 L de Glifosato 480 SL para Galpão principal registrada/)).toBeVisible()
+    await page.goto('/estoque')
+    await page.getByLabel('Buscar').fill('Glifosato')
+    await expect(linhasEstoque(page)).toContainText('10')
+
+    // A matriz mantém os 260 L originais e recebe 5 L do lote transferido.
     troca = await abrirTroca(page, info)
     await troca.getByRole('button', { name: 'Galpão principal' }).click()
     await page.goto('/estoque')
     await page.getByLabel('Buscar').fill('Glifosato')
-    await expect(linhasEstoque(page)).toHaveCount(1)
-    await expect(linhasEstoque(page)).toContainText('260')
-    await expect(linhasEstoque(page)).not.toContainText('FN-1')
+    await expect(linhasEstoque(page)).toHaveCount(2)
+    await expect(linhasEstoque(page).filter({ hasText: 'FN-1' })).toContainText('5')
+    await page.goto('/produtos')
+    await page.getByLabel('Buscar').fill('Glifosato')
+    await expect(page.getByRole('link', { name: /Glifosato 480 SL/ })).toContainText('265 L')
   })
 
   test('cadastrar outra empresa e trocar entre elas', async ({ page }, info) => {

@@ -1,17 +1,17 @@
 # Documentação do ERP Galpão
 
-## 1. Status atual (27/10/2026)
+## 1. Status atual (06/11/2026)
 
 - **Compilação:** `npm run lint` (`tsc -p . --noEmit`) → **0 erros**.
 - **Testes de regras:** `npm test` → **117/117** em 12 arquivos.
-- **Testes de banco/RLS:** `npm run test:sql` → **238/238**.
+- **Testes de banco/RLS:** `npm run test:sql` → **243/243** (inclui custo de entrada e transferência atômica).
 - **Build de produção:** `npm run build` → **OK**.
 - **E2E direcionado:** importação, inventário por lote, LGPD e produtos passaram com
   `--workers=1`. O E2E completo roda no CI com retries; a suíte inteira ainda não foi
   declarada estável em workers padrão.
 - **Backlog:** a fonte de verdade é `memoria/estado.json`. Estão abertos **T-028**
-  (piloto em loja real + restauração de produção) e **T-034** (integrações reais de
-  NFC-e e Asaas).
+  (piloto em loja real + restauração), **T-034** (NFC-e/Asaas server-side) e **T-035**
+  (rastreio por série/IMEI).
 
 O escopo do piloto é **uma loja por empresa, PDV não fiscal, sem NFC-e/NF-e real e
 sem cobrança automática**. O cupom sempre exibe **“DOCUMENTO SEM VALOR FISCAL”**.
@@ -47,7 +47,10 @@ sem cobrança automática**. O cupom sempre exibe **“DOCUMENTO SEM VALOR FISCA
 
 - Saldo materializado por loja e lote; histórico imutável de movimentações.
 - Entrada, saída, ajuste e correção sempre vinculados a um lote.
+- Custo unitário opcional na entrada; fica no lançamento e atualiza `produtos.custo_ultimo` na mesma transação.
+- Transferência entre lojas pelo RPC `public.transferir_estoque`: saída e entrada no mesmo lote são atômicas e idempotentes; as duas lojas precisam estar ativas e autorizadas.
 - Lotes com validade, alerta de vencimento e ordenação FEFO na venda.
+- Prazo do alerta de validade configurável pelo dono em Empresa → Regras de operação e balança.
 - Bloqueio de saída acima do saldo, salvo eventos de PDV offline que já aconteceram
   (esses viram divergência para conferência).
 - Produto sem lote cadastrado pode receber um lote durante o inventário.
@@ -87,6 +90,8 @@ sem cobrança automática**. O cupom sempre exibe **“DOCUMENTO SEM VALOR FISCA
 - Convites por link/e-mail, com expiração e uso único.
 - Assinatura em trial, ativa, atrasada (aviso), somente leitura, suspensa e cortesia.
 - Painel do dono para dados da empresa, lojas, caixas, equipe e assinatura.
+- Configuração do comportamento de venda sem saldo e do formato de etiquetas da balança.
+- Dados cadastrais de loja editáveis: CNPJ, IE, endereço e UF.
 
 ### LGPD, privacidade e monitoramento
 
@@ -177,21 +182,29 @@ O `ia-diaria.yml` usa a branch `saas` e o mesmo caminho de E2E com retries.
 - **T-028** (prio 1, meta): piloto controlado em loja real, sem NFC-e/Asaas.
   Pré-requisitos técnicos concluídos; falta validar em loja e ensaiar restauração de
   produção.
-- **T-034** (prio 2, integração): NFC-e e cobrança Asaas reais. Os scaffolds existem,
-  mas continuam stubs; implementar só depois do piloto, com homologação fiscal e
-  revisão contábil/jurídica.
+- **T-034** (prio 2, integração): NFC-e e cobrança Asaas reais. Permanecem desligadas;
+  implementar após o piloto, com homologação fiscal/jurídica, credenciais server-side
+  e webhooks validados. Segredos nunca devem ser configurados em variáveis `VITE_*`.
+- **T-035** (prio 2, produto): rastreio de eletrônicos por série/IMEI e garantia.
+  O cadastro atual ainda oferece apenas rastreio por lote ou nenhum; remover a promessa
+  de série da comunicação até o fluxo de recebimento, venda, devolução e inventário existir.
 
-Concluídos recentemente: T-016, T-017, T-019, T-021 (filtros/URL), T-023 (migration
-de estoque mínimo), T-024 (inventário por lote), T-025 (backup local), T-026/T-027
-(scaffolds), T-029 (importação), T-030 (operação do piloto), T-031 (LGPD), T-032
-(paginação) e T-033 (qualidade/CI). O detalhe de cada item está em
+Concluídos nesta atualização: transferências atômicas e auditáveis entre lojas, custo
+unitário de entrada, configurações operacionais editáveis, paginação das listas de
+dados, busca de produto no relatório, seleção de segmentos e correções de UI. Também
+estão concluídos T-016, T-017, T-019, T-021 (filtros/URL), T-023 (estoque mínimo),
+T-024 (inventário), T-025 (backup local), T-026/T-027 (scaffolds), T-029 (importação),
+T-030 (operação do piloto), T-031 (LGPD), T-032 (paginação) e T-033 (qualidade/CI).
+O detalhe de cada item está em
 `memoria/estado.json` e `memoria/historico.md`.
 
 ## 9. Limitações conhecidas
 
 - Sem emissão fiscal real; o cupom é comprovante interno.
 - Sem cobrança automática Asaas; assinatura é ajustada pelo suporte.
-- Sem integração multi-loja/transferência completa no piloto.
+- O escopo comercial do piloto continua limitado a uma loja por empresa, embora o
+  sistema suporte transferência atômica entre lojas para usuários autorizados.
+- Sem rastreio individual por série/IMEI e garantia de eletrônicos.
 - Backup em nuvem depende da configuração do Supabase e ainda não foi testado em
   restauração de produção.
 - A suíte E2E completa ainda precisa de acompanhamento no CI para confirmar

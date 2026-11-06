@@ -19,7 +19,7 @@
       "titulo": "Integrações reais de NFC-e e cobrança Asaas",
       "prioridade": 2,
       "tipo": "integração",
-      "detalhe": "Os scaffolds de NFC-e e cobrança existem, mas continuam stubs: não emitem documento fiscal nem cobram de verdade. Implementar somente depois do piloto controlado, com credenciais de produção, homologação fiscal e revisão contábil/jurídica.",
+      "detalhe": "NFC-e e cobrança automática permanecem desligadas. Implementar somente depois do piloto, por Edge Function/Worker server-side, sem segredos VITE_*, com homologação fiscal, webhooks, idempotência, retry e revisão contábil/jurídica.",
       "arquivos_que_toca": [
         "src/lib/nfce.ts",
         "src/lib/cobranca.ts",
@@ -27,6 +27,22 @@
       ],
       "criterios": "Emissão fiscal homologada, cobrança conciliada, tratamento de falhas e rollback documentados; escopo aprovado pelo cliente.",
       "criado_em": "2026-10-27T20:30:00.000Z"
+    },
+    {
+      "id": "T-035",
+      "titulo": "Rastreio individual por série/IMEI e garantia para eletrônicos",
+      "prioridade": 2,
+      "tipo": "feature",
+      "detalhe": "O segmento eletrônicos não deve prometer série/IMEI até existir fluxo de cadastro da série no recebimento, validação de unicidade, baixa na venda, devolução/cancelamento, consulta no histórico e inventário por unidade. As colunas legadas serie_id e garantia_meses não implementam esse fluxo.",
+      "arquivos_que_toca": [
+        "src/pages/BoasVindas.tsx",
+        "src/components/ProdutoForm.tsx",
+        "src/pages/Movimentar.tsx",
+        "src/pages/pdv/Venda.tsx",
+        "supabase/migrations/"
+      ],
+      "criterios": "Séries/IMEIs únicos por empresa e produto; cada unidade recebida/vendida rastreada; RLS; devolução/cancelamento e correções auditáveis; testes SQL e E2E antes de atualizar a comunicação do segmento.",
+      "criado_em": "2026-11-06T00:00:00.000Z"
     }
   ],
   "concluidos": [

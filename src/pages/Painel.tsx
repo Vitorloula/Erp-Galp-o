@@ -10,6 +10,7 @@ import { movimentos, vendas as dadosVendas } from '../lib/dados'
 import {
   PRIORIDADE,
   PRIORIDADE_ATENCAO,
+  DIAS_ALERTA,
   montarLinhasEstoque,
   precisaRepor,
   saldosPorProduto,
@@ -95,7 +96,8 @@ export function Painel() {
     }
   }, [versao, empresa.empresa_id, loja.id])
 
-  const linhas = useMemo(() => montarLinhasEstoque(produtos, lotes), [produtos, lotes])
+  const diasAlerta = empresa.config.dias_alerta ?? DIAS_ALERTA
+  const linhas = useMemo(() => montarLinhasEstoque(produtos, lotes, undefined, diasAlerta), [produtos, lotes, diasAlerta])
   const contagem = useMemo(() => {
     const c = { vencido: 0, zerado: 0, vencendo: 0, ok: 0 }
     linhas.forEach(l => c[l.situacao]++)

@@ -193,12 +193,15 @@ secao('Estoque por loja e histórico imutável:')
 let entrada1, loteA, lojaA2
 await comoUsuario(estoquista, async () => {
   const origem = '11111111-1111-4111-8111-111111111111'
-  entrada1 = (await um(`select public.registrar_entrada($1, $2, ' lt-01 ', '2027-06-30', 120, 'NF 1', null, $3) as id`, [lojaA1, prodA, origem])).id
+  entrada1 = (await um(`select public.registrar_entrada($1, $2, ' lt-01 ', '2027-06-30', 120, 'NF 1', null, $3, 2.5) as id`, [lojaA1, prodA, origem])).id
   const repetida = (await um(`select public.registrar_entrada($1, $2, 'LT-01', '2027-06-30', 120, 'NF 1', null, $3) as id`, [lojaA1, prodA, origem])).id
   confere(repetida === entrada1, 'reenvio da mesma entrada (mesmo origem_id) não duplica')
   const s = await um('select lote_id, lote, saldo from public.vw_estoque where produto_id = $1', [prodA])
   loteA = s.lote_id
   confere(s.lote === 'LT-01' && Number(s.saldo) === 120, 'saldo materializado = 120 e lote normalizado', JSON.stringify(s))
+  const custo = await um('select custo_ultimo::float as custo from public.produtos where id = $1', [prodA])
+  const custoMov = await um('select custo_unitario::float as custo from public.movimentacoes where id = $1', [entrada1])
+  confere(custo.custo === 2.5 && custoMov.custo === 2.5, 'custo unitário da entrada e último custo do produto ficam auditáveis')
 
   const m = await um(`insert into public.movimentacoes (empresa_id, loja_id, lote_id, tipo, quantidade, ocorrido_em, usuario_id, origem)
     values ($1, $2, $3, 'SAIDA', 30, '2020-01-01', $4, 'manual') returning ocorrido_em, usuario_id, usuario_nome`, [empA, lojaA1, loteA, donoA])
@@ -228,6 +231,17 @@ await comoUsuario(donoA, async () => {
   await db.query(`select public.registrar_entrada($1, $2, 'LT-01', '2027-06-30', 40)`, [lojaA2, prodA])
   const porLoja = (await db.query('select loja_id, saldo from public.vw_estoque where lote_id = $1 order by saldo', [loteA])).rows
   confere(porLoja.length === 2 && Number(porLoja[0].saldo) === 40 && Number(porLoja[1].saldo) === 95, 'mesmo lote com saldo separado por loja (40 e 95)', JSON.stringify(porLoja))
+  const transferId = '77777777-7777-4777-8777-777777777777'
+  const movs = await um(`select * from public.transferir_estoque($1, $2, $3, $4, 5, 'Abastecimento filial', $5)`, [empA, lojaA1, lojaA2, loteA, transferId])
+  const repetida = await um(`select * from public.transferir_estoque($1, $2, $3, $4, 5, 'Abastecimento filial', $5)`, [empA, lojaA1, lojaA2, loteA, transferId])
+  confere(movs.saida_id === repetida.saida_id && movs.entrada_id === repetida.entrada_id, 'repetir a mesma transferência não duplica os lançamentos')
+  await esperaErro('id de transferência não pode ser reutilizado para dados diferentes', () => db.query(
+    `select * from public.transferir_estoque($1, $2, $3, $4, 4, 'Outro motivo', $5)`,
+    [empA, lojaA1, lojaA2, loteA, transferId],
+  ), 'reutilizado com dados diferentes')
+  const aposTransferencia = (await db.query('select loja_id, saldo from public.vw_estoque where lote_id = $1 order by loja_id', [loteA])).rows
+  confere(aposTransferencia.some(x => x.loja_id === lojaA1 && Number(x.saldo) === 90) && aposTransferencia.some(x => x.loja_id === lojaA2 && Number(x.saldo) === 45), 'transferência reduz e aumenta os saldos das lojas na mesma transação')
+  await esperaErro('transferência não pode retirar acima do saldo', () => db.query(`select * from public.transferir_estoque($1, $2, $3, $4, 500, 'Excesso', gen_random_uuid())`, [empA, lojaA1, lojaA2, loteA]), 'Saldo insuficiente')
   await esperaErro('correção não pode apontar para lançamento de outra loja', () =>
     db.query(`insert into public.movimentacoes (empresa_id, loja_id, lote_id, tipo, quantidade, observacao, referencia_id) values ($1, $2, $3, 'CORRECAO', 1, 'teste', $4)`, [empA, lojaA2, loteA, entrada1]), 'mesmo produto, lote e loja')
 })

@@ -524,7 +524,7 @@ function Caixas({ lojas }: { lojas: Loja[] | null }) {
           </div>
           {editando?.id && (
             <label className="flex items-center gap-2.5 text-sm font-medium text-slate-700">
-              <input type="checkbox" className="size-4.5 accent-marca" checked={editando.ativo} onChange={e => setEditando(c => c && { ...c, ativo: e.target.checked })} />
+              <input type="checkbox" className="size-4.5 accent-ponto" checked={editando.ativo} onChange={e => setEditando(c => c && { ...c, ativo: e.target.checked })} />
               Caixa ativo
             </label>
           )}

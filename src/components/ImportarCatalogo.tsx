@@ -137,7 +137,7 @@ export function ImportarCatalogo({ aberto, aoFechar }: Props) {
                   id="arquivo-importacao"
                   type="file"
                   accept=".csv,.tsv,.xlsx,text/csv"
-                  className="campo file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-marca-escura"
+                  className="campo file:mr-3 file:rounded-lg file:border-0 file:bg-[#fff8dd] file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-ponto"
                   onChange={e => escolher(e.target.files?.[0])}
                   disabled={lendo || importando}
                 />

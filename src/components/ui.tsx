@@ -162,6 +162,7 @@ export function Modal({
   largura?: string
 }) {
   const idTitulo = useId()
+  const dialogRef = useRef<HTMLDivElement>(null)
   const painelRef = useRef<HTMLDivElement>(null)
   // Guarda o callback em uma ref para o efeito não ser refeito a cada render
   // (as telas costumam passar `aoFechar` inline). Sem isso, o body era
@@ -171,7 +172,15 @@ export function Modal({
   useEffect(() => {
     if (!aberto) return
     const anterior = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const primeiroFrame = requestAnimationFrame(() => {
+      const painel = painelRef.current
+      if (!painel) return
+      const inicial = painel.querySelector<HTMLElement>('[autofocus], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled), a[href]')
+      inicial?.focus()
+    })
     const tecla = (e: KeyboardEvent) => {
+      const modais = document.querySelectorAll<HTMLElement>('[data-modal]')
+      if (modais[modais.length - 1] !== dialogRef.current) return
       if (e.key === 'Escape') {
         fechar.current()
         return
@@ -198,6 +207,7 @@ export function Modal({
     const overflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => {
+      cancelAnimationFrame(primeiroFrame)
       document.removeEventListener('keydown', tecla)
       document.body.style.overflow = overflow
       if (anterior && document.contains(anterior)) anterior.focus()
@@ -219,6 +229,7 @@ export function Modal({
    */
   return createPortal(
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"

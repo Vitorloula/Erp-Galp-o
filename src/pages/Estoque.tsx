@@ -71,6 +71,8 @@ export function Estoque() {
   const toast = useToast()
   const [params, setParams] = useSearchParams()
   const navegar = useNavigate()
+  const diasAlerta = empresa.config.dias_alerta ?? DIAS_ALERTA
+  const filtros = useMemo(() => FILTROS.map(f => f.valor === 'vencendo' ? { ...f, nome: `Vencem em ${diasAlerta} dias` } : f), [diasAlerta])
   const filtro = (FILTROS.find(f => f.valor === params.get('filtro'))?.valor ?? 'todos') as Filtro
   const [termo, setTermo] = useState('')
   const [categoria, setCategoria] = useState('')
@@ -86,7 +88,7 @@ export function Estoque() {
   }, [termo, categoria, filtro, ordem])
 
   // Linhas por lote: alimentam os chips Vencidos/Zerados/Vencem/Em dia e o filtro "Todos".
-  const todas = useMemo(() => montarLinhasEstoque(produtos, lotes), [produtos, lotes])
+  const todas = useMemo(() => montarLinhasEstoque(produtos, lotes, undefined, diasAlerta), [produtos, lotes, diasAlerta])
   // Recorte compartilhado (busca + categoria) — o mesmo que o Relatório usa (T-019).
   const recorte = useMemo(() => new Set(filtrarProdutos(produtos, termo, categoria).map(p => p.id)), [produtos, termo, categoria])
   const base = useMemo(() => todas.filter(l => recorte.has(l.produto.id)), [todas, recorte])
@@ -94,7 +96,7 @@ export function Estoque() {
   // ── Lista de compras: fonte ÚNICA (T-009) ──────────────────────────────────────────────
   // A decisão de compra vem inteira de lib/estoque.ts e é calculada UMA vez; o chip "Repor",
   // a lista e o arquivo exportado leem exatamente este array (filtrado depois, pela tela).
-  const reposicao = useMemo(() => montarReposicao(produtos, lotes), [produtos, lotes])
+  const reposicao = useMemo(() => montarReposicao(produtos, lotes, undefined, {}, diasAlerta), [produtos, lotes, diasAlerta])
   const visiveisReposicao = useMemo(
     () => precisaRepor(reposicao).filter(i => recorte.has(i.produto.id)),
     [reposicao, recorte],
@@ -238,7 +240,7 @@ export function Estoque() {
           </div>
         </div>
         <div role="group" aria-label="Filtrar estoque" className="-mx-4 flex gap-2 rolagem-x overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
-          {FILTROS.map(f => (
+          {filtros.map(f => (
             <button
               key={f.valor}
               type="button"
@@ -311,7 +313,7 @@ export function Estoque() {
 
           {itensRepor.length > 0 && (
             <div role="region" aria-label="Ações da lista de compras" className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 lg:bottom-0">
-              <div className="cartao flex flex-wrap items-center gap-x-3 gap-y-2 border-emerald-200 bg-white/95 p-3 shadow-lg backdrop-blur">
+              <div className="cartao flex flex-wrap items-center gap-x-3 gap-y-2 border-letreiro bg-white/95 p-3 shadow-lg backdrop-blur">
                 <p className="text-sm font-semibold text-slate-700" aria-live="polite" aria-atomic="true" data-selecao>
                   {marcadosVisiveis === 0 ? (
                     <>Selecione produtos para baixar a lista</>
@@ -363,7 +365,7 @@ export function Estoque() {
 
           <p className="text-xs text-slate-500">
             <span className="mr-1 inline-block size-2.5 rounded-sm bg-red-500 align-middle" /> Vermelho: vencido ou sem estoque ·{' '}
-            <span className="mx-1 inline-block size-2.5 rounded-sm bg-amber-400 align-middle" /> Amarelo: vence em até {DIAS_ALERTA} dias ·{' '}
+            <span className="mx-1 inline-block size-2.5 rounded-sm bg-amber-400 align-middle" /> Amarelo: vence em até {diasAlerta} dias ·{' '}
             <strong className="font-semibold text-slate-600">Repor</strong>: saldo no estoque mínimo ou abaixo dele. Marque os produtos e baixe a lista para
             levar ao fornecedor.
           </p>
@@ -462,7 +464,7 @@ export function Estoque() {
           />
           <p className="mt-3 text-xs text-slate-500">
             <span className="mr-1 inline-block size-2.5 rounded-sm bg-red-500 align-middle" /> Vermelho: vencido ou sem estoque ·{' '}
-            <span className="mx-1 inline-block size-2.5 rounded-sm bg-amber-400 align-middle" /> Amarelo: vence em até {DIAS_ALERTA} dias ·{' '}
+            <span className="mx-1 inline-block size-2.5 rounded-sm bg-amber-400 align-middle" /> Amarelo: vence em até {diasAlerta} dias ·{' '}
             <strong className="font-semibold text-slate-600">Repor</strong>: saldo no estoque mínimo ou abaixo dele
           </p>
         </>

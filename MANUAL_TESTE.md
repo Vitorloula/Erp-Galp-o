@@ -177,22 +177,36 @@ a service role no `.env` do frontend publicado.
 
 ---
 
-## 12. Pontos de integração NFC-e e Asaas (desligados por padrão)
+## 12. Regras de operação, custo e transferência entre lojas
 
-1. Confira em `.env.example` as chaves `VITE_NFCE_*` e `VITE_ASAAS_API_KEY`.
-2. Sem essas chaves, `src/lib/nfce.ts` e `src/lib/cobranca.ts` ficam **desligados**: o
-   caixa emite o cupom normal (não fiscal) e a assinatura continua no trial/cortesia.
-3. Para ligar depois, use segredos no Supabase/Edge Function e troque o stub pela API
-   real. **Não** é parte do piloto atual.
+1. Em **Empresa → Regras de operação e balança**, configure dias de alerta, política
+   de venda sem saldo e a etiqueta da balança; salve e recarregue a tela para validar.
+2. Em **Movimentar → Entrada**, informe um custo unitário opcional. Abra o produto e
+   confirme **Último custo de entrada**; o histórico da entrada guarda o custo usado.
+3. Crie uma segunda loja e dê entrada num lote nela. Em **Movimentar → Transferir**,
+   escolha outra loja, lote e quantidade. Confira a saída na origem e entrada no destino.
+4. Repita a mesma requisição somente em testes de API usando o mesmo id de transferência:
+   não deve duplicar. Tente transferir acima do saldo e confirme que nenhum dos lados muda.
 
 ---
 
-## 13. Testes automatizados
+## 13. Pontos de integração NFC-e e Asaas (desligados por padrão)
+
+1. A emissão fiscal e a cobrança automática estão **desligadas**. O caixa imprime o
+   comprovante interno “DOCUMENTO SEM VALOR FISCAL” e o suporte mantém trial/cortesia.
+2. Não configure credenciais em `VITE_*`: variáveis Vite ficam públicas no JavaScript.
+3. Para ligar futuramente, integrar em Edge Function/Worker, com credenciais server-side,
+   homologação fiscal, idempotência, webhooks e procedimento de rollback. Não faz parte
+   do piloto atual.
+
+---
+
+## 14. Testes automatizados
 
 ```bash
 npm run lint          # tsc --noEmit
 npm test              # Vitest: 117 testes
-npm run test:sql      # PGlite: 238 verificações de RLS/regras
+npm run test:sql      # PGlite: 243 verificações de RLS/regras
 npm run test:e2e:smoke # fluxos principais, workers=1
 npm run test:e2e:ci   # Playwright com retries (CI)
 npm run build         # gera dist para publicação
@@ -207,6 +221,7 @@ Todos devem terminar com **exit 0**. O E2E completo roda no CI; localmente, use
 
 - **T-028**: validar o piloto em loja real e ensaiar restauração do Supabase de
   produção.
-- **T-034**: NFC-e e Asaas reais (os stubs existem; falta homologação/integração).
+- **T-034**: NFC-e e Asaas reais (desligadas; falta homologação e integração server-side).
+- **T-035**: rastreio por série/IMEI e garantia de eletrônicos.
 - A suíte E2E completa ainda precisa de acompanhamento no CI para confirmar
   estabilidade sem retries.

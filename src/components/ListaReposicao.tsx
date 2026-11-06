@@ -80,7 +80,7 @@ export function ListaReposicao({ itens, aoEditar, vazio, selecionados, aoAlterna
             checked={todosMarcados}
             onChange={aoMarcarTodosToggle}
             disabled={!aoMarcarTodosToggle}
-            className="size-5 shrink-0 cursor-pointer rounded accent-marca focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
+            className="size-5 shrink-0 cursor-pointer rounded accent-ponto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ponto focus-visible:ring-offset-2"
             aria-label="Marcar todos os produtos da lista de compras"
           />
         )}
@@ -104,14 +104,14 @@ export function ListaReposicao({ itens, aoEditar, vazio, selecionados, aoAlterna
               data-situacao={situacao}
               data-selecionado={selecionavel ? marcado : undefined}
               data-embalagens={embalagens ?? undefined}
-              className={cx('px-4 py-3 transition', `linha-${situacaoLote}`, marcado && 'bg-emerald-50/60')}
+              className={cx('px-4 py-3 transition', `linha-${situacaoLote}`, marcado && 'bg-[#fff8dd]/60')}
             >
               <div className={grade}>
                 {selecionavel && (
                   <input
                     type="checkbox"
                     id={`sel-${produto.id}`}
-                    className="size-5 shrink-0 cursor-pointer rounded accent-marca focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
+                    className="size-5 shrink-0 cursor-pointer rounded accent-ponto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ponto focus-visible:ring-offset-2"
                     checked={marcado}
                     onChange={() => aoAlternar?.(produto.id)}
                     aria-label={`Incluir ${produto.nome} na lista de compras`}

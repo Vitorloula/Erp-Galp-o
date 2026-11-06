@@ -1,10 +1,11 @@
 import { ChevronRight, PackagePlus, ScanBarcode, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useDados } from '../contexto/Dados'
-import { encontrarPorCodigo, produtoCombina, resumirProduto } from '../lib/estoque'
+import { DIAS_ALERTA, encontrarPorCodigo, produtoCombina, resumirProduto } from '../lib/estoque'
 import { exibirCodigo, formatarEmbalagens, formatarQtd } from '../lib/formato'
 import type { CodigoLido } from '../lib/gs1'
 import type { Produto } from '../lib/tipos'
+import { useAtiva } from '../contexto/Empresa'
 import { LeitorCodigo } from './LeitorCodigo'
 import { ProdutoForm } from './ProdutoForm'
 import { Aviso, BadgeSituacao } from './ui'
@@ -28,6 +29,8 @@ interface Props {
  */
 export function BuscaProduto({ aoSelecionar, abrirCamera }: Props) {
   const { produtos, lotesPorProduto } = useDados()
+  const { empresa } = useAtiva()
+  const diasAlerta = empresa.config.dias_alerta ?? DIAS_ALERTA
   const [termo, setTermo] = useState('')
   const [lendo, setLendo] = useState(!!abrirCamera)
   const [naoEncontrado, setNaoEncontrado] = useState<string | null>(null)
@@ -106,7 +109,7 @@ export function BuscaProduto({ aoSelecionar, abrirCamera }: Props) {
           </div>
         )}
         {resultados.map(p => {
-          const r = resumirProduto(lotesPorProduto.get(p.id) ?? [])
+          const r = resumirProduto(lotesPorProduto.get(p.id) ?? [], undefined, diasAlerta)
           const emb = formatarEmbalagens(r.saldo, p.conteudo_embalagem)
           return (
             <button key={p.id} type="button" onClick={() => aoSelecionar(p)} className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50 active:bg-slate-100">

@@ -61,9 +61,29 @@ export async function registrarEntrada(lojaId: string, e: NovaEntrada, origemId:
     p_documento: e.documento || null,
     p_observacao: e.observacao || null,
     p_origem_id: origemId,
+    p_custo: e.custo ?? null,
   })
   if (error) throw traduzirErro(error)
   return Number(data)
+}
+
+/** Transfere um lote entre lojas de forma atômica e idempotente no banco. */
+export async function registrarTransferencia(
+  empresaId: string,
+  origemLojaId: string,
+  dados: { destinoLojaId: string; loteId: string; quantidade: number; motivo: string },
+  transferenciaId: string,
+): Promise<void> {
+  const { error } = await sb.rpc('transferir_estoque', {
+    p_empresa: empresaId,
+    p_origem: origemLojaId,
+    p_destino: dados.destinoLojaId,
+    p_lote: dados.loteId,
+    p_quantidade: dados.quantidade,
+    p_motivo: dados.motivo,
+    p_transferencia: transferenciaId,
+  })
+  if (error) throw traduzirErro(error)
 }
 
 /**

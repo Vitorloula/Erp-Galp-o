@@ -110,6 +110,24 @@ export function TelaVenda({ abrirMenu }: { abrirMenu: () => void }) {
     [itens, pdv, empresa.config.venda_sem_estoque],
   )
 
+  async function incrementar(item: ItemCarrinho) {
+    const produto = await pdv.banco.produtos.get(item.produtoId)
+    if (produto?.controla_estoque) {
+      const outros = itens.filter(i => i.produtoId === item.produtoId).reduce((s, i) => s + (i.id === item.id ? 0 : i.quantidade), 0)
+      const disponivel = (await pdv.disponivel(produto)) - outros
+      const politica = empresa.config.venda_sem_estoque ?? 'avisar'
+      if (disponivel < item.quantidade + 1 && politica !== 'permitir') {
+        const texto = `Estoque insuficiente de ${item.descricao}: disponível ${formatarNumero(Math.max(0, disponivel))} ${item.unidade}.`
+        if (politica === 'bloquear') {
+          setAlerta({ tom: 'erro', texto })
+          return
+        }
+        setAlerta({ tom: 'alerta', texto: texto + ' A venda continua; confira o estoque depois.' })
+      }
+    }
+    setItens(l => l.map(x => (x.id === item.id ? { ...x, quantidade: Math.round((x.quantidade + 1) * 1000) / 1000 } : x)))
+  }
+
   async function processar(texto: string) {
     const { quantidade, codigo } = lerEntrada(texto)
     setEntrada('')
@@ -284,9 +302,7 @@ export function TelaVenda({ abrirMenu }: { abrirMenu: () => void }) {
                       <button
                         type="button"
                         className="btn btn-fantasma p-1.5 text-slate-400 hover:text-slate-700"
-                        onClick={() =>
-                          setItens(l => l.map(x => (x.id === i.id ? { ...x, quantidade: Math.round((x.quantidade + 1) * 1000) / 1000 } : x)))
-                        }
+                        onClick={() => void incrementar(i)}
                         title="Aumentar quantidade"
                         aria-label={`Aumentar ${i.descricao}`}
                       >

@@ -13,7 +13,7 @@ import type { Segmento } from '../lib/tipos'
 export const SEGMENTOS: { valor: Segmento; nome: string; texto: string; icone: LucideIcon }[] = [
   { valor: 'galpao', nome: 'Galpão / distribuidora', texto: 'Insumos, lotes, validade e embalagens', icone: Warehouse },
   { valor: 'mercadinho', nome: 'Mercadinho / conveniência', texto: 'Venda rápida, produtos do dia a dia e caixa', icone: ShoppingBasket },
-  { valor: 'eletronicos', nome: 'Loja de eletrônicos', texto: 'Celulares, acessórios, série e garantia', icone: Cpu },
+  { valor: 'eletronicos', nome: 'Loja de eletrônicos', texto: 'Catálogo, acessórios, preços e caixa', icone: Cpu },
   { valor: 'outro', nome: 'Loja de varejo', texto: 'Catálogo, preços, vendas e caixa', icone: Store },
 ]
 

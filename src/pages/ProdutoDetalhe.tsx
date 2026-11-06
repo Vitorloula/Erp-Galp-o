@@ -9,7 +9,7 @@ import { Aviso, BadgeSituacao, Carregando, Modal, Vazio, cx } from '../component
 import { useDados } from '../contexto/Dados'
 import { useAtiva } from '../contexto/Empresa'
 import { catalogo, movimentos } from '../lib/dados'
-import { ordenarFefo, resumirProduto, situacaoLote } from '../lib/estoque'
+import { DIAS_ALERTA, ordenarFefo, resumirProduto, situacaoLote } from '../lib/estoque'
 import { UNIDADES, exibirCodigo, formatarData, formatarDataHora, formatarEmbalagens, formatarMoeda, formatarNumero, formatarQtd, formatarValidade } from '../lib/formato'
 import type { Lote, Movimentacao } from '../lib/tipos'
 
@@ -17,6 +17,7 @@ export function ProdutoDetalhe() {
   const { id } = useParams()
   const { produtoPorId, lotesPorProduto, nomeCategoria, carregando, versao } = useDados()
   const { empresa, loja, pode } = useAtiva()
+  const diasAlerta = empresa.config.dias_alerta ?? DIAS_ALERTA
   const [editando, setEditando] = useState(false)
   const [loteEditando, setLoteEditando] = useState<Lote | null>(null)
   const [corrigindo, setCorrigindo] = useState<Movimentacao | null>(null)
@@ -25,7 +26,7 @@ export function ProdutoDetalhe() {
 
   const produto = id ? produtoPorId.get(id) : undefined
   const lotes = useMemo(() => ordenarFefo(lotesPorProduto.get(id ?? '') ?? []), [lotesPorProduto, id])
-  const resumo = resumirProduto(lotes)
+  const resumo = resumirProduto(lotes, undefined, diasAlerta)
 
   useEffect(() => {
     if (!id) return
@@ -97,6 +98,7 @@ export function ProdutoDetalhe() {
             mono={produto.codigos.length > 0}
           />
           <Info rotulo="Preço de venda" valor={formatarMoeda(produto.preco_venda)} />
+          <Info rotulo="Último custo de entrada" valor={formatarMoeda(produto.custo_ultimo)} />
           <Info rotulo="Estoque mínimo" valor={produto.estoque_minimo ? formatarQtd(produto.estoque_minimo, produto.unidade) : '—'} />
           <Info rotulo="Unidade" valor={UNIDADES.find(u => u.valor === produto.unidade)?.nome ?? produto.unidade} />
           <Info rotulo="Conteúdo por embalagem" valor={produto.conteudo_embalagem ? formatarQtd(produto.conteudo_embalagem, produto.unidade) : '—'} />
@@ -109,7 +111,7 @@ export function ProdutoDetalhe() {
         <div className="mb-2 flex items-center justify-between">
           <h2 className="font-semibold text-slate-900">Lotes</h2>
           <label className="flex items-center gap-2 text-sm text-slate-600">
-            <input type="checkbox" className="size-4 accent-marca" checked={mostrarZerados} onChange={e => setMostrarZerados(e.target.checked)} />
+            <input type="checkbox" className="size-4 accent-ponto" checked={mostrarZerados} onChange={e => setMostrarZerados(e.target.checked)} />
             Mostrar lotes zerados
           </label>
         </div>
@@ -118,7 +120,7 @@ export function ProdutoDetalhe() {
         ) : (
           <div className="cartao divide-y divide-slate-200/70 overflow-hidden">
             {visiveis.map(l => {
-              const sit = situacaoLote(l)
+              const sit = situacaoLote(l, undefined, diasAlerta)
               return (
                 <div key={l.lote_id} data-lote={l.lote || '(sem lote)'} data-situacao={sit} className={cx('flex items-center gap-3 px-4 py-3', `linha-${sit}`)}>
                   <div className="min-w-0 flex-1">
