@@ -9,8 +9,9 @@ test.describe('Entrada', () => {
     expect(await saldoNoCartao(page)).toContain('260 L')
 
     const validade = dataDaqui(20)
-    await page.getByLabel('Lote').fill('gl-teste 01')
-    await page.getByLabel('Validade').fill(validade.iso)
+    await page.getByRole('button', { name: 'Novo lote' }).click()
+    await page.getByLabel('Número do lote').fill('gl-teste 01')
+    await page.getByLabel('Validade', { exact: true }).fill(validade.iso)
     await page.getByLabel('Custo unitário (R$)').fill('12,50')
     await expect(page.getByText(`Validade: ${validade.exibida}`)).toBeVisible()
     await expect(page.getByText('Vence em 20 dias')).toBeVisible()
@@ -38,8 +39,7 @@ test.describe('Entrada', () => {
 
   test('lote existente reaproveita a validade e soma ao saldo', async ({ page }) => {
     await abrirMovimentar(page, 'entrada', 'Mancozebe')
-    await page.getByLabel('Lote').fill('MZ0325')
-    await expect(page.getByLabel('Validade')).not.toHaveValue('') // preenchida a partir do lote existente
+    await page.getByRole('radio', { name: /MZ0325/ }).check()
     await page.getByLabel('Quantidade recebida').fill('25')
     await page.getByRole('button', { name: 'Registrar entrada de 25 kg' }).click()
     await expect(toast(page, /Entrada registrada: \+25 kg/)).toBeVisible()
@@ -209,8 +209,8 @@ test.describe('Identificação do produto', () => {
 
     await expect(leitor).toBeHidden()
     await expect(page.getByText('Atrazina 500 SC').first()).toBeVisible()
-    await expect(page.getByLabel('Lote')).toHaveValue('AT2610')
-    await expect(page.getByLabel('Validade')).toHaveValue(validade.iso)
+    await expect(page.getByLabel('Número do lote')).toHaveValue('AT2610')
+    await expect(page.getByLabel('Validade', { exact: true })).toHaveValue(validade.iso)
     await expect(page.getByText('Lote e validade preenchidos automaticamente')).toBeVisible()
   })
 

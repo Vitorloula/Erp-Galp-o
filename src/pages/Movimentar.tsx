@@ -1,16 +1,16 @@
-import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, CircleCheck, ScanBarcode, SlidersHorizontal, X } from 'lucide-react'
+import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, CircleCheck, Plus, ScanBarcode, SlidersHorizontal, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { BuscaProduto, type ExtrasLeitura } from '../components/BuscaProduto'
 import { CampoQuantidade } from '../components/CampoQuantidade'
 import { useToast } from '../components/Toast'
-import { Aviso, BadgeSituacao, Cabecalho, Segmentado, cx } from '../components/ui'
+import { Aviso, BadgeSituacao, Cabecalho, PresetsValidade, Segmentado, cx } from '../components/ui'
 import { useDados } from '../contexto/Dados'
 import { useAtiva } from '../contexto/Empresa'
 import { movimentos } from '../lib/dados'
 import { DIAS_ALERTA, ordenarFefo, resumirProduto, situacaoLote, situacaoValidade } from '../lib/estoque'
 import { arred, exibirCodigo, formatarData, formatarDelta, formatarEmbalagens, formatarQtd, formatarValidade, hojeISO, lerNumero } from '../lib/formato'
-import type { Produto } from '../lib/tipos'
+import type { Lote, Produto } from '../lib/tipos'
 
 type Modo = 'entrada' | 'saida' | 'ajuste' | 'transferencia'
 
@@ -212,23 +212,43 @@ function FormEntrada({ produto, extras, aoConcluir }: { produto: Produto; extras
   const { lotesPorProduto } = useDados()
   const { empresa } = useAtiva()
   const diasAlerta = empresa.config.dias_alerta ?? DIAS_ALERTA
+  const hoje = hojeISO()
   const lotes = lotesPorProduto.get(produto.id) ?? []
-  const [lote, setLote] = useState(extras?.lote ?? '')
-  const [validade, setValidade] = useState(extras?.validade ?? '')
+  const controlaLote = produto.rastreio === 'lote' || produto.rastreio === 'serie'
+
+  const existentes = useMemo(() => ordenarFefo(lotes.filter(l => l.lote)), [lotes])
+
+  // Lote vindo do código de barras (GS1/DataMatrix): reaproveita se já existir,
+  // senão abre o "novo lote" já preenchido.
+  const extraLote = extras?.lote?.trim().toUpperCase() ?? ''
+  const extraIgual = extraLote ? existentes.find(l => l.lote === extraLote) : undefined
+
+  const [loteId, setLoteId] = useState<string>(extraIgual?.lote_id ?? '')
+  const [novoLote, setNovoLote] = useState(extraIgual ? '' : extraLote)
+  const [criandoNovo, setCriandoNovo] = useState(!!extraLote && !extraIgual)
+  const [validade, setValidade] = useState(extraIgual?.validade ?? extras?.validade ?? '')
   const [quantidade, setQuantidade] = useState<number | null>(null)
   const [custo, setCusto] = useState('')
   const [documento, setDocumento] = useState('')
   const [observacao, setObservacao] = useState('')
   const { salvando, erro, setErro, enviar, lojaId } = useEnvio()
-  const comLote = produto.rastreio !== 'nenhum'
 
-  const situacao = validade ? situacaoValidade(validade, hojeISO(), diasAlerta) : null
-  const existentes = useMemo(() => ordenarFefo(lotes.filter(l => l.lote)), [lotes])
+  const loteEscolhido = loteId ? existentes.find(l => l.lote_id === loteId) : undefined
+  const validadeEfetiva = loteEscolhido?.validade ?? validade
+  const situacao = validadeEfetiva ? situacaoValidade(validadeEfetiva, hoje, diasAlerta) : null
 
-  function escolherLote(valor: string) {
-    setLote(valor)
-    const igual = existentes.find(l => l.lote === valor.trim().toUpperCase())
-    if (igual?.validade && !validade) setValidade(igual.validade)
+  function escolherExistente(l: Lote) {
+    setLoteId(l.lote_id)
+    setCriandoNovo(false)
+    setNovoLote('')
+    setValidade(l.validade ?? '')
+  }
+
+  function abrirNovo() {
+    setLoteId('')
+    setCriandoNovo(true)
+    setNovoLote(extras?.lote ?? '')
+    setValidade(extras?.validade ?? '')
   }
 
   function registrar(e: React.FormEvent) {
@@ -237,40 +257,84 @@ function FormEntrada({ produto, extras, aoConcluir }: { produto: Produto; extras
     const custoLido = custo.trim() ? lerNumero(custo) : null
     if (custo.trim() && (custoLido === null || custoLido < 0)) return setErro('Custo unitário inválido.')
     enviar(async origemId => {
-      const dados = { produtoId: produto.id, lote: comLote ? lote : '', validade: comLote ? validade || null : null, quantidade, custo: custoLido, documento, observacao }
+      const loteFinal = controlaLote ? (loteEscolhido ? loteEscolhido.lote : criandoNovo ? novoLote.trim().toUpperCase() : '') : ''
+      const validadeFinal = controlaLote ? (loteEscolhido ? loteEscolhido.validade : criandoNovo ? validade || null : null) : null
+      const dados = { produtoId: produto.id, lote: loteFinal, validade: validadeFinal, quantidade, custo: custoLido, documento, observacao }
       await movimentos.registrarEntrada(lojaId, dados, origemId)
-      return `Entrada registrada: ${formatarDelta(quantidade, produto.unidade)} de ${produto.nome}${lote ? ` (lote ${lote.trim().toUpperCase()})` : ''}.`
+      return `Entrada registrada: ${formatarDelta(quantidade, produto.unidade)} de ${produto.nome}${loteFinal ? ` (lote ${loteFinal})` : ''}.`
     }, aoConcluir)
   }
 
   return (
     <form onSubmit={registrar} className="cartao space-y-4 p-4">
-      {comLote && (
-      <>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="rotulo" htmlFor="lote">Lote</label>
-          <input id="lote" className="campo uppercase" list="lotes-existentes" value={lote} onChange={e => escolherLote(e.target.value)} placeholder="Opcional" autoComplete="off" />
-          <datalist id="lotes-existentes">
-            {existentes.map(l => (
-              <option key={l.lote_id} value={l.lote}>{l.validade ? `val. ${formatarValidade(l.validade)}` : ''}</option>
-            ))}
-          </datalist>
-        </div>
-        <div>
-          <label className="rotulo" htmlFor="validade">Validade</label>
-          <input id="validade" type="date" className="campo" value={validade} onChange={e => setValidade(e.target.value)} />
-        </div>
-      </div>
-      {validade && (
-        <p className="-mt-2 text-sm text-slate-600">
-          Validade: <strong>{formatarValidade(validade)}</strong> ({formatarData(validade)})
-          {situacao && situacao !== 'ok' && <span className="ml-2"><BadgeSituacao situacao={situacao} validade={validade} /></span>}
-        </p>
-      )}
-      {!validade && <p className="-mt-2 text-xs text-slate-500">Deixe a validade em branco apenas se o produto não tiver vencimento.</p>}
-      {extras?.validade && <Aviso tom="info">Lote e validade preenchidos automaticamente pelo código da embalagem.</Aviso>}
-      </>
+      {controlaLote ? (
+        <fieldset className="space-y-3">
+          <legend className="rotulo mb-0">Lote e validade</legend>
+          <p className="text-xs text-slate-500">Reaproveite um lote já recebido ou crie um novo. A saída usa primeiro o que vence primeiro.</p>
+
+          {existentes.length > 0 && (
+            <div className="space-y-2">
+              {existentes.map(l => {
+                const sit = situacaoLote(l, hoje, diasAlerta)
+                const ativo = l.lote_id === loteId && !criandoNovo
+                return (
+                  <label
+                    key={l.lote_id}
+                    className={cx(
+                      'flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition',
+                      ativo ? 'border-ponto ring-2 ring-letreiro/60' : 'border-slate-200 hover:border-slate-300',
+                      `linha-${sit}`,
+                    )}
+                  >
+                    <input type="radio" name="lote-entrada" className="size-4.5 accent-ponto" checked={ativo} onChange={() => escolherExistente(l)} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold">Lote {l.lote}</span>
+                      <span className="block text-xs opacity-75">Validade {formatarValidade(l.validade)}</span>
+                    </span>
+                    <span className="text-right">
+                      <span className="block text-sm font-bold tabular-nums">{formatarQtd(l.saldo, produto.unidade)}</span>
+                      {sit !== 'ok' && <BadgeSituacao situacao={sit} validade={l.validade} />}
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+          )}
+
+          {criandoNovo ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="rotulo" htmlFor="lote-novo">Número do lote</label>
+                  <input id="lote-novo" className="campo uppercase" value={novoLote} onChange={e => setNovoLote(e.target.value)} placeholder="Ex.: L123" autoComplete="off" />
+                </div>
+                <div>
+                  <label className="rotulo" htmlFor="validade-entrada">Validade</label>
+                  <input id="validade-entrada" type="date" className="campo" value={validade} onChange={e => setValidade(e.target.value)} />
+                </div>
+              </div>
+              <div className="mt-2.5">
+                <PresetsValidade aoEscolher={setValidade} />
+              </div>
+            </div>
+          ) : (
+            <button type="button" className="btn btn-secundario w-full" onClick={abrirNovo}>
+              <Plus className="size-4.5" /> Novo lote
+            </button>
+          )}
+
+          {criandoNovo && validade && (
+            <p className="text-sm text-slate-600">
+              Validade: <strong>{formatarValidade(validade)}</strong> ({formatarData(validade)})
+              {situacao && situacao !== 'ok' && <span className="ml-2"><BadgeSituacao situacao={situacao} validade={validade} /></span>}
+            </p>
+          )}
+          {criandoNovo && !validade && <p className="text-xs text-slate-500">Deixe a validade em branco apenas se o produto não tiver vencimento.</p>}
+
+          {extras?.validade && <Aviso tom="info">Lote e validade preenchidos automaticamente pelo código da embalagem.</Aviso>}
+        </fieldset>
+      ) : (
+        <p className="text-xs text-slate-500">Este produto não controla lote/validade — a entrada será lançada sem lote.</p>
       )}
 
       <CampoQuantidade produto={produto} aoMudar={setQuantidade} rotulo="Quantidade recebida" inicial={extras?.fator && extras.fator > 1 ? extras.fator : null} />

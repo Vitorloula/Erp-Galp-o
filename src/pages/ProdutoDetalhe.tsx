@@ -5,7 +5,7 @@ import { CorrecaoModal } from '../components/CorrecaoModal'
 import { ListaMovimentacoes } from '../components/ListaMovimentacoes'
 import { ProdutoForm } from '../components/ProdutoForm'
 import { useToast } from '../components/Toast'
-import { Aviso, BadgeSituacao, Carregando, Modal, Vazio, cx } from '../components/ui'
+import { Aviso, BadgeSituacao, Carregando, Modal, PresetsValidade, Vazio, cx } from '../components/ui'
 import { useDados } from '../contexto/Dados'
 import { useAtiva } from '../contexto/Empresa'
 import { catalogo, movimentos } from '../lib/dados'
@@ -225,6 +225,7 @@ function EditarLote({ lote, aoFechar }: { lote: Lote | null; aoFechar: () => voi
             <input id="el-val" type="date" className="campo" value={validade} onChange={e => setValidade(e.target.value)} />
           </div>
         </div>
+        <PresetsValidade aoEscolher={setValidade} />
         {erro && <Aviso tom="erro">{erro}</Aviso>}
       </div>
     </Modal>

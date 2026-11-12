@@ -109,6 +109,13 @@ export function somarDias(iso: string, dias: number): string {
   return hojeISO(d)
 }
 
+/** Adiciona meses a uma data AAAA-MM-DD, devolvendo outra AAAA-MM-DD (ex.: "+3 meses"). */
+export function somarMeses(iso: string, meses: number): string {
+  const d = dataLocal(iso)
+  d.setMonth(d.getMonth() + meses)
+  return hojeISO(d)
+}
+
 /** Diferença em dias inteiros entre duas datas AAAA-MM-DD (b - a). */
 export function diferencaDias(a: string, b: string): number {
   return Math.round((dataLocal(b).getTime() - dataLocal(a).getTime()) / 86_400_000)

@@ -20,7 +20,7 @@ import {
 import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { descreverSituacao, type Situacao, type SituacaoReposicao } from '../lib/estoque'
-import { NOME_TIPO, formatarNumero } from '../lib/formato'
+import { NOME_TIPO, formatarNumero, hojeISO, somarMeses } from '../lib/formato'
 import type { TipoMov, Unidade } from '../lib/tipos'
 
 export function cx(...classes: (string | false | null | undefined)[]) {
@@ -350,4 +350,27 @@ export function Aviso({ tom = 'info', children }: { tom?: 'info' | 'erro' | 'ale
     alerta: 'border-amber-200 bg-amber-50 text-amber-900',
   }
   return <div className={cx('rounded-xl border px-3.5 py-2.5 text-sm', tons[tom])}>{children}</div>
+}
+
+const PRESETS_VALIDADE = [
+  { rotulo: '+3 meses', meses: 3 },
+  { rotulo: '+6 meses', meses: 6 },
+  { rotulo: '+1 ano', meses: 12 },
+] as const
+
+/** Chips de atalho para preencher a validade (a partir de hoje), ou "Sem validade". */
+export function PresetsValidade({ aoEscolher }: { aoEscolher: (iso: string) => void }) {
+  const hoje = hojeISO()
+  return (
+    <div className="flex flex-wrap gap-2">
+      {PRESETS_VALIDADE.map(p => (
+        <button key={p.meses} type="button" className="chip chip-inativo" onClick={() => aoEscolher(somarMeses(hoje, p.meses))}>
+          {p.rotulo}
+        </button>
+      ))}
+      <button type="button" className="chip chip-inativo" onClick={() => aoEscolher('')}>
+        Sem validade
+      </button>
+    </div>
+  )
 }

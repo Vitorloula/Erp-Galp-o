@@ -2,7 +2,7 @@ import { Boxes, ClipboardCheck, LoaderCircle, RotateCcw, Search } from 'lucide-r
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Paginacao } from '../components/Paginacao'
 import { useToast } from '../components/Toast'
-import { Aviso, Cabecalho, Carregando, Vazio, cx } from '../components/ui'
+import { Aviso, Cabecalho, Carregando, PresetsValidade, Vazio, cx } from '../components/ui'
 import { useDados } from '../contexto/Dados'
 import { useAtiva } from '../contexto/Empresa'
 import { catalogo, movimentos } from '../lib/dados'
@@ -323,21 +323,24 @@ export function Inventario() {
                   </div>
 
                   {!l.loteId && l.produto.rastreio === 'lote' && (
-                    <div className="flex gap-2">
-                      <input
-                        className="campo w-32 py-1.5"
-                        placeholder="Lote *"
-                        aria-label={`Lote de ${l.produto.nome}`}
-                        value={novo?.lote ?? ''}
-                        onChange={e => alterarNovo(l.chave, 'lote', e.target.value)}
-                      />
-                      <input
-                        type="date"
-                        className="campo w-36 py-1.5"
-                        aria-label={`Validade de ${l.produto.nome}`}
-                        value={novo?.validade ?? ''}
-                        onChange={e => alterarNovo(l.chave, 'validade', e.target.value)}
-                      />
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex gap-2">
+                        <input
+                          className="campo w-32 py-1.5"
+                          placeholder="Lote *"
+                          aria-label={`Lote de ${l.produto.nome}`}
+                          value={novo?.lote ?? ''}
+                          onChange={e => alterarNovo(l.chave, 'lote', e.target.value)}
+                        />
+                        <input
+                          type="date"
+                          className="campo w-36 py-1.5"
+                          aria-label={`Validade de ${l.produto.nome}`}
+                          value={novo?.validade ?? ''}
+                          onChange={e => alterarNovo(l.chave, 'validade', e.target.value)}
+                        />
+                      </div>
+                      <PresetsValidade aoEscolher={iso => alterarNovo(l.chave, 'validade', iso)} />
                     </div>
                   )}
 
