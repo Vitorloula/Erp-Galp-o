@@ -459,3 +459,39 @@ cancelada, laudo sem defeito aberto).
 Não verificado: emissão real de NFC-e (emissor é stub), Supabase hospedado (só PGlite), leitor de
 tela real, `DOCUMENTACAO_ERP.md` (fora do escopo de escrita; a feature é relevante ao usuário final
 e merece entrada na doc de produto na próxima passada).
+
+## [2026-11-11 23:20] DevOps — e2e vermelho no CI: diagnóstico, correções de spec e estado de CI/CD
+
+**Causa raiz do e2e vermelho (runs #33–#38):** contratos de produto mudaram e três
+asserções/specs commitados ficaram para trás — (1) o app passou a enviar sempre
+`p_custo` (null quando sem custo) no RPC `registrar_entrada` (custo de entrada, `d1d50b1`);
+(2) `cf95289` trocou a Entrada para escolha de lote por **radio** (FEFO) com fluxo
+"Novo lote" (Número do lote + Validade `exact`) e grava o lote novo em caixa alta
+(`p_lote: 'GL-99'`, não `'gl-99'`). Nada disso é bug de produto; era teste desatualizado.
+
+**Correções commitadas/pushadas na `saas` (só `e2e/`, nada de produto):**
+`f2c46b9` (espera `p_custo: null` no corpo do RPC) e `33aaac4` (adapta
+`e2e/acesso/api.spec.ts` e `e2e/app/equipe-empresa.spec.ts` ao fluxo radio/"Novo lote").
+
+**Gates locais no `33aaac4` (worktree isolado no HEAD, sem tocar a árvore de trabalho):**
+lint 0 erros; Vitest 117/117; `test:sql` 261/261; suíte completa
+`test:e2e:ci` (workers=2, retries=2): **207 passed, 2 skipped, 0 failed — 2× seguidas**.
+
+**CI remoto:** `qualidade` verde; run #38 `e2e` falhou com exit 1 após ~254 s de
+Playwright, com a mesma suíte verde local. Logs e artefato (`playwright-report`,
+2,9 MB) **exigem sign-in com admin** — API anônima responde 403/401, então o teste
+que falhou no runner não pôde ser identificado. Suspeita atual: flake/tempo do runner
+(windows-latest). Revalidação com novo run em andamento; config de timeout NÃO foi
+alterada às cegas.
+
+**Deploy (Cloudflare Pages):** sem erro — deploys de `4523621` (`863a8c4b`) e
+`33aaac4` (`7bdd983a`) com todos os stages success; produção servindo o código dos fixes.
+
+**`ia-diaria.yml` (Fábrica Autônoma):** 28/28 runs agendados/manualmente falharam;
+causa pública: etapa de e-mail (`action-send-mail`) sem destinatário + `exit code 1`.
+Arquivo commitado no git, deletado sem commit na árvore de trabalho. Proposta
+(restaurar corrigido × confirmar a deleção) fica para decisão do usuário.
+
+**Gate de deploy:** produção publicou commits com CI vermelho entre 06/11 e 11/11.
+Opções (branch protection + PRs; deploy no CI via wrangler + token; manter status quo)
+documentadas em `memoria/devops-estado.md` §3.8, com recomendação.
