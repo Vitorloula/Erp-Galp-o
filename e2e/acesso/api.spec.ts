@@ -29,6 +29,8 @@ test.describe('Movimentações pela API', () => {
     const { loja_id } = await lote(servidor, conta.empresaId, 'GL2508')
     expect(rpc.corpo).toEqual({
       p_loja_id: loja_id, p_produto_id: glifosato.id, p_lote: 'gl-99', p_validade: validade.iso, p_quantidade: 15.5,
+      // O app sempre envia p_custo (null quando a entrada não informa custo — src/lib/dados/movimentos.ts).
+      p_custo: null,
       p_documento: 'NF 555', p_observacao: null, p_origem_id: expect.stringMatching(/^[0-9a-f-]{36}$/),
     })
     await page.goto('/historico')
