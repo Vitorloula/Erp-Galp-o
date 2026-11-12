@@ -410,5 +410,19 @@
     }
   ],
   "ciclos": 19,
-  "plano_atual": null
+  "plano_atual": {
+    "item_id": "BF-N4",
+    "origem": "memoria/backlog-features.md — Features novas, item 4 (Fila operacional para resolver vendas NFC-e pendentes/erro)",
+    "objetivo": "Tela de gestão da fila NFC-e em Vendas (nova aba 'Fila NFC-e'): listar vendas concluídas com nota pendente/erro, reemitir, ver o detalhe do erro (nova coluna nfce_erro) e marcar resolvida (novo status 'resolvida' + nfce_resolucao), sobre a fila existente (listarVendasPendentes + emitirVendasPendentes).",
+    "arquivos_json": [
+      "src/lib/dados/vendas.ts",
+      "src/lib/emissao.ts",
+      "src/lib/nfce.ts",
+      "src/pages/Vendas.tsx",
+      "e2e/app/pdv.spec.ts"
+    ],
+    "criterios": "Aba 'Fila NFC-e' lista pendentes/erro da loja com reemitir (aviso quando emissor desligado), detalhe do erro e marcar resolvida com motivo; novo e2e/app/vendas-fila.spec.ts verde (4 cenários do plano); pdv.spec.ts e navegacao.spec.ts sem regressão; npm run lint, npm test e npm run test:sql verdes.",
+    "plano_md": "memoria/plano-fila-nfce.md",
+    "definido_em": "2026-11-11T23:10:00.000Z"
+  }
 }

@@ -25,9 +25,13 @@ export interface Venda {
   cancelada_por_nome: string | null
   motivo_cancelamento: string | null
   relogio_suspeito: boolean
-  nfce_status: 'pendente' | 'emitida' | 'cancelada' | 'erro'
+  nfce_status: 'pendente' | 'emitida' | 'cancelada' | 'erro' | 'resolvida'
   nfce_chave: string | null
   nfce_qrcode: string | null
+  /** Mensagem devolvida pelo emissor quando a emissão falhou. */
+  nfce_erro: string | null
+  /** Motivo informado ao marcar a venda como resolvida (fora da fila). */
+  nfce_resolucao: string | null
   cliente_cpf: string | null
 }
 
@@ -79,6 +83,8 @@ const paraVenda = (r: Record<string, unknown>): Venda => ({
   nfce_status: (r.nfce_status as Venda['nfce_status']) ?? 'pendente',
   nfce_chave: (r.nfce_chave as string | null) ?? null,
   nfce_qrcode: (r.nfce_qrcode as string | null) ?? null,
+  nfce_erro: (r.nfce_erro as string | null) ?? null,
+  nfce_resolucao: (r.nfce_resolucao as string | null) ?? null,
   cliente_cpf: (r.cliente_cpf as string | null) ?? null,
 })
 
@@ -101,7 +107,7 @@ export function listarVendas(empresaId: string, lojaId: string, f: { desde: stri
     (de, ate) =>
       sb
         .from('vendas')
-        .select('id, caixa_id, numero, ocorrido_em, operador_nome, subtotal, desconto, total, troco, status, cancelada_em, cancelada_por_nome, motivo_cancelamento, relogio_suspeito, nfce_status, nfce_chave, nfce_qrcode, cliente_cpf')
+        .select('id, caixa_id, numero, ocorrido_em, operador_nome, subtotal, desconto, total, troco, status, cancelada_em, cancelada_por_nome, motivo_cancelamento, relogio_suspeito, nfce_status, nfce_chave, nfce_qrcode, nfce_erro, nfce_resolucao, cliente_cpf')
         .eq('empresa_id', empresaId)
         .eq('loja_id', lojaId)
         .gte('ocorrido_em', f.desde)
@@ -143,15 +149,19 @@ export async function cancelarVenda(vendaId: string, motivo: string) {
   exigir(await sb.rpc('cancelar_venda', { p_venda: vendaId, p_motivo: motivo.trim() }))
 }
 
-/** Registra o resultado da emissão da NFC-e numa venda (chave/QR Code/estado). */
-export async function salvarNFCe(vendaId: string, dados: { status: 'emitida' | 'cancelada' | 'erro'; chave?: string | null; qrcode?: string | null }) {
+/** Registra o resultado da emissão da NFC-e numa venda (chave/QR Code/estado/mensagem). */
+export async function salvarNFCe(
+  vendaId: string,
+  dados: { status: 'emitida' | 'cancelada' | 'erro'; chave?: string | null; qrcode?: string | null; mensagem?: string | null },
+) {
   exigir(
-    await sb
-      .from('vendas')
-      .update({ nfce_status: dados.status, nfce_chave: dados.chave ?? null, nfce_qrcode: dados.qrcode ?? null })
-      .eq('id', vendaId)
-      .select('id')
-      .single(),
+    await sb.rpc('salvar_nfce', {
+      p_venda: vendaId,
+      p_status: dados.status,
+      p_chave: dados.chave ?? null,
+      p_qrcode: dados.qrcode ?? null,
+      p_mensagem: dados.mensagem?.trim() || null,
+    }),
   )
 }
 
@@ -181,11 +191,58 @@ export function listarVendasPendentes(empresaId: string, lojaId: string): Promis
         .select('id, caixa_id, numero, total, ocorrido_em, cliente_cpf')
         .eq('empresa_id', empresaId)
         .eq('loja_id', lojaId)
+        .eq('status', 'concluida')
         .eq('nfce_status', 'pendente')
         .order('ocorrido_em')
         .range(de, ate),
     r => ({ id: r.id as string, caixa_id: r.caixa_id as string, numero: num(r.numero), total: num(r.total), ocorrido_em: r.ocorrido_em as string, cliente_cpf: (r.cliente_cpf as string | null) ?? null }),
   )
+}
+
+/** Item da fila de gestão da NFC-e (pendente ou com erro). */
+export interface VendaFilaNFCe extends VendaPendenteNFCe {
+  operador_nome: string | null
+  nfce_status: 'pendente' | 'erro'
+  /** Mensagem do emissor, quando a última tentativa falhou. */
+  nfce_erro: string | null
+}
+
+/**
+ * Fila de gestão da NFC-e: vendas concluídas com nota pendente ou com erro,
+ * da mais antiga para a mais nova. É estado atual — não tem recorte de período.
+ */
+export function listarVendasFilaNFCe(empresaId: string, lojaId: string): Promise<VendaFilaNFCe[]> {
+  return buscarTudo(
+    (de, ate) =>
+      sb
+        .from('vendas')
+        .select('id, caixa_id, numero, total, ocorrido_em, cliente_cpf, operador_nome, nfce_status, nfce_erro')
+        .eq('empresa_id', empresaId)
+        .eq('loja_id', lojaId)
+        .eq('status', 'concluida')
+        .in('nfce_status', ['pendente', 'erro'])
+        .order('ocorrido_em')
+        .range(de, ate),
+    r => ({
+      id: r.id as string,
+      caixa_id: r.caixa_id as string,
+      numero: num(r.numero),
+      total: num(r.total),
+      ocorrido_em: r.ocorrido_em as string,
+      cliente_cpf: (r.cliente_cpf as string | null) ?? null,
+      operador_nome: (r.operador_nome as string | null) ?? null,
+      nfce_status: r.nfce_status === 'erro' ? 'erro' : 'pendente',
+      nfce_erro: (r.nfce_erro as string | null) ?? null,
+    }),
+  )
+}
+
+/** Tira a venda da fila: grava o motivo, limpa o erro e marca como resolvida. */
+export async function marcarNFCeResolvida(vendaId: string, motivo: string) {
+  const texto = motivo.trim()
+  if (texto.length < 3) throw new Error('Informe o motivo da resolução.')
+  // A função no banco repete o gate de papel (dono/gerente) e o estado da fila.
+  exigir(await sb.rpc('marcar_nfce_resolvida', { p_venda: vendaId, p_motivo: texto }))
 }
 
 /** Item da venda com os campos fiscais do produto (para montar a NFC-e). */

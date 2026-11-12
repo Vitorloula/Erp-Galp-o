@@ -6,15 +6,15 @@
  * fechamento da venda é o diferencial (em vez do emissor gratuito manual da SEFAZ).
  *
  * Esta camada:
- *  - modela o estado da nota (pendente/emitida/cancelada/erro);
+ *  - modela o estado da nota (pendente/emitida/cancelada/erro/resolvida);
  *  - monta os dados da nota a partir da venda (itens com NCM/CFOP/CST/origem);
  *  - abstrai o emissor atrás de uma interface: hoje é um stub "desligado" —
  *    para ligar, é só colocar as keys/API (idealmente numa Supabase Edge Function).
  */
 import type { Produto } from './tipos'
 
-/** Estado da NFC-e de uma venda. */
-export type NFCeStatus = 'pendente' | 'emitida' | 'cancelada' | 'erro'
+/** Estado da NFC-e de uma venda. `resolvida` = saiu da fila por decisão do operador. */
+export type NFCeStatus = 'pendente' | 'emitida' | 'cancelada' | 'erro' | 'resolvida'
 
 /** Um item da nota, já com os campos fiscais do produto. */
 export interface ItemNFCe {

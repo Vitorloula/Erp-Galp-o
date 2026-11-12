@@ -592,6 +592,55 @@ secao('PDV — caixa que vende sem internet:')
   await db.query(`update public.assinaturas set plano_id = 'essencial' where empresa_id = $1`, [empP])
   await comoUsuario(dono, () => esperaErro('limite de caixas do plano', () =>
     db.query(`insert into public.caixas (empresa_id, loja_id, nome) values ($1, $2, 'Caixa 03')`, [empP, loja]), 'no máximo 2 caixas'))
+  // Fila de gestão da NFC-e (BF-N4): escrita só por função, papel checado no banco.
+  secao('Fila NFC-e — erro, resolução e isolamento:')
+  await comoUsuario(operadora, async () => {
+    // Venda cancelada não recebe estado fiscal e não volta para a fila de emissão.
+    const antes = await um('select status, nfce_status, nfce_chave from public.vendas where id = $1', [boa.dados.venda_id])
+    confere(antes.status === 'cancelada' && antes.nfce_status === 'pendente',
+      'NFC-e: venda cancelada segue cancelada e com nota pendente', JSON.stringify(antes))
+    await esperaErro('NFC-e: venda cancelada não recebe emissão', () =>
+      db.query(`select public.salvar_nfce($1, 'emitida', 'CHAVE-FALSA', 'https://qr.falso', null)`, [boa.dados.venda_id]), 'Esta venda está cancelada')
+    const depois = await um('select status, nfce_status, nfce_chave from public.vendas where id = $1', [boa.dados.venda_id])
+    confere(depois.status === 'cancelada' && depois.nfce_status === 'pendente' && depois.nfce_chave === null,
+      'NFC-e: a tentativa não altera a venda cancelada', JSON.stringify(depois))
+    confere((await um(`select count(*)::int as n from public.vendas where id = $1 and status = 'concluida' and nfce_status = 'pendente'`, [boa.dados.venda_id])).n === 0,
+      'NFC-e: venda cancelada não volta para a fila de emissão')
+    await db.query(`select public.salvar_nfce($1, 'cancelada', null, null, null)`, [boa.dados.venda_id])
+    confere((await um('select nfce_status from public.vendas where id = $1', [boa.dados.venda_id])).nfce_status === 'cancelada',
+      'NFC-e: registrar o cancelamento da nota continua permitido')
+
+    await db.query(`select public.salvar_nfce($1, 'erro', null, null, 'Rejeição 539: duplicidade')`, [v1.dados.venda_id])
+    const v = await um('select nfce_status, nfce_erro from public.vendas where id = $1', [v1.dados.venda_id])
+    confere(v.nfce_status === 'erro' && v.nfce_erro === 'Rejeição 539: duplicidade',
+      'NFC-e: caixa persiste o motivo do erro na venda', JSON.stringify(v))
+    await esperaErro('NFC-e: caixa não resolve a fila', () =>
+      db.query(`select public.marcar_nfce_resolvida($1, 'Resolvido pelo caixa')`, [v1.dados.venda_id]), 'Somente dono ou gerente')
+    await esperaErro('NFC-e: UPDATE direto na venda é negado', () =>
+      db.query(`update public.vendas set nfce_status = 'resolvida', nfce_resolucao = 'pelo caixa' where id = $1`, [v1.dados.venda_id]), 'permission denied')
+  })
+  await comoUsuario(dono, async () => {
+    const e = await um('select nfce_erro from public.vendas where id = $1', [v1.dados.venda_id])
+    confere(e.nfce_erro === 'Rejeição 539: duplicidade', 'NFC-e: o dono vê o motivo do erro na fila')
+    await esperaErro('NFC-e: status desconhecido é recusado', () =>
+      db.query(`select public.salvar_nfce($1, 'bogus', null, null, null)`, [v1.dados.venda_id]), 'Status da NFC-e inválido')
+    await esperaErro('NFC-e: resolvida exige motivo', () =>
+      db.query(`select public.marcar_nfce_resolvida($1, 'ab')`, [v1.dados.venda_id]), 'Informe o motivo da resolução')
+    await db.query(`select public.marcar_nfce_resolvida($1, 'Erro fiscal conferido')`, [v1.dados.venda_id])
+    const v = await um('select nfce_status, nfce_resolucao, nfce_erro from public.vendas where id = $1', [v1.dados.venda_id])
+    confere(v.nfce_status === 'resolvida' && v.nfce_resolucao === 'Erro fiscal conferido' && v.nfce_erro === null,
+      'NFC-e: dono resolve com motivo, limpa o erro e sai da fila', JSON.stringify(v))
+    await esperaErro('NFC-e: nota resolvida não volta para a emissão', () =>
+      db.query(`select public.salvar_nfce($1, 'erro', null, null, 'outra falha')`, [v1.dados.venda_id]), 'já foi resolvida')
+  })
+  await comoUsuario(intruso, async () => {
+    await esperaErro('NFC-e: outra empresa não resolve a fila', () =>
+      db.query(`select public.marcar_nfce_resolvida($1, 'invasao')`, [v1.dados.venda_id]), 'Somente dono ou gerente')
+    await semEfeito('NFC-e: outra empresa não altera a venda', () =>
+      db.query(`update public.vendas set nfce_status = 'erro', nfce_erro = 'invasao' where id = $1`, [v1.dados.venda_id]))
+    confere((await um(`select count(*)::int as n from public.vendas where nfce_status = 'resolvida'`)).n === 0, 'NFC-e: outra empresa não vê a fila')
+  })
+
   confere((await db.query('select * from app.verificar_saldos($1)', [empP])).rows.length === 0, 'saldos do PDV batem com o histórico')
 }
 

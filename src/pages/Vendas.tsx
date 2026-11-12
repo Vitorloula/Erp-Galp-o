@@ -1,5 +1,6 @@
 import { Banknote, Receipt, ShoppingCart, XCircle } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { FilaNFCe, NFCE_STATUS } from '../components/FilaNFCe'
 import { Paginacao } from '../components/Paginacao'
 import { useToast } from '../components/Toast'
 import { Aviso, Cabecalho, Carregando, Kpi, Modal, Segmentado, Vazio, cx } from '../components/ui'
@@ -16,20 +17,13 @@ import { criarEmissorNFCe } from '../lib/nfce'
 
 const POR_PAGINA = 50
 
-const NFCE_STATUS: Record<Venda['nfce_status'], { rotulo: string; classe: string }> = {
-  pendente: { rotulo: 'Nota pendente', classe: 'bg-amber-100 text-amber-800 ring-amber-200' },
-  emitida: { rotulo: 'Nota emitida', classe: 'bg-emerald-100 text-marca-escura ring-emerald-200' },
-  cancelada: { rotulo: 'Nota cancelada', classe: 'bg-slate-100 text-slate-600 ring-slate-200' },
-  erro: { rotulo: 'Nota com erro', classe: 'bg-red-100 text-red-800 ring-red-200' },
-}
-
 export function Vendas() {
   const { empresa, loja, pode } = useAtiva()
   const { versao } = useDados()
   const [periodo, setPeriodo] = useState<PeriodoRapido>('hoje')
   const [personalizado, setPersonalizado] = useState<Intervalo>(() => intervaloRapido('7dias'))
   const [caixaId, setCaixaId] = useState('')
-  const [aba, setAba] = useState<'vendas' | 'sessoes'>('vendas')
+  const [aba, setAba] = useState<'vendas' | 'fila' | 'sessoes'>('vendas')
   const [caixas, setCaixas] = useState<Caixa[]>([])
   const [lista, setLista] = useState<Venda[] | null>(null)
   const [pagamentos, setPagamentos] = useState<(PagamentoVenda & { venda_id: string })[]>([])
@@ -112,24 +106,28 @@ export function Vendas() {
       />
       {msgEmitir && <Aviso tom="info">{msgEmitir}</Aviso>}
       <div className="mb-4 space-y-3">
-        <div className="-mx-4 flex gap-2 rolagem-x overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
-          {PERIODOS.filter(p => p.valor !== 'mesAnterior').map(p => (
-            <button key={p.valor} onClick={() => setPeriodo(p.valor)} className={cx('chip', periodo === p.valor ? 'chip-ativo' : 'chip-inativo')}>
-              {p.nome}
-            </button>
-          ))}
-        </div>
-        {periodo === 'personalizado' && (
-          <div className="grid grid-cols-2 gap-2 sm:max-w-md">
-            <input type="date" className="campo" aria-label="De" value={personalizado.de} max={personalizado.ate} onChange={e => e.target.value && setPersonalizado(p => ({ ...p, de: e.target.value }))} />
-            <input type="date" className="campo" aria-label="Até" value={personalizado.ate} min={personalizado.de} max={hojeISO()} onChange={e => e.target.value && setPersonalizado(p => ({ ...p, ate: e.target.value }))} />
-          </div>
-        )}
-        {caixas.length > 1 && (
-          <select className="campo sm:w-56" value={caixaId} onChange={e => setCaixaId(e.target.value)} aria-label="Caixa">
-            <option value="">Todos os caixas</option>
-            {caixas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-          </select>
+        {aba !== 'fila' && (
+          <>
+            <div className="-mx-4 flex gap-2 rolagem-x overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
+              {PERIODOS.filter(p => p.valor !== 'mesAnterior').map(p => (
+                <button key={p.valor} onClick={() => setPeriodo(p.valor)} className={cx('chip', periodo === p.valor ? 'chip-ativo' : 'chip-inativo')}>
+                  {p.nome}
+                </button>
+              ))}
+            </div>
+            {periodo === 'personalizado' && (
+              <div className="grid grid-cols-2 gap-2 sm:max-w-md">
+                <input type="date" className="campo" aria-label="De" value={personalizado.de} max={personalizado.ate} onChange={e => e.target.value && setPersonalizado(p => ({ ...p, de: e.target.value }))} />
+                <input type="date" className="campo" aria-label="Até" value={personalizado.ate} min={personalizado.de} max={hojeISO()} onChange={e => e.target.value && setPersonalizado(p => ({ ...p, ate: e.target.value }))} />
+              </div>
+            )}
+            {caixas.length > 1 && (
+              <select className="campo sm:w-56" value={caixaId} onChange={e => setCaixaId(e.target.value)} aria-label="Caixa">
+                <option value="">Todos os caixas</option>
+                {caixas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+              </select>
+            )}
+          </>
         )}
       </div>
 
@@ -138,13 +136,15 @@ export function Vendas() {
         <Carregando />
       ) : (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Kpi titulo="Vendido" valor={formatarReais(total)} icone={Banknote} tom="verde" />
-            <Kpi titulo="Vendas" valor={concluidas.length} icone={ShoppingCart} />
-            <Kpi titulo="Ticket médio" valor={formatarReais(concluidas.length ? Math.round(total / concluidas.length) : 0)} icone={Receipt} />
-            <Kpi titulo="Canceladas" valor={filtradas.length - concluidas.length} icone={XCircle} tom={filtradas.length > concluidas.length ? 'amarelo' : 'neutro'} />
-          </div>
-          {porForma.size > 0 && (
+          {aba !== 'fila' && (
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <Kpi titulo="Vendido" valor={formatarReais(total)} icone={Banknote} tom="verde" />
+              <Kpi titulo="Vendas" valor={concluidas.length} icone={ShoppingCart} />
+              <Kpi titulo="Ticket médio" valor={formatarReais(concluidas.length ? Math.round(total / concluidas.length) : 0)} icone={Receipt} />
+              <Kpi titulo="Canceladas" valor={filtradas.length - concluidas.length} icone={XCircle} tom={filtradas.length > concluidas.length ? 'amarelo' : 'neutro'} />
+            </div>
+          )}
+          {aba !== 'fila' && porForma.size > 0 && (
             <div className="cartao flex flex-wrap gap-x-6 gap-y-2 p-4 text-sm" data-por-forma>
               {[...porForma].map(([f, v]) => (
                 <span key={f}>
@@ -159,6 +159,7 @@ export function Vendas() {
             className="sm:max-w-xs"
             opcoes={[
               { valor: 'vendas', rotulo: 'Vendas' },
+              { valor: 'fila', rotulo: 'Fila NFC-e' },
               { valor: 'sessoes', rotulo: 'Caixas' },
             ]}
           />
@@ -202,6 +203,14 @@ export function Vendas() {
                 />
               </>
             )
+          ) : aba === 'fila' ? (
+            <FilaNFCe
+              empresaId={empresa.empresa_id}
+              lojaId={loja.id}
+              caixas={numeroCaixa}
+              podeGerenciar={pode.cancelarVenda && pode.gravavel}
+              emissorConfigurado={emissorConfigurado}
+            />
           ) : (
             <Sessoes sessoes={sessoes ?? []} caixas={numeroCaixa} />
           )}
@@ -306,6 +315,13 @@ function DetalheVenda({ venda, rotulo, podeCancelar, aoFechar }: { venda: Venda 
                   Consultar nota (QR Code)
                 </a>
               )}
+              {venda.nfce_erro && (
+                <div className="mt-2">
+                  <p className="font-semibold text-red-700">Motivo do erro</p>
+                  <p className="mt-0.5 whitespace-pre-wrap break-words text-slate-600">{venda.nfce_erro}</p>
+                </div>
+              )}
+              {venda.nfce_resolucao && <p className="mt-1 text-slate-600">Resolvida: {venda.nfce_resolucao}</p>}
             </div>
           )}
           {erro && <Aviso tom="erro">{erro}</Aviso>}

@@ -311,3 +311,151 @@ retries; a suíte local inteira ainda não foi declarada estável com workers pa
 Backlog reconciliado em `memoria/estado.json`: T-016/T-017/T-019/T-021/T-023/T-024/
 T-025/T-026/T-027 e T-029..T-033 concluídos; permanecem abertos **T-028** (piloto em
 loja real + restauração de produção) e **T-034** (integrações reais de NFC-e/Asaas).
+
+## [2026-11-11 21:20] Ciclo QA — BF-N4 (Fila operacional da NFC-e em Vendas)
+
+**Veredito: REPROVADO com correções.** Os 4 gates do plano estão verdes, mas a validação
+independente encontrou 3 defeitos. Laudo completo: `memoria/laudo-qa-fila-nfce.md`.
+
+Gates executados por mim (não aceitos como alegação): `npm run lint` exit 0; `npm test` exit 0,
+117/117 em 12 arquivos; `npm run test:sql` exit 0, 253/253 verificações; `npm run build` exit 0;
+`npx tsc -p e2e` exit 0; `npx playwright test e2e/app/vendas-fila.spec.ts e2e/app/pdv.spec.ts
+e2e/app/navegacao.spec.ts --workers=1` exit 0, 46/46 (23 por projeto × computador e celular;
+os 4 cenários da fila passam nos dois). Portas 5180/5182 livres antes da rodada.
+
+Conferência contra `memoria/plano-fila-nfce.md` e `memoria/spec-fila-nfce.md`: migration
+(`nfce_erro`/`nfce_resolucao`, CHECK com 'resolvida', motivo ≥ 3, UPDATE só nas colunas
+fiscais, gatilho reescrito), camada de dados (`salvarNFCe` com mensagem, `listarVendasFilaNFCe`,
+`marcarNFCeResolvida`), `emitirUmaVenda` persistindo a mensagem, aba "Fila NFC-e" com
+resumo/badges/reemitir/detalhe do erro/marcar resolvida com motivo, gate de papel
+`pode.cancelarVenda && pode.gravavel`, a11y (`aria-label` nos botões de ícone, `aria-hidden`
+nos ícones, foco preso no `Modal`) e alvos de toque medidos em 44×44 px — tudo confere. Regressão
+`pdv.spec.ts` e `navegacao.spec.ts` sem quebras.
+
+Defeitos registrados (correção volta para o Programador; QA não alterou `src/`, `supabase/` ou
+`e2e/`):
+- **D-1 (média)** — `src/components/FilaNFCe.tsx:145`: erro de ação disparado de dentro do modal
+  de detalhe é engolido. O `catch` de `reemitir` grava `erroAcao`, mas o aviso só renderiza quando
+  `aberta` é falsy e o `DetalheFila` não recebe a mensagem — com a rede cortada, "Reemitir" dentro
+  do modal não produz toast, aviso nem erro visível.
+- **D-2 (média)** — `supabase/migrations/20261111090000_nfce_fila_gestao.sql:27-33`: o gate de
+  papel da spec ("mesmo gate do cancelamento") ficou só no cliente. Antes da migration o
+  `authenticated` não tinha nenhum `UPDATE` em `public.vendas`; a migration libera `UPDATE` nas
+  colunas fiscais e a policy `vendas_nfce_fila` só checa empresa/loja, sem papel. Verificado em
+  PGlite: um usuário `caixa` executou `update ... set nfce_status='resolvida'` com sucesso
+  (1 linha afetada), enquanto `public.cancelar_venda` para o mesmo `caixa` é negado
+  ("Sem permissão para usar este caixa").
+- **D-3 (baixa)** — `e2e/app/vendas-fila.spec.ts:35,60`: o seed `update ... where numero = 1` não
+  filtra por `empresa_id`; com 3 empresas no mesmo banco, o seed atingiu as 3 (o banco é
+  compartilhado por worker).
+
+Verificações extras fora da suíte do repo (pasta temporária removida): layout da aba Fila NFC-e em
+1366 px e 390 px (sem rolagem horizontal, alvos 44×44, estado vazio visível); visibilidade real do
+aviso dentro do modal via `elementFromPoint`; falha de rede durante "Reemitir"; comparação
+antes × depois da migration no PGlite; alcance do seed do spec.
+
+Não verificado: emissão real de NFC-e (emissor é stub — `erro → emitida` e `erro → erro` sem
+cobertura de ponta a ponta), migração em Supabase hospedado (só PGlite), leitura de tela com
+NVDA/VoiceOver, e `DOCUMENTACAO_ERP.md` (fora do escopo de escrita deste ciclo; a feature é
+relevante para o usuário final e merece entrada na doc de produto).
+
+Backlog de `memoria/estado.json` não alterado: BF-N4 é item de `memoria/backlog-features.md` (não
+está na lista de backlog do `estado.json`) e, havendo defeito, a regra do projeto é não fechar
+item. `GUIA_DE_TESTES.md` atualizado (tabela de estado, cobertura da nova suíte, seed por
+`empresa_id` no checklist, dívida da emissão real).
+
+## [2026-11-11 21:45] Ciclo QA — BF-N4 revalidação (após as correções do Programador)
+
+**Veredito: APROVADO COM RESSALVAS.** Os 3 defeitos da rodada anterior (D-1, D-2, D-3) estão
+corrigidos e reconfirmados por execução própria; os gates seguem verdes. Surgiu 1 defeito novo
+(D-4, média). Laudo: `memoria/laudo-qa-fila-nfce.md` (seção 0 = resumo da revalidação).
+
+Gates rodados por mim: `npm run lint` exit 0; `npm test` exit 0, 117/117 em 12 arquivos;
+`npm run test:sql` exit 0, **256/256** (era 253 — novos: "caixa não resolve a fila", "UPDATE
+direto na venda é negado", "nota resolvida não volta para a emissão"); `npx tsc -p e2e` exit 0;
+`npx playwright test e2e/app/vendas-fila.spec.ts e2e/app/pdv.spec.ts e2e/app/navegacao.spec.ts
+--workers=1` exit 0, **46/46** (2,5 min; 23 por projeto × computador e celular; os 4 cenários da
+fila verdes nos dois).
+
+Re-teste dos defeitos:
+- **D-1 CORRIGIDO** — `DetalheFila` agora recebe `aviso`/`erroAcao` e os mostra dentro do modal
+  (`src/components/FilaNFCe.tsx:223-224, 309-310`); com a rede cortada, o modal de resolução
+  exibe "Sem conexão com o servidor. Verifique a internet e tente novamente." e sobe o toast
+  "Falha ao marcar a venda 01-000001 como resolvida."; o aviso de emissor desligado também aparece
+  dentro do modal e está de fato visível (conferido com `elementFromPoint`: o elemento no ponto é
+  o texto do aviso, não o fundo do modal).
+- **D-2 CORRIGIDO** — o `grant update` para `authenticated` em `public.vendas` saiu
+  (`column_privileges` volta a vazio); a escrita é só por `public.salvar_nfce` (dono/gerente/caixa) e
+  `public.marcar_nfce_resolvida` (dono/gerente), SECURITY DEFINER com papel/empresa/loja/
+  assinatura. Em PGlite: `caixa` → UPDATE direto "permission denied for table vendas";
+  `marcar_nfce_resolvida` → "Somente dono ou gerente resolve a fila da NFC-e."; gerente e dono →
+  permitido; outra empresa → negado; nota já resolvida não volta a ser gravada.
+- **D-3 CORRIGIDO** — o seed do spec agora filtra `where empresa_id = $2 and numero = 1`
+  (`e2e/app/vendas-fila.spec.ts:36, 69`); com 3 empresas no banco, atingiu 1 linha (só a do teste).
+
+**Defeito novo — D-4 (média)**: `public.salvar_nfce`
+(`supabase/migrations/20261111090000_nfce_fila_gestao.sql:44-61`) não protege a venda **cancelada**
+— o comentário das linhas 28-29 promete, o código só bloqueia a nota resolvida. Verificado: um
+`caixa` gravou 'emitida' com 'CHAVE-FALSA' numa venda com `status = 'cancelada'`. Ligado a isto,
+`listarVendasPendentes` (`src/lib/dados/vendas.ts:190-203`) filtra só `nfce_status = 'pendente'`
+sem olhar `status`, e o cancelamento do PDV grava `vendas.status = 'cancelada'` sem mexer em
+`nfce_status` — então a venda cancelada **continua na fila de emissão** (confirmado: depois de
+`public.cancelar_venda`, `listarVendasPendentes` a devolveria). A fila de gestão
+(`listarVendasFilaNFCe`) já filtra `status = 'concluida'`; o buraco é só na fila de emissão.
+Correção sugerida: recusar `v.status = 'cancelada'` em `salvar_nfce` e acrescentar
+`.eq('status', 'concluida')` em `listarVendasPendentes`. Volta para o Programador.
+
+Observações (não bloqueiam): **D-5** — `salvar_nfce` deixa o `caixa` gravar 'emitida' com
+chave/QR Code que o próprio cliente envia (coerente com o emissor no cliente hoje, mas a chave
+precisa passar a ser do servidor em T-034); **D-6** — `salvar_nfce` deixa rebaixar nota já emitida
+para 'erro', apagando a chave (caminho real estreito). Nada de commit; `src/`, `supabase/` e
+`e2e/` intactos por mim; `GUIA_DE_TESTES.md` atualizado (256/256 no SQL e a nota do D-4).
+
+Não verificado: emissão real de NFC-e (emissor é stub), Supabase hospedado (só PGlite), leitor de
+tela real, `DOCUMENTACAO_ERP.md` (fora do escopo de escrita). A árvore de trabalho continua com
+mudanças de outra feature misturadas (presets de validade) — separar no commit.
+
+## [2026-11-11 22:05] Ciclo QA — BF-N4 revalidação final (D-4 corrigido) — APROVADO
+
+**Veredito: APROVADO, sem defeito aberto.** D-1 a D-4 corrigidos e reconfirmados por execução
+própria; gates verdes. Laudo: `memoria/laudo-qa-fila-nfce.md` (§0 = resumo da 3ª rodada).
+
+Gates rodados por mim: `npm run lint` exit 0; `npm test` exit 0, **117/117** em 12 arquivos;
+`npm run test:sql` exit 0, **261/261** (era 256 — os 5 casos novos cobrem o D-4);
+`npm run build` exit 0; `npx tsc -p e2e` exit 0; Playwright (vendas-fila + pdv + navegacao,
+`--workers=1`) exit 0, **46/46** em 2,3 min (23 por projeto × computador e celular; os 4 cenários
+da fila verdes nos dois).
+
+**D-4 CORRIGIDO** — `public.salvar_nfce` agora recusa a venda cancelada ("Esta venda está
+cancelada.") e `listarVendasPendentes` passou a exigir `status = 'concluida'`
+(`src/lib/dados/vendas.ts:194`). Verificado em PGlite com as migrations completas: `caixa` gravando
+'emitida' com chave falsa em venda cancelada → **BLOQUEADO**, e a venda fica intacta
+(`{status: cancelada, nfce_status: pendente, nfce_chave: null}`); o mesmo para 'erro'; a fila de
+emissão não traz nenhuma cancelada (sem o filtro, haveria 2); o cancelamento da **nota**
+(`salvar_nfce` com status 'cancelada') continua **PERMITIDO**, que é o caminho de
+`cancelarNFCeDaVenda` — e o estado final é `nfce_status = cancelada`, chave limpa.
+
+**D-1, D-2 e D-3 reconfirmados** nesta rodada: erro e aviso de ação aparecem dentro do modal de
+detalhe (rede cortada → "Sem conexão com o servidor…" no modal + toast "Falha ao marcar a venda
+01-000001 como resolvida."; o aviso de emissor desligado está visível, conferido com
+`elementFromPoint`); `UPDATE` direto continua "permission denied for table vendas" e o `caixa`
+continua sem resolver a fila ("Somente dono ou gerente resolve a fila da NFC-e."), com
+`column_privileges` de `authenticated` em `vendas` vazio; o seed do spec continua filtrando por
+`empresa_id`. Layout mobile reconferido: sem rolagem horizontal em 1366 px e 390 px, alvos 44×44.
+
+Nota de ambiente: na **primeira** execução do E2E desta rodada acusou 1 falha em
+`app-celular › navegação › /relatorios`, mas a falha foi `browserContext.close: ENOENT ...
+test-results/.playwright-artifacts-1/...` — limpeza de artefato do Playwright, não asserção do
+produto; a causa foi a minha rodada temporária rodando em paralelo na mesma pasta `test-results`.
+Re-rodado sozinho, sem concorrência: 46/46. Nenhum spec do repositório foi alterado por mim.
+
+Pendências que ficam **fora** deste ciclo, por acordo: D-5 e D-6 (a chave de acesso da NFC-e é
+gravada pelo cliente — tem que passar pelo servidor quando o emissor real, T-034, existir) e
+D-7 a D-10 (rótulo visível na linha, atributo `data-fila-venda`, botão global de emissão e as
+mudanças de outra feature misturadas na árvore — separar no commit). Nada de commit; `src/`,
+`supabase/` e `e2e/` intactos por mim; `GUIA_DE_TESTES.md` atualizado (261/261, casos da venda
+cancelada, laudo sem defeito aberto).
+
+Não verificado: emissão real de NFC-e (emissor é stub), Supabase hospedado (só PGlite), leitor de
+tela real, `DOCUMENTACAO_ERP.md` (fora do escopo de escrita; a feature é relevante ao usuário final
+e merece entrada na doc de produto na próxima passada).

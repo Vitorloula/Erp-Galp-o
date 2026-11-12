@@ -29,7 +29,8 @@ export async function emitirUmaVenda(venda: VendaPendenteNFCe, caixaNumero: numb
   if (resultado.status === 'emitida') {
     await salvarNFCe(venda.id, { status: 'emitida', chave: resultado.chave, qrcode: resultado.qrcode })
   } else if (resultado.status === 'erro') {
-    await salvarNFCe(venda.id, { status: 'erro' })
+    // Guarda o motivo no banco: é o texto que o operador vê na fila da NFC-e.
+    await salvarNFCe(venda.id, { status: 'erro', mensagem: resultado.mensagem })
   }
   // 'nao_configurado': deixa pendente (emissor desligado).
   return resultado
