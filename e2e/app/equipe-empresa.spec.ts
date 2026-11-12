@@ -75,7 +75,8 @@ test.describe('Empresa e lojas', () => {
 
     await abrirMovimentar(page, 'entrada', 'Glifosato')
     await expect(page.getByText('em Filial Norte')).toBeVisible()
-    await page.getByLabel('Lote').fill('FN-1')
+    await page.getByRole('button', { name: 'Novo lote' }).click()
+    await page.getByLabel('Número do lote').fill('FN-1')
     await page.getByLabel('Quantidade recebida').fill('15')
     await page.getByRole('button', { name: 'Registrar entrada de 15 L' }).click()
     await expect(toast(page, /Entrada registrada: \+15 L/)).toBeVisible()

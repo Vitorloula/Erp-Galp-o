@@ -17,8 +17,10 @@ test.describe('Movimentações pela API', () => {
     await page.goto('/movimentar?tipo=entrada')
     await escolherProduto(page, 'Glifosato')
     const validade = dataDaqui(300)
-    await page.getByLabel('Lote').fill('gl-99')
-    await page.getByLabel('Validade').fill(validade.iso)
+    // Entrada escolhe lote por radio (FEFO) ou cria um novo (UI de cf95289).
+    await page.getByRole('button', { name: 'Novo lote' }).click()
+    await page.getByLabel('Número do lote').fill('gl-99')
+    await page.getByLabel('Validade', { exact: true }).fill(validade.iso)
     await page.getByLabel('Quantidade recebida').fill('15,5')
     await page.getByLabel('Nota fiscal / documento').fill('NF 555')
     await page.getByRole('button', { name: 'Registrar entrada de 15,5 L' }).click()
@@ -28,7 +30,7 @@ test.describe('Movimentações pela API', () => {
     const [glifosato] = await servidor.sql<{ id: string }>(`select id from public.produtos where empresa_id = $1 and nome = 'Glifosato 480 SL'`, [conta.empresaId])
     const { loja_id } = await lote(servidor, conta.empresaId, 'GL2508')
     expect(rpc.corpo).toEqual({
-      p_loja_id: loja_id, p_produto_id: glifosato.id, p_lote: 'gl-99', p_validade: validade.iso, p_quantidade: 15.5,
+      p_loja_id: loja_id, p_produto_id: glifosato.id, p_lote: 'GL-99', p_validade: validade.iso, p_quantidade: 15.5,
       // O app sempre envia p_custo (null quando a entrada não informa custo — src/lib/dados/movimentos.ts).
       p_custo: null,
       p_documento: 'NF 555', p_observacao: null, p_origem_id: expect.stringMatching(/^[0-9a-f-]{36}$/),
