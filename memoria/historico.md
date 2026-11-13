@@ -460,6 +460,45 @@ Não verificado: emissão real de NFC-e (emissor é stub), Supabase hospedado (s
 tela real, `DOCUMENTACAO_ERP.md` (fora do escopo de escrita; a feature é relevante ao usuário final
 e merece entrada na doc de produto na próxima passada).
 
+## [2026-11-11 22:47] Ciclo Segurança — Auditoria baseline (6 frentes) — LAUDO EMITIDO, 0 ações aplicadas
+
+**Veredito: base sólida, 5 achados ALTO, nenhum crítico explorável hoje.** Auditado o commit
+`5c7bcbd` (== produção: o Pages implantou exatamente ele em 12/11 01:34 UTC). Laudo completo:
+`memoria/auditoria-seguranca-baseline.md`. **SOMENTE LEITURA** — `src/`, `supabase/`, `e2e/`,
+Cloudflare e dependências intocados; escritos só este laudo e este append. Rodados: `npm audit`
+(12 vulns: 1 crítica `dompurify` via jspdf no bundle — exploração improvável no nosso uso; 1 alta
+`vite` só dev; nada atualizado), MCP Cloudflare (leitura) e `curl -I` em produção.
+
+**Top 5 riscos:** (1) PR-1 — push em `saas` publica sem gate, com e2e vermelho desde 06/11;
+(2) BD-1/BD-2 — `app.verificar_saldos()` e 3 outras funções SECURITY DEFINER chamáveis por
+`authenticated` (grant blanket do schema `app`) → saldos de outras empresas vêm com
+`p_empresa = null`; o `test:sql` não cobre porque roda a função como postgres — falta metatest de
+allowlist; (3) FT-1 — produção sem CSP/X-Frame-Options/HSTS/Permissions-Policy (`public/_headers`
+não existe); (4) CF-1 — 2FA da conta Cloudflare desligada (`enforce_twofactor: false`);
+(5) CF-2 — previews de todas as branches, públicos, rodando contra o Supabase de produção.
+Médios: `app.seed_segmento`/`proximo_numero`/`estado_empresa` cross-tenant; `cliente_cpf` em texto
+claro em `vendas` + `pdv_eventos.payload` (+ possível `divergencias.detalhes`) sem política de
+retenção; Google Fonts externo; convites/`erros_cliente` sem expurgo.
+
+**Positivos confirmados:** zero sink XSS em `src/`; só `VITE_*` públicas no bundle; `.env` nunca
+commitado; RLS em 100% das tabelas, SECURITY DEFINER sempre com `search_path = ''`; token de convite
+só como hash; PDV com idempotência/quarentena; imutabilidade do histórico intacta.
+
+**NFC-e/Asaas (T-034):** requisitos no laudo §4 — segredos (certificado A1, token emissor, API key
+Asaas, token de webhook) só em Edge Function/Worker secrets; chave fiscal nasce server-side (fecha o
+D-5 do QA); webhook revalida o evento via API antes de mexer em `assinaturas`; nunca gravar cartão.
+
+**Plano de carga (k6):** laudo §5 — 5 cenários (sync PDV offline é o principal), empresa sintética
+dedicada + expurgo depois, janelas fora de horário de loja, thresholds e critérios de abort. Não
+executado.
+
+**Depende do usuário/painel:** 2FA Cloudflare/GitHub; branch protection `saas`; Access nos previews;
+painel Supabase (Site URL/redirects do Auth, rate limits, SMTP, MFA, backups/PITR, diff de schema de
+produção); estado do Actions; decisão sobre gate de deploy e ambiente de homologação.
+
+Não verificado: painéis (Cloudflare/Supabase/GitHub), runtime real do app além de headers/curl,
+emissor/Asaas (stub), Realtime sob carga.
+
 ## [2026-11-11 23:20] DevOps — e2e vermelho no CI: diagnóstico, correções de spec e estado de CI/CD
 
 **Causa raiz do e2e vermelho (runs #33–#38):** contratos de produto mudaram e três
@@ -495,3 +534,19 @@ Arquivo commitado no git, deletado sem commit na árvore de trabalho. Proposta
 **Gate de deploy:** produção publicou commits com CI vermelho entre 06/11 e 11/11.
 Opções (branch protection + PRs; deploy no CI via wrangler + token; manter status quo)
 documentadas em `memoria/devops-estado.md` §3.8, com recomendação.
+
+## [2026-11-12 07:14] Coordenador (Teste) — decisões do usuário aplicadas + migration da fila em produção
+
+**Decisões via card:** `ia-diaria.yml` → **deletar** (commit `f3be01e` na `saas`, 105 linhas fora;
+restaurável pelo histórico do git); **gate de deploy → manter status quo** (push direto, risco
+documentado em `devops-estado.md` §3.8 e como PR-1 na auditoria de segurança). Repo local
+sincronizado até `3e77c19` (fast-forward; conflito de append em `historico.md` resolvido mantendo
+as entradas do Segurança e do DevOps).
+
+**Migration `20261111090000_nfce_fila_gestao.sql` aplicada em produção** (Supabase `erp_jd`,
+`vaihnxmwuouztvdojnyv`) via `supabase db push --remote --yes` — dry-run mostrou só ela pendente;
+`migration list --remote` depois do push: local == remote. O `db pull` que o usuário rodou antes
+falhou no passo de schema por falta de Docker (só necessário pro diff local); o "Yes" dele NÃO
+marcou migrations como aplicadas remotamente (12 antigas já estavam aplicadas de verdade).
+Pendente: lixo `supabase/supabase/` criado pelo pull (config.toml + cópia das migrations) —
+remover com OK do usuário; MCP Supabase ainda sem sign-in.
