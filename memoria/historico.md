@@ -651,3 +651,21 @@ banco antes deste deploy e o front trata nulo, sem incompatibilidade vista; (3) 
 mim: escritas só em `memoria/devops-estado.md` (cabeçalho, §2 deploy/CI, §3.6/3.7, §5, §6) e este
 append — `src/`, `supabase/`, `e2e/` e workflows intocados. Arquivo temporário de polling
 (`poll-run.mjs`) criado e removido.
+
+## 13/11/2026 — Teste autenticado completo em produção (conta de teste criada) — Teste
+A pedido do usuário ("cria uma conta teste e faça todos os testes por completo"), rodei em
+produção (`erp-galp-o.pages.dev`, deploy `e17d8b9`; Supabase `erp_jd`) um ciclo autenticado real
+com a conta **teste-qa@example.com** ("Teste QA Agente", empresa "TESTE QA (conta de teste
+automatizado)", trial até 27/11). Cadastro pela UI **recusou e-mails válidos** (400 "Email
+address is invalid") — usuários criados por SQL (`auth.users` + `auth.identities` + gatilho
+`ao_criar_usuario`); login/fluxo pela UI. Testado como dono: produto com custo (P0001 20/10,
+depois entrada 5 L @12 → "Último custo de entrada" virou 12), PDV (venda 01-000001, 2×20=40),
+Painel 40/24/16/40% (custo = snapshot do último custo; FEFO fora do escopo da spec), Relatórios
+aba Lucro + Excel/PDF, fila NFC-e pendente → resolvida com motivo. Convites reais (links de 7
+dias) aceitos por **gerente** (empresa somente leitura, pode convidar), **estoquista** (cadastrou
+P0002 com custo, tem Entrada/Saída/Ajuste) e **caixa** (vendeu 01-000002, R$ 20; vê Relatórios
+com Lucro). Painel final 60/36/24/40%. Achados: **A-1** signup pela UI bloqueado pela validação
+de e-mail do projeto; **A-2** Resultado (lucro/margem) visível para gerente, estoquista e caixa —
+decisão de produto pendente. Laudo completo em `memoria/laudo-producao-t036.md`. Nada commitado
+em `src/`: este append + o laudo são a única escrita. Tenant de teste permanece em produção
+(decisão de limpeza pendente do usuário).
