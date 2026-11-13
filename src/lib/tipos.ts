@@ -150,6 +150,7 @@ export type ProdutoDados = Pick<
   | 'conteudo_embalagem'
   | 'estoque_minimo'
   | 'preco_venda'
+  | 'custo_ultimo'
   | 'rastreio'
   | 'pesavel'
   | 'codigo_balanca'

@@ -22,6 +22,13 @@ test.describe('Painel', () => {
     await expect(atencao.nth(4)).toHaveClass(/linha-vencendo/)
 
     await expect(page.locator('[data-mov]')).toHaveCount(8)
+
+    const resultado = page.getByRole('region', { name: 'Resultado de hoje' })
+    await expect(resultado).toContainText('Faturamento bruto')
+    await expect(resultado).toContainText('Lucro bruto')
+    await expect(resultado).toContainText('Margem')
+    await expect(resultado).toContainText('R$ 0,00')
+    await expect(resultado).toContainText('Sem vendas concluídas hoje')
   })
 
   test('indicadores levam ao estoque já filtrado', async ({ page }) => {

@@ -52,9 +52,9 @@ async function relatorioReposicao() {
   return montarRelatorio(intervaloRapido('30dias'), produtosRepor, lotesRepor, [], () => 'Defensivo agrícola')
 }
 
-const TODAS = { resumo: true, movimentacoes: true, posicao: true, compras: true }
-const SEM_COMPRAS = { resumo: true, movimentacoes: true, posicao: true, compras: false }
-const SO_COMPRAS = { resumo: false, movimentacoes: false, posicao: false, compras: true }
+const TODAS = { resumo: true, movimentacoes: true, posicao: true, compras: true, resultado: false }
+const SEM_COMPRAS = { resumo: true, movimentacoes: true, posicao: true, compras: false, resultado: false }
+const SO_COMPRAS = { resumo: false, movimentacoes: false, posicao: false, compras: true, resultado: false }
 
 async function lerWb(blob: Blob) {
   const wb = new ExcelJS.Workbook()

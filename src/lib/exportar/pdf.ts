@@ -1,4 +1,5 @@
-import { formatarData, formatarDataHora, formatarValidade } from '../formato'
+import { formatarData, formatarDataHora, formatarNumero, formatarValidade } from '../formato'
+import { formatarReais } from '../../pdv/venda'
 import type { Relatorio } from '../relatorio'
 import { CINZA_RGB, ESTILO_TABELA_PDF, VERDE_RGB, textoCobertura, textoGeradoEm, textoNumero } from './comum'
 import type { Secoes } from './excel'
@@ -154,6 +155,44 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
     })
     y = finalY() + 5
     legenda('Quantidade já arredondada pelo conteúdo da embalagem  ·  do mais crítico ao menos crítico')
+  }
+
+  if (secoes.resultado && r.resultado) {
+    const res = r.resultado
+    titulo('Resultado')
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(15, 23, 42)
+    const kpis = [
+      `Faturamento bruto: ${formatarReais(res.faturamentoBruto)}`,
+      `CMV: ${formatarReais(res.cmv)}`,
+      `Lucro: ${formatarReais(res.lucro)}`,
+      `Margem: ${formatarNumero(res.margem)}%`,
+    ]
+    for (const linha of kpis) {
+      doc.text(linha, margem, y)
+      y += 5
+    }
+    y += 4
+    autoTable(doc, {
+      ...estilo,
+      startY: y,
+      head: [['Produto', 'Faturamento', 'CMV', 'Lucro', 'Margem']],
+      body: res.porProduto.length
+        ? res.porProduto.map(p => [p.produto, formatarReais(p.faturamento), formatarReais(p.cmv), formatarReais(p.lucro), `${formatarNumero(p.margem)}%`])
+        : [[{ content: 'Sem resultado no período.', colSpan: 5, styles: { halign: 'center', textColor: CINZA } }]],
+      columnStyles: {
+        1: { halign: 'right' },
+        2: { halign: 'right' },
+        3: { halign: 'right', fontStyle: 'bold' },
+        4: { halign: 'right' },
+      },
+    })
+    y = finalY() + 5
+    if (res.valorSemCusto > 0) {
+      legenda(`Itens sem custo cadastrado: ${formatarReais(res.valorSemCusto)} não entram no CMV.`)
+      y += 8
+    }
   }
 
   // Rodapé com numeração

@@ -550,3 +550,72 @@ falhou no passo de schema por falta de Docker (só necessário pro diff local); 
 marcou migrations como aplicadas remotamente (12 antigas já estavam aplicadas de verdade).
 Pendente: lixo `supabase/supabase/` criado pelo pull (config.toml + cópia das migrations) —
 remover com OK do usuário; MCP Supabase ainda sem sign-in.
+
+## [2026-11-12 23:55] QA — revalidação T-036 (custo no produto + faturamento/lucro) e matriz de perfis
+
+**Veredito: APROVADO COM RESSALVAS** — 1 defeito aberto (D-1, baixa). Laudo em
+`memoria/laudo-custo-lucro.md`. Sem commit; `src/`, `supabase/` e `e2e/` intactos por mim.
+
+**Gates rodados por mim** (nada aceito como alegação): lint 0 · `npm test` **124/124** em 13
+arquivos · `npm run test:sql` **265/265** · build 0 · `npx tsc -p e2e` 0 · Playwright
+(`resultado` + `produtos` + `relatorios` + `painel-estoque` + `pdv`, `--workers=1`)
+**66 passaram, 2 pulados, 0 falharam** (34 por projeto × computador e celular).
+
+**Provas no banco (PGlite, script temporário — 32 verificações, 0 falhas):** a venda guarda o
+`custo_ultimo` do **momento** (snapshot); mudar o custo depois **não** altera o item antigo;
+produto sem custo → item `null`; item avulso não quebra (com `produto_id` NOT NULL confirmado);
+trigger `SECURITY DEFINER` com `search_path=''`, sem execute para `anon` e sem `INSERT` de
+`authenticated` em `vendas_itens` (não há como forjar custo); RLS multiempresa fecha.
+
+**Matriz de perfis (dono/gerente/estoquista/caixa, computador e celular, 10/10):** as três
+diferenças prováveis contra a matriz do dono foram checadas e **nenhuma é defeito** —
+(1) o **estoquista já cadastra produto com custo** (`salvar_produto` é `security invoker` e a RLS
+de `produtos` já inclui `estoquista`; a premissa do gate "dono/gerente" está errada);
+(2) o **caixa vê faturamento, CMV, lucro e margem** no Painel e na aba Lucro, e exporta a seção
+(comportamento real registrado — a decisão de limitar é do dono); (3) o **gerente** vê os dados da
+empresa em modo somente leitura (`UPDATE` afeta 0 linhas) e não edita loja nem empresa.
+
+**D-1 (baixa) — margem com casa decimal sai com ponto:** `src/pages/Painel.tsx:284`,
+`src/lib/exportar/excel.ts:214,228` e `src/lib/exportar/pdf.ts:170,182` usam `${margem}%`
+("66.7%"), contra "66,7%" na tela de Relatórios (`formatarNumero`). Volta para o Programador.
+
+**Observações (não bloqueiam):** Excel com KPI em texto e tabela em número; o aviso de erro da aba
+Resultado é praticamente inalcançável (a tela falha antes); o Painel busca os itens da semana
+inteira; rolagem horizontal de 7 px a 320 px vem do botão "Movimentar" da barra inferior (pré-existente,
+não é deste ciclo); `vendas_itens.produto_id` NOT NULL impede o "Item avulso" da spec.
+
+**Migration `20261112120000_custo_lucro.sql` continua NÃO aplicada no Supabase hospedado** —
+validação só em PGlite; a aplicação na nuvem segue pendente de aprovação.
+`GUIA_DE_TESTES.md` atualizado (124/124, 265/265, novo spec e lacunas conhecidas).
+
+## [2026-11-13 00:05] QA — fechamento do D-1 (T-036): ciclo aprovado, sem defeito aberto
+
+**Veredito final: APROVADO — nenhum defeito aberto.** Laudo atualizado em
+`memoria/laudo-custo-lucro.md` (§4). Sem commit; `src/`, `supabase/` e `e2e/` intactos por mim.
+
+**D-1 (baixa) FECHADO** — margem com casa decimal saiu com ponto no Painel, no Excel e no PDF.
+O Programador passou `formatarNumero` nos 5 pontos (`src/pages/Painel.tsx:284`,
+`src/lib/exportar/excel.ts:214,228`, `src/lib/exportar/pdf.ts:170,182`); conferi no código e
+varri `src/` inteiro — **não resta interpolação de margem sem `formatarNumero`**.
+
+**Reexecução focada (minha):** lint 0 · `npm test` **124/124** em 13 arquivos · `npm run test:sql`
+**265/265** · build 0 · `npx tsc -p e2e` 0 (a 1ª execução acusou 2 erros **do meu próprio spec
+temporário** — corrigido e reexecutado: 0) · Playwright (`resultado` + `relatorios` +
+`painel-estoque`, `--workers=1`, rodada única sem concorrência na `test-results/`)
+**38 passaram, 2 pulados, 0 falharam** (20 por projeto × computador e celular). Confere com a
+alegação do Programador.
+
+**Caso real do D-1** (1 un, preço 30, custo 10 → 66,666…%), por spec temporário próprio
+(`e2e/app/_qa-d1-margem.spec.ts`, removido no fim — o spec do repo usa margem 50% e não evidencia
+o erro de separador): Painel **`66,7%`**, Relatórios `66,7%`, Excel (KPI e linha do produto)
+**`66,7%`**, PDF **`Margem: 66,7%`** e busca no PDF: `"66,7%"`=true, `"66.7%"`=false.
+
+**Observações do ciclo continuam valendo** (não bloqueiam): Excel com KPI em texto e tabela em
+número; aviso de erro da aba Resultado praticamente inalcançável; Painel busca os itens da semana
+inteira; rolagem de 7 px a 320 px vem do botão "Movimentar" da barra inferior (pré-existente);
+`vendas_itens.produto_id` NOT NULL impede o "Item avulso" da spec; **o caixa vê lucro/margem** —
+decisão de limitar ou não é do dono do produto.
+
+**Migration `20261112120000_custo_lucro.sql` continua NÃO aplicada no Supabase hospedado** —
+pendente da aprovação do Teste (commit, push e aplicação na nuvem). `GUIA_DE_TESTES.md` atualizado
+(38/2 da rodada focada, 66/2 da rodada completa, D-1 fechado e dois itens novos no checklist).

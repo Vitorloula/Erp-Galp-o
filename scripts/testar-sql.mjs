@@ -537,6 +537,17 @@ secao('PDV — caixa que vende sem internet:')
   await comoUsuario(dono, () => db.query(`select public.cancelar_venda($1, 'Erro de digitação')`, [daUm.dados.venda_id]))
   confere(await saldo(ultimo) === 0, 'cancelamento também pela retaguarda (com internet)')
 
+  // T-036: custo do produto vira snapshot no item, para CMV/lucro histórico.
+  await comoUsuario(dono, () => db.query('update public.produtos set custo_ultimo = 12.3456 where id = $1', [arroz]))
+  const comCusto = venda(caixa1, sessao, 20, [{ produto_id: arroz, descricao: 'Arroz', quantidade: 2, preco_unitario: 27.5, total: 55 }], [{ forma: '01', valor: 55 }])
+  const semCusto = venda(caixa1, sessao, 21, [{ produto_id: diversos, descricao: 'Diversos', quantidade: 1, preco_unitario: 4, total: 4 }], [{ forma: '01', valor: 4 }])
+  r = await sinc(operadora, [comCusto, semCusto])
+  confere(r.resultados.every(x => x.status === 'aplicado'), 'custo: vendas com e sem custo aplicadas', JSON.stringify(r.resultados))
+  const itemCusto = await um('select custo_unitario::float as c from public.vendas_itens where venda_id = $1', [comCusto.dados.venda_id])
+  const itemSemCusto = await um('select custo_unitario from public.vendas_itens where venda_id = $1', [semCusto.dados.venda_id])
+  confere(itemCusto.c === 12.3456, 'custo: item guarda o último custo do produto (snapshot)', JSON.stringify(itemCusto))
+  confere(itemSemCusto.custo_unitario === null, 'custo: produto sem custo fica null no item', JSON.stringify(itemSemCusto))
+
   // Sangria, suprimento e fechamento às cegas
   const sessao3 = crypto.randomUUID()
   await sinc(operadora, [ev('fechar_sessao', { caixa_id: caixa1, sessao_id: sessao, fechada_em: new Date().toISOString(), contado: { '01': 0 } })])
@@ -573,8 +584,8 @@ secao('PDV — caixa que vende sem internet:')
   await comoUsuario(operador2, () => esperaErro('caixa aberto num aparelho não abre em outro', () => db.query(`select public.pdv_assumir_caixa($1, 'aparelho-2')`, [caixa1]), 'aberto em outro aparelho'))
   const cat = await comoUsuario(operadora, async () => (await um('select public.pdv_catalogo($1) as c', [loja])).c)
   const arrozCat = cat.produtos.find(p => p.id === arroz)
-  confere(cat.completo && cat.produtos.length === 4 && arrozCat.preco_venda === 27.5 && cat.saldos.find(s => s.produto_id === arroz)?.saldo === 5,
-    'catálogo do caixa: produtos, preços e saldos da loja', JSON.stringify({ n: cat.produtos.length, arroz: arrozCat }))
+  confere(cat.completo && cat.produtos.length === 4 && arrozCat.preco_venda === 27.5 && cat.saldos.find(s => s.produto_id === arroz)?.saldo === 3,
+    'catálogo do caixa: produtos, preços e saldos da loja', JSON.stringify({ completo: cat.completo, n: cat.produtos.length, arroz: arrozCat, saldo: cat.saldos.find(s => s.produto_id === arroz)?.saldo }))
   const nada = await comoUsuario(operadora, async () => (await um('select public.pdv_catalogo($1, $2) as c', [loja, cat.agora])).c)
   confere(nada.produtos.length === 0 && nada.saldos.length === 0, 'sincronização incremental: nada mudou, nada vem')
   await comoUsuario(dono, () => db.query(`select public.salvar_produto($1, $2, $3, $4)`, [empP, leite, { nome: 'Leite 1L', unidade: 'un', preco_venda: 5.99, rastreio: 'lote' }, JSON.stringify([{ codigo: '7891000100103' }])]))

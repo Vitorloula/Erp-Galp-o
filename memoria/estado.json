@@ -43,6 +43,39 @@
       ],
       "criterios": "Séries/IMEIs únicos por empresa e produto; cada unidade recebida/vendida rastreada; RLS; devolução/cancelamento e correções auditáveis; testes SQL e E2E antes de atualizar a comunicação do segmento.",
       "criado_em": "2026-11-06T00:00:00.000Z"
+    },
+    {
+      "id": "T-036",
+      "titulo": "Custo no cadastro do produto + faturamento bruto e lucro automáticos",
+      "prioridade": 1,
+      "tipo": "feature",
+      "detalhe": "Pedido direto do usuário: ao cadastrar um produto, informar o valor de custo; e aparecer automaticamente o faturamento bruto e o lucro. produtos.custo_ultimo JÁ existe (base_multiempresa.sql:279), é gravado pelo RPC salvar_produto e atualizado a cada entrada com p_custo — falta o campo no ProdutoForm (ProdutoDados não inclui custo_ultimo) e qualquer visão de resultado. Novo snapshot vendas_itens.custo_unitario via trigger (migration 20261112120000_custo_lucro.sql) para CMV/lucro histórico auditável; card 'Resultado de hoje' no Painel e aba 'Resultado' em Relatórios com export Excel/PDF.",
+      "evidencia": "supabase/migrations/20261008120000_base_multiempresa.sql:279 (coluna custo_ultimo); 20261010130000_cadastro_para_pdv.sql:16-37 (RPC grava); src/lib/tipos.ts:144-168 (ProdutoDados sem custo_ultimo); src/components/ProdutoForm.tsx (sem campo); sem tela de faturamento/lucro",
+      "arquivos_que_toca": [
+        "src/components/ProdutoForm.tsx",
+        "src/lib/tipos.ts",
+        "src/lib/dados/vendas.ts",
+        "src/pages/Relatorios.tsx",
+        "src/pages/Painel.tsx"
+      ],
+      "criterios": "Campo Custo (R$) no cadastro/edição do produto com validação; venda guarda o custo do item (snapshot); Painel mostra faturamento bruto, lucro e margem de hoje; Relatórios tem aba Resultado (período, por produto, itens sem custo avisados) exportável em Excel/PDF; e2e/app/resultado.spec.ts verde; npm run lint, npm test e npm run test:sql verdes.",
+      "criado_em": "2026-11-13T01:17:00.000Z"
+    },
+    {
+      "id": "T-037",
+      "titulo": "Ajuda/SAC: FAQ com contato do suporte (WhatsApp + e-mail) e guias como resolver",
+      "prioridade": 2,
+      "tipo": "feature",
+      "detalhe": "Pedido direto do dono. Tela Ajuda no app (aba Mais), página pública /ajuda.html (mesmo padrão de privacidade.html/termos.html) e link na tela de primeiro acesso (BoasVindas). Conteúdo: principais perguntas com como resolver, extraídas dos documentos reais (PILOTO.md, MANUAL_TESTE.md, DOCUMENTACAO_ERP.md) — sincronização entre aparelhos, venda/NFC-e pendente ou erro na fila, importação de catálogo, convite de equipe, lotes/validade, queda de rede no PDV, backup/restauração — mais bloco de contato do suporte por WhatsApp + e-mail. DADOS REAIS de contato ainda NÃO fornecidos pelo dono: placeholders claramente marcados até recebê-los (nada de contato inventado).",
+      "evidencia": "public/privacidade.html e public/termos.html (padrão de página pública); src/pages/Mais.tsx (menu celular sem Ajuda); BoasVindas.tsx (primeiro acesso sem link de ajuda); DOCUMENTACAO_ERP.md:90-100",
+      "arquivos_que_toca": [
+        "public/ajuda.html",
+        "src/pages/Mais.tsx",
+        "src/pages/BoasVindas.tsx",
+        "src/App.tsx"
+      ],
+      "criterios": "Ajuda acessível no app (aba Mais) e sem login (/ajuda.html + link no primeiro acesso); FAQ ancorada nos docs reais; canal de contato com dados reais do dono (placeholder marcado até lá); mobile-first, a11y e pt-BR; testes SQL/E2E no padrão do repo.",
+      "criado_em": "2026-11-13T02:15:04.000Z"
     }
   ],
   "concluidos": [
@@ -409,20 +442,20 @@
       "concluido_em": "2026-10-27T20:30:00.000Z"
     }
   ],
-  "ciclos": 19,
+  "ciclos": 20,
   "plano_atual": {
-    "item_id": "BF-N4",
-    "origem": "memoria/backlog-features.md — Features novas, item 4 (Fila operacional para resolver vendas NFC-e pendentes/erro)",
-    "objetivo": "Tela de gestão da fila NFC-e em Vendas (nova aba 'Fila NFC-e'): listar vendas concluídas com nota pendente/erro, reemitir, ver o detalhe do erro (nova coluna nfce_erro) e marcar resolvida (novo status 'resolvida' + nfce_resolucao), sobre a fila existente (listarVendasPendentes + emitirVendasPendentes).",
+    "item_id": "T-036",
+    "origem": "pedido direto do usuário (registrado pelo Arquiteto a pedido do agente Teste, 2026-11-12); item T-036 no backlog deste arquivo",
+    "objetivo": "Campo de custo no cadastro do produto (usa produtos.custo_ultimo existente) e resultado automático: snapshot do custo em vendas_itens.custo_unitario (trigger, migration nova) para CMV/lucro histórico; card 'Resultado de hoje' no Painel (faturamento bruto, lucro, margem) e aba 'Resultado' em Relatórios com tabela por produto e export Excel/PDF.",
     "arquivos_json": [
+      "src/components/ProdutoForm.tsx",
+      "src/lib/tipos.ts",
       "src/lib/dados/vendas.ts",
-      "src/lib/emissao.ts",
-      "src/lib/nfce.ts",
-      "src/pages/Vendas.tsx",
-      "e2e/app/pdv.spec.ts"
+      "src/pages/Relatorios.tsx",
+      "src/pages/Painel.tsx"
     ],
-    "criterios": "Aba 'Fila NFC-e' lista pendentes/erro da loja com reemitir (aviso quando emissor desligado), detalhe do erro e marcar resolvida com motivo; novo e2e/app/vendas-fila.spec.ts verde (4 cenários do plano); pdv.spec.ts e navegacao.spec.ts sem regressão; npm run lint, npm test e npm run test:sql verdes.",
-    "plano_md": "memoria/plano-fila-nfce.md",
-    "definido_em": "2026-11-11T23:10:00.000Z"
+    "criterios": "Produto com custo R$ 10 e preço R$ 20 vendido em 2 un mostra Faturamento R$ 40, Lucro R$ 20 e margem 50% no Painel e na aba Resultado de Relatórios; itens sem custo avisados e fora do CMV; venda cancelada fora do faturamento; Excel/PDF incluem a seção Resultado; novo e2e/app/resultado.spec.ts verde com regressão de produtos/relatorios/painel-estoque/pdv; npm run lint, npm test e npm run test:sql verdes.",
+    "plano_md": "memoria/plano-custo-lucro.md",
+    "definido_em": "2026-11-13T01:17:00.000Z"
   }
 }

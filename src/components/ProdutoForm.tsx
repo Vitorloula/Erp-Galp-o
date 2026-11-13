@@ -39,6 +39,7 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
     // Ponto de pedido: null = desligado (produto sem alerta de reposição).
     estoque_minimo: produto?.estoque_minimo ?? null,
     preco_venda: produto?.preco_venda ?? null,
+    custo_ultimo: produto?.custo_ultimo ?? null,
     rastreio: produto?.rastreio ?? (empresa.segmento === 'galpao' ? 'lote' : 'nenhum'),
     pesavel: produto?.pesavel ?? false,
     codigo_balanca: produto?.codigo_balanca ?? null,
@@ -60,6 +61,7 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
   const [novaCategoria, setNovaCategoria] = useState<string | null>(null)
   const [embalagemTxt, setEmbalagemTxt] = useState(texto(produto?.conteudo_embalagem))
   const [precoTxt, setPrecoTxt] = useState(texto(produto?.preco_venda))
+  const [custoTxt, setCustoTxt] = useState(texto(produto?.custo_ultimo))
   const [minimoTxt, setMinimoTxt] = useState(texto(produto?.estoque_minimo))
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
@@ -89,6 +91,12 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
     if (embalagemTxt.trim() && (emb === null || emb <= 0)) return setErro('Conteúdo por embalagem inválido.')
     const preco = precoTxt.trim() ? lerNumero(precoTxt.replace(/^R\$\s*/i, '')) : null
     if (precoTxt.trim() && (preco === null || preco < 0)) return setErro('Preço de venda inválido.')
+    const custo = custoTxt.trim() ? lerNumero(custoTxt.replace(/^R\$\s*/i, '')) : null
+    if (custoTxt.trim() && (custo === null || custo < 0)) {
+      setErro('Custo inválido.')
+      document.getElementById('p-custo')?.focus()
+      return
+    }
     const minimo = minimoTxt.trim() ? lerNumero(minimoTxt) : null
     if (minimoTxt.trim() && (minimo === null || minimo < 0)) return setErro('Estoque mínimo inválido.')
     const listaCodigos = adicionarCodigo() // código digitado e não adicionado também vale
@@ -106,6 +114,7 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
           categoria_id: categoriaId,
           conteudo_embalagem: emb,
           preco_venda: preco,
+          custo_ultimo: custo,
           // 0 também é "desligado": o banco guarda null.
           estoque_minimo: minimo !== null && minimo > 0 ? minimo : null,
         },
@@ -184,9 +193,14 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
             <input id="p-preco" className="campo" inputMode="decimal" value={precoTxt} onChange={e => setPrecoTxt(e.target.value)} placeholder="Opcional" />
           </div>
           <div>
-            <label className="rotulo" htmlFor="p-emb">Conteúdo por embalagem ({dados.unidade})</label>
-            <input id="p-emb" className="campo" inputMode="decimal" value={embalagemTxt} onChange={e => setEmbalagemTxt(e.target.value)} placeholder={`Ex.: galão de 20 ${dados.unidade} → 20`} />
+            <label className="rotulo" htmlFor="p-custo">Custo (R$)</label>
+            <input id="p-custo" className="campo" inputMode="decimal" value={custoTxt} onChange={e => setCustoTxt(e.target.value)} placeholder="Opcional" aria-describedby="p-custo-dica" />
           </div>
+        </div>
+        <p id="p-custo-dica" className="-mt-2 text-xs text-slate-500">Atualizado sozinho quando você lança uma entrada com custo.</p>
+        <div>
+          <label className="rotulo" htmlFor="p-emb">Conteúdo por embalagem ({dados.unidade})</label>
+          <input id="p-emb" className="campo" inputMode="decimal" value={embalagemTxt} onChange={e => setEmbalagemTxt(e.target.value)} placeholder={`Ex.: galão de 20 ${dados.unidade} → 20`} />
         </div>
         <p className="-mt-2 text-xs text-slate-500">Conteúdo por embalagem é opcional: permite lançar por embalagem (ex.: 3 galões = 60 L).</p>
 

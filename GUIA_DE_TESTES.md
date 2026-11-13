@@ -1,18 +1,19 @@
 # Guia de Testes — ERP Galpão
 
-## 1. Estado atual (11/11/2026)
+## 1. Estado atual (12/11/2026)
 
 | Comando | Exit | Resultado |
 |---|---|---|
 | `npm run lint` (`tsc -p . --noEmit`) | 0 | sem erros de tipo |
-| `npm test` (Vitest) | 0 | **117/117** em 12 arquivos |
-| `npm run test:sql` (PGlite) | 0 | **261/261** verificações |
+| `npm test` (Vitest) | 0 | **124/124** em 13 arquivos |
+| `npm run test:sql` (PGlite) | 0 | **265/265** verificações |
 | `npm run build` | 0 | `tsc` + Vite + PWA |
 | `npx tsc -p e2e --noEmit` | 0 | specs e helpers E2E |
-| Playwright direcionado | 0 | **46/46** — fila NFC-e 8/8, PDV 12/12 e navegação 26/26 (computador + celular) |
+| Playwright direcionado | 0 | **38 passaram, 2 pulados** — resultado 5, relatórios 6 e painel-estoque 9 (20 por projeto × computador e celular; o pulado é um teste de saída já pulado no celular). Rodada completa do ciclo: **66 passaram, 2 pulados** (com produtos e PDV) |
 
-Laudo da última rodada (fila NFC-e, BF-N4): `memoria/laudo-qa-fila-nfce.md` — **aprovado, sem
-defeito aberto**.
+Laudo da última rodada (custo e lucro, T-036): `memoria/laudo-custo-lucro.md` — **aprovado, sem
+defeito aberto** (a margem com casa decimal saiu com vírgula no Painel, nos Relatórios, no Excel
+e no PDF; ver o mesmo laudo, D-1).
 
 O E2E completo roda no CI com **retries** e **2 workers**. Localmente, para investigar
 falhas, use `--workers=1` e um projeto por vez:
@@ -40,6 +41,9 @@ npm run test:e2e:ci      # CI, com retries
 
 - `src/lib/regras.test.ts`: alertas de validade, FEFO, reposição, filtros e períodos.
 - `src/lib/relatorio.test.ts` e `exportar/`: Excel/PDF e filtros do relatório.
+- `src/lib/resultado.test.ts` (T-036): faturamento só de venda concluída, CMV por custo do
+  snapshot, item sem custo fora do CMV e contabilizado no aviso, margem com faturamento 0 e
+  agregação de dois itens do mesmo produto.
 - `src/lib/importacao.test.ts`: CSV com `;`, vírgula e tab, aspas/quebra de linha,
   números brasileiros, datas, aliases de cabeçalho, duplicidade e modelo.
 - `src/lib/paginacao.test.ts`: fatias, limites e lista vazia.
@@ -65,7 +69,15 @@ npm run test:e2e:ci      # CI, com retries
   - **venda cancelada**: não recebe emissão ("Esta venda está cancelada."), a tentativa não altera
     nada, não volta para a fila de emissão (`listarVendasPendentes` exige `status = 'concluida'`) e
     o cancelamento da **nota** continua permitido;
+- **custo e lucro (T-036)**: o item da venda guarda o **custo do momento** (snapshot de
+  `produtos.custo_ultimo`); produto sem custo fica `null`; mudar o custo depois **não** altera o
+  item antigo;
 - assinatura, expurgo e visitante sem login.
+
+> **Lacuna conhecida (T-036):** o `test:sql` do ciclo cobre só 3 das 6 provas do laudo. As demais
+> (snapshot imutável depois de mudar o custo, trigger `SECURITY DEFINER` com `search_path = ''`,
+> item avulso, RLS multiempresa e a matriz de papéis no banco) foram verificadas pelo QA em script
+> temporário — ver `memoria/laudo-custo-lucro.md` §2. Vale transformer em casos permanentes.
 
 ### Telas (Playwright)
 
@@ -83,6 +95,17 @@ npm run test:e2e:ci      # CI, com retries
      terminal "Nota resolvida" na lista normal de vendas.
   - Semeia pelo banco do teste (`supabase.servidor.sql`), filtrando por `empresa_id` **e** `numero`
     — sem o `empresa_id`, o seed atinge as vendas das outras empresas do worker.
+- `e2e/app/resultado.spec.ts` (T-036): **custo e lucro** —
+  1. produto com custo R$ 10 e preço R$ 20, vendido 2 un → o card "Resultado de hoje" do Painel
+     mostra Faturamento R$ 40,00, Lucro R$ 20,00 e margem 50%;
+  2. Relatórios no período: a aba "Lucro" (título "Resultado") mostra os mesmos KPIs e a linha do
+     produto;
+  3. produto sem custo: o aviso "Itens sem custo cadastrado neste período" aparece e o item fica
+     fora do CMV;
+  4. venda cancelada não entra no faturamento;
+  5. o Excel baixado tem a planilha "Resultado" com os KPIs e a linha do produto.
+  - A **matriz de perfis** (dono/gerente/estoquista/caixa), a conferência do PDF e o layout a
+    390 px foram verificados pelo QA em spec temporária — ver `memoria/laudo-custo-lucro.md` §3.
 - Demais projetos: PDV offline, câmera, PWA, acesso/convites e servidor local.
 
 ## 4. Como rodar um teste isolado
@@ -94,6 +117,7 @@ npm run test:sql
 npx playwright test e2e/app/inventario.spec.ts --project=app-computador --workers=1
 npx playwright test e2e/app/importar.spec.ts --project=app-celular --workers=1
 npx playwright test e2e/app/vendas-fila.spec.ts --workers=1
+npx playwright test e2e/app/resultado.spec.ts --workers=1
 ```
 
 Para ver o relatório: `npm run test:e2e:relatorio`.
@@ -112,6 +136,13 @@ Para ver o relatório: `npm run test:e2e:relatorio`.
 - [ ] Funções `SECURITY DEFINER` novas conferem papel **e** estado do registro (venda cancelada,
       nota já resolvida), não só empresa/loja.
 - [ ] Seed de teste filtra por `empresa_id` (o banco é compartilhado por worker).
+- [ ] Números em pt-BR **em todo lugar**, inclusive nos exports (vírgula decimal): a margem com
+      casa decimal saía com ponto no Painel, no Excel e no PDF — passar **`formatarNumero`** em
+      qualquer número exibido (ver `memoria/laudo-custo-lucro.md`, D-1).
+- [ ] Caso com **casa decimal** no teste, não só com inteiro: margem de 50% não evidencia erro de
+      separador decimal (o spec do repo usa 50%; o QA testou 66,7% por script próprio).
+- [ ] Tela que mostra dinheiro (lucro, margem, faturamento): conferir **quem** enxerga, perfil por
+      perfil — o caixa enxerga hoje, e a decisão é do dono do produto (ver o mesmo laudo, §3).
 - [ ] Textos e estados de erro em português; sem `console.log` esquecido.
 - [ ] Documentação (`README.md`, `DOCUMENTACAO_ERP.md`, `PILOTO.md`) e
       `memoria/estado.json` atualizados quando o comportamento mudar.

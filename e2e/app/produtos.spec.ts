@@ -23,6 +23,7 @@ test.describe('Produtos', () => {
     await d.getByLabel('Categoria').selectOption({ label: 'Defensivo agrícola' })
     await d.getByLabel(/Conteúdo por embalagem/).fill('5')
     await d.getByLabel(/Estoque mínimo/).fill('12')
+    await d.getByLabel('Custo (R$)').fill('7,50')
     await d.getByLabel('Código de barras').fill('7890000099990')
     await d.getByLabel('Fabricante').fill('Teste S.A.')
     await d.getByLabel('Observações').fill('Classe III')
@@ -40,6 +41,7 @@ test.describe('Produtos', () => {
     await expect(page.getByText('7890000099990')).toBeVisible()
     await expect(page.getByText('Teste S.A.')).toBeVisible()
     await expect(page.getByText('Estoque mínimo').locator('..')).toContainText('12 L')
+    await expect(page.getByText('Último custo de entrada').locator('..')).toContainText('R$ 7,50')
     await expect(page.getByText('Nenhum lote com saldo. Produto sem estoque.')).toBeVisible()
   })
 
@@ -64,6 +66,12 @@ test.describe('Produtos', () => {
     await d.getByLabel('Código interno').fill('')
     await d.getByRole('button', { name: 'Salvar' }).click()
     await expect(d.getByText('Conteúdo por embalagem inválido.')).toBeVisible()
+
+    await d.getByLabel(/Conteúdo por embalagem/).fill('')
+    await d.getByLabel('Custo (R$)').fill('abc')
+    await d.getByRole('button', { name: 'Salvar' }).click()
+    await expect(d.getByText('Custo inválido.')).toBeVisible()
+    await expect(d.getByLabel('Custo (R$)')).toBeFocused()
 
     await d.getByRole('button', { name: 'Cancelar' }).click()
     await expect(d).toBeHidden()

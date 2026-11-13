@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpFromLine, FileSpreadsheet, FileText, LoaderCircle, RotateCcw, ShoppingCart, X } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, Banknote, FileSpreadsheet, FileText, LoaderCircle, PackageX, Percent, RotateCcw, ShoppingCart, TrendingUp, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { Paginacao } from '../components/Paginacao'
@@ -6,25 +6,29 @@ import { useToast } from '../components/Toast'
 import { Aviso, BadgeReposicao, BadgeSituacao, BadgeTipo, Cabecalho, Carregando, Cobertura, Kpi, Segmentado, Vazio, cx } from '../components/ui'
 import { useDados } from '../contexto/Dados'
 import { useAtiva } from '../contexto/Empresa'
-import { movimentos } from '../lib/dados'
+import { movimentos, vendas as dadosVendas } from '../lib/dados'
+import type { ItemVendaResumo, Venda } from '../lib/dados/vendas'
 import { filtrarProdutos } from '../lib/estoque'
 import type { Secoes } from '../lib/exportar/excel'
 import { formatarDataHora, formatarEmbalagens, formatarNumero, formatarValidade, hojeISO, normalizarBusca } from '../lib/formato'
 import { paginar } from '../lib/paginacao'
 import { PERIODOS, intervaloParaInstantes, intervaloRapido, juntarFiltros, periodoDaUrl, produtoDaUrl, type Intervalo, type PeriodoRapido } from '../lib/periodos'
 import { exportarComToast, montarRelatorio, nomeArquivo, tituloEmpresa, type LinhaCompraRel } from '../lib/relatorio'
+import { montarResultado, type Resultado } from '../lib/resultado'
+import { formatarReais } from '../pdv/venda'
 import type { Movimentacao } from '../lib/tipos'
 
 const POR_PAGINA = 50
 
-type Aba = 'resumo' | 'movimentacoes' | 'posicao' | 'compras'
+type Aba = 'resumo' | 'movimentacoes' | 'posicao' | 'compras' | 'resultado'
 
-/** Rótulos ≤ 12 caracteres: 4 abas cabem no Segmentado até em 320 px. */
+/** Rótulos ≤ 12 caracteres: 5 abas cabem no Segmentado até em 320 px ("Lucro" é o título curto da aba Resultado). */
 const OPCOES_ABA: { valor: Aba; rotulo: string }[] = [
   { valor: 'resumo', rotulo: 'Resumo' },
   { valor: 'movimentacoes', rotulo: 'Movimentações' },
   { valor: 'posicao', rotulo: 'Posição' },
   { valor: 'compras', rotulo: 'Compras' },
+  { valor: 'resultado', rotulo: 'Lucro' },
 ]
 
 const SECOES: readonly [keyof Secoes, string][] = [
@@ -32,6 +36,7 @@ const SECOES: readonly [keyof Secoes, string][] = [
   ['movimentacoes', 'Movimentações'],
   ['posicao', 'Posição de estoque (com alertas)'],
   ['compras', 'Lista de compras (reposição)'],
+  ['resultado', 'Resultado'],
 ]
 
 /** Rótulo legível da situação vinda do link do Estoque. */
@@ -144,9 +149,12 @@ export function Relatorios() {
     setParams(juntarFiltros(params, { q: '', categoria: '', situacao: '' }), { replace: true })
   }
   const [movs, setMovs] = useState<Movimentacao[] | null>(null)
+  const [vendasPeriodo, setVendasPeriodo] = useState<Venda[] | null>(null)
+  const [itensPeriodo, setItensPeriodo] = useState<ItemVendaResumo[] | null>(null)
   const [erro, setErro] = useState('')
+  const [erroResultado, setErroResultado] = useState('')
   const [aba, setAba] = useState<Aba>('resumo')
-  const [secoes, setSecoes] = useState<Secoes>({ resumo: true, movimentacoes: true, posicao: true, compras: true })
+  const [secoes, setSecoes] = useState<Secoes>({ resumo: true, movimentacoes: true, posicao: true, compras: true, resultado: true })
   const [gerando, setGerando] = useState<'xlsx' | 'pdf' | null>(null)
   const [pagina, setPagina] = useState(1)
   const intervalo = periodo === 'personalizado' ? personalizado : intervaloRapido(periodo)
@@ -196,33 +204,65 @@ export function Relatorios() {
     let ativo = true
     setMovs(null)
     setErro('')
+    setVendasPeriodo(null)
+    setItensPeriodo(null)
+    setErroResultado('')
+    const instantes = intervaloParaInstantes(intervalo)
     // Busca do início do período até agora: o que veio depois serve para calcular o saldo no fim do período.
     movimentos
-      .listarMovimentacoes(empresa.empresa_id, loja.id, { desde: intervaloParaInstantes(intervalo).desde })
+      .listarMovimentacoes(empresa.empresa_id, loja.id, { desde: instantes.desde })
       .then(m => ativo && setMovs(m))
       .catch(e => ativo && setErro((e as Error).message))
+    // Resultado (T-036): vendas concluídas do período + itens com o custo do snapshot.
+    dadosVendas
+      .listarVendas(empresa.empresa_id, loja.id, { desde: instantes.desde, ate: instantes.ate })
+      .then(lista => {
+        const concluidas = lista.filter(v => v.status === 'concluida')
+        return dadosVendas.itensDasVendas(concluidas.map(v => v.id)).then(itens => {
+          if (!ativo) return
+          setVendasPeriodo(lista)
+          setItensPeriodo(itens)
+        })
+      })
+      .catch(e => {
+        if (!ativo) return
+        setVendasPeriodo([])
+        setItensPeriodo([])
+        setErroResultado((e as Error).message)
+      })
     return () => {
       ativo = false
     }
   }, [intervalo.de, intervalo.ate, versao, empresa.empresa_id, loja.id])
 
+  // Resultado do período (T-036): faturamento bruto, CMV, lucro e margem.
+  const resultado = useMemo<Resultado | null>(() => {
+    if (!vendasPeriodo || !itensPeriodo) return null
+    const r = montarResultado(vendasPeriodo, itensPeriodo, produtoId || undefined)
+    const codigos = new Map(produtos.map(p => [p.id, p.codigo_interno]))
+    return {
+      ...r,
+      porProduto: r.porProduto.map(l => ({ ...l, codigo: l.produto_id ? (codigos.get(l.produto_id) ?? '') : '' })),
+    }
+  }, [vendasPeriodo, itensPeriodo, produtoId, produtos])
+
   const relatorio = useMemo(() => {
     if (!movs) return null
     const r = montarRelatorio(intervalo, produtos, lotes, movs, nomeCategoria, produtoId || undefined, recorte, empresa.config.dias_alerta)
     const sit = filtrosEstoque.situacao
-    if (!sit) return r
+    if (!sit) return { ...r, resultado: resultado ?? undefined }
     if (sit === 'abaixo') {
       // "abaixo" é por produto (saldo <= mínimo): só os produtos da lista de compras.
       const codigos = new Set(r.compras.map(c => c.codigo))
-      return { ...r, posicao: r.posicao.filter(l => codigos.has(l.codigo)) }
+      return { ...r, resultado: resultado ?? undefined, posicao: r.posicao.filter(l => codigos.has(l.codigo)) }
     }
-    return { ...r, posicao: r.posicao.filter(l => l.situacao === sit) }
-  }, [movs, produtos, lotes, produtoId, intervalo.de, intervalo.ate, nomeCategoria, recorte, filtrosEstoque.situacao, empresa.config.dias_alerta])
+    return { ...r, resultado: resultado ?? undefined, posicao: r.posicao.filter(l => l.situacao === sit) }
+  }, [movs, produtos, lotes, produtoId, intervalo.de, intervalo.ate, nomeCategoria, recorte, filtrosEstoque.situacao, empresa.config.dias_alerta, resultado])
 
   // Conteúdo por embalagem só para exibir "x emb." na aba Compras (a conta vem de lib/estoque.ts).
   const conteudos = useMemo(() => new Map(produtos.map(p => [p.codigo_interno, p.conteudo_embalagem ?? null])), [produtos])
 
-  const algumaSecao = secoes.resumo || secoes.movimentacoes || secoes.posicao || secoes.compras
+  const algumaSecao = secoes.resumo || secoes.movimentacoes || secoes.posicao || secoes.compras || secoes.resultado
 
   const contagensSecoes = useMemo<Record<keyof Secoes, number> | null>(() => {
     if (!relatorio) return null
@@ -231,6 +271,7 @@ export function Relatorios() {
       movimentacoes: relatorio.movimentacoes.length,
       posicao: relatorio.posicao.length,
       compras: relatorio.compras.length,
+      resultado: relatorio.resultado?.porProduto.length ?? 0,
     }
   }, [relatorio])
 
@@ -245,6 +286,7 @@ export function Relatorios() {
   const movsPag = useMemo(() => paginar(movsReversas, pagina, POR_PAGINA), [movsReversas, pagina])
   const posicaoPag = useMemo(() => paginar(relatorio?.posicao ?? [], pagina, POR_PAGINA), [relatorio?.posicao, pagina])
   const comprasPag = useMemo(() => paginar(relatorio?.compras ?? [], pagina, POR_PAGINA), [relatorio?.compras, pagina])
+  const resultadoPag = useMemo(() => paginar(resultado?.porProduto ?? [], pagina, POR_PAGINA), [resultado?.porProduto, pagina])
 
   async function exportar(formato: 'xlsx' | 'pdf') {
     if (!relatorio) return
@@ -475,6 +517,62 @@ export function Relatorios() {
 
           <Segmentado className="mb-3" valor={aba} aoMudar={setAba} opcoes={OPCOES_ABA} />
 
+          {aba === 'resultado' ? (
+            <div className="space-y-3">
+              {erroResultado ? (
+                <Aviso tom="erro">Não foi possível carregar o resultado. Tente novamente.</Aviso>
+              ) : !resultado ? (
+                <Carregando texto="Calculando resultado…" />
+              ) : resultado.porProduto.length === 0 ? (
+                <div className="cartao">
+                  <Vazio icone={ShoppingCart} titulo="Sem resultado no período" texto="Não há vendas concluídas neste período." />
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <Kpi titulo="Faturamento bruto" valor={formatarReais(resultado.faturamentoBruto)} icone={Banknote} tom="neutro" />
+                    <Kpi titulo="CMV" valor={formatarReais(resultado.cmv)} icone={PackageX} tom="vermelho" />
+                    <Kpi titulo="Lucro" valor={formatarReais(resultado.lucro)} icone={TrendingUp} tom="verde" />
+                    <Kpi titulo="Margem" valor={`${formatarNumero(resultado.margem)}%`} icone={Percent} tom="verde" />
+                  </div>
+                  {resultado.valorSemCusto > 0 && (
+                    <Aviso tom="alerta">
+                      Itens sem custo cadastrado neste período — {formatarReais(resultado.valorSemCusto)} não entram no lucro e o lucro pode
+                      ficar superestimado. Cadastre o custo em Produtos.
+                    </Aviso>
+                  )}
+                  <div className="cartao overflow-x-auto">
+                    <h2 className="px-4 pt-4 text-sm font-semibold text-ponto">Resultado</h2>
+                    <table className="w-full min-w-[720px] text-sm">
+                      <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        <tr>
+                          <th scope="col" className="px-4 py-2.5">Produto</th>
+                          <th scope="col" className="px-3 py-2.5 text-right">Faturamento</th>
+                          <th scope="col" className="px-3 py-2.5 text-right">CMV</th>
+                          <th scope="col" className="px-3 py-2.5 text-right">Lucro</th>
+                          <th scope="col" className="px-3 py-2.5 text-right">Margem</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 tabular-nums">
+                        {resultadoPag.itens.map(l => (
+                          <tr key={l.produto_id ?? l.produto}>
+                            <td className="px-4 py-2">
+                              <span className="font-medium">{l.produto}</span>
+                              {l.codigo && <span className="block font-mono text-xs text-slate-500">{l.codigo}</span>}
+                            </td>
+                            <td className="px-3 py-2 text-right">{formatarReais(l.faturamento)}</td>
+                            <td className="px-3 py-2 text-right">{formatarReais(l.cmv)}</td>
+                            <td className={cx('px-3 py-2 text-right font-semibold', l.lucro < 0 && 'text-red-700')}>{formatarReais(l.lucro)}</td>
+                            <td className="px-3 py-2 text-right">{formatarNumero(l.margem)}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
           <div className="cartao overflow-x-auto">
             {aba === 'resumo' && (
               <table className="w-full min-w-[640px] text-sm">
@@ -564,6 +662,7 @@ export function Relatorios() {
             )}
             {aba === 'compras' && <TabelaCompras linhas={comprasPag.itens} total={comprasPag.total} conteudos={conteudos} />}
           </div>
+          )}
           {aba === 'resumo' && (
             <Paginacao
               pagina={resumoPag.pagina}
@@ -604,6 +703,17 @@ export function Relatorios() {
               primeiro={comprasPag.primeiro}
               ultimo={comprasPag.ultimo}
               total={comprasPag.total}
+              rotulo="produtos"
+              aoMudar={setPagina}
+            />
+          )}
+          {aba === 'resultado' && (
+            <Paginacao
+              pagina={resultadoPag.pagina}
+              totalPaginas={resultadoPag.totalPaginas}
+              primeiro={resultadoPag.primeiro}
+              ultimo={resultadoPag.ultimo}
+              total={resultadoPag.total}
               rotulo="produtos"
               aoMudar={setPagina}
             />

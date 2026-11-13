@@ -44,6 +44,20 @@ export interface ItemVenda {
   preco_unitario: number
   desconto: number
   total: number
+  /** Custo do produto no momento da venda (snapshot); null = sem custo cadastrado. */
+  custo_unitario: number | null
+}
+
+/** Item da venda com o vínculo usado pelo relatório de resultado (T-036). */
+export interface ItemVendaResumo {
+  venda_id: string
+  produto_id: string | null
+  descricao: string
+  quantidade: number
+  unidade: string
+  preco_unitario: number
+  total: number
+  custo_unitario: number | null
 }
 
 export interface PagamentoVenda {
@@ -133,13 +147,47 @@ export async function pagamentosDasVendas(vendaIds: string[]): Promise<(Pagament
   return linhas
 }
 
+export async function itensDasVendas(vendaIds: string[]): Promise<ItemVendaResumo[]> {
+  if (!vendaIds.length) return []
+  const linhas: ItemVendaResumo[] = []
+  // Em blocos, para a URL não ficar grande demais (mesmo padrão de pagamentosDasVendas).
+  for (let i = 0; i < vendaIds.length; i += 150) {
+    const r = exigir(
+      await sb
+        .from('vendas_itens')
+        .select('venda_id, produto_id, descricao, quantidade, unidade, preco_unitario, total, custo_unitario')
+        .in('venda_id', vendaIds.slice(i, i + 150)),
+    ) as Record<string, unknown>[]
+    linhas.push(
+      ...r.map(item => ({
+        venda_id: item.venda_id as string,
+        produto_id: (item.produto_id as string | null) ?? null,
+        descricao: item.descricao as string,
+        quantidade: num(item.quantidade),
+        unidade: item.unidade as string,
+        preco_unitario: num(item.preco_unitario),
+        total: num(item.total),
+        custo_unitario: numOuNulo(item.custo_unitario),
+      })),
+    )
+  }
+  return linhas
+}
+
 export async function detalheDaVenda(vendaId: string): Promise<{ itens: ItemVenda[]; pagamentos: PagamentoVenda[] }> {
   const [itens, pagamentos] = await Promise.all([
-    sb.from('vendas_itens').select('id, ordem, descricao, quantidade, unidade, preco_unitario, desconto, total').eq('venda_id', vendaId).order('ordem'),
+    sb.from('vendas_itens').select('id, ordem, descricao, quantidade, unidade, preco_unitario, desconto, total, custo_unitario').eq('venda_id', vendaId).order('ordem'),
     sb.from('vendas_pagamentos').select('forma, valor').eq('venda_id', vendaId),
   ])
   return {
-    itens: (exigir(itens) as ItemVenda[]).map(i => ({ ...i, quantidade: num(i.quantidade), preco_unitario: num(i.preco_unitario), desconto: num(i.desconto), total: num(i.total) })),
+    itens: (exigir(itens) as ItemVenda[]).map(i => ({
+      ...i,
+      quantidade: num(i.quantidade),
+      preco_unitario: num(i.preco_unitario),
+      desconto: num(i.desconto),
+      total: num(i.total),
+      custo_unitario: numOuNulo(i.custo_unitario),
+    })),
     pagamentos: (exigir(pagamentos) as PagamentoVenda[]).map(p => ({ ...p, valor: num(p.valor) })),
   }
 }

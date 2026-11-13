@@ -2,6 +2,7 @@ import { DIAS_ALERTA, descreverSituacao, montarLinhasEstoque, montarReposicao, t
 import { NOME_TIPO, arred, grupoDoTipo, hojeISO } from './formato'
 import type { Intervalo } from './periodos'
 import { intervaloParaInstantes } from './periodos'
+import type { Resultado } from './resultado'
 import type { Lote, Movimentacao, Produto, TipoMov, Unidade } from './tipos'
 
 export interface LinhaMovRel {
@@ -72,6 +73,8 @@ export interface Relatorio {
   posicao: LinhaPosicaoRel[]
   /** Só os produtos no ponto de pedido (saldo <= mínimo), do mais crítico ao menos crítico. */
   compras: LinhaCompraRel[]
+  /** Resultado do período (T-036), preenchido pela tela de Relatórios. */
+  resultado?: Resultado
   totais: { entradas: number; saidas: number; ajustes: number }
 }
 

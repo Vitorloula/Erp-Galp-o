@@ -1,5 +1,6 @@
 import type { Worksheet } from 'exceljs'
-import { formatarData } from '../formato'
+import { formatarData, formatarNumero } from '../formato'
+import { formatarReais } from '../../pdv/venda'
 import type { Relatorio } from '../relatorio'
 import { CINZA_ARGB, VERDE_ARGB, formatoNumero, linhaGeradoEm } from './comum'
 
@@ -9,6 +10,8 @@ export interface Secoes {
   posicao: boolean
   /** Lista de compras (reposição): o que comprar e quanto, por produto. */
   compras: boolean
+  /** Faturamento bruto, CMV, lucro e margem por produto (T-036). */
+  resultado: boolean
 }
 
 const FUNDO = {
@@ -190,6 +193,50 @@ export async function gerarExcel(r: Relatorio, empresa: string, secoes: Secoes):
     const leg = ws.addRow([])
     leg.getCell(1).value = 'Quantidade de compra já arredondada pelo conteúdo da embalagem · do mais crítico ao menos crítico'
     leg.getCell(1).font = { italic: true, size: 9, color: { argb: CINZA_ARGB } }
+  }
+
+  if (secoes.resultado && r.resultado) {
+    const res = r.resultado
+    const ws = wb.addWorksheet('Resultado')
+    cabecalhoRelatorio(ws, 'Resultado', r, empresa, [
+      { titulo: 'Indicador', largura: 22 },
+      { titulo: 'Valor', largura: 18 },
+    ])
+    ws.getColumn(3).width = 14
+    ws.getColumn(4).width = 14
+    ws.getColumn(5).width = 14
+    ws.getColumn(6).width = 10
+
+    const kpis: [string, string][] = [
+      ['Faturamento bruto', formatarReais(res.faturamentoBruto)],
+      ['CMV', formatarReais(res.cmv)],
+      ['Lucro', formatarReais(res.lucro)],
+      ['Margem', `${formatarNumero(res.margem)}%`],
+    ]
+    for (const [rotulo, valor] of kpis) {
+      const row = ws.addRow([rotulo, valor])
+      row.getCell(1).font = { bold: true }
+    }
+    ws.addRow([])
+
+    const cab = ws.addRow(['Código', 'Produto', 'Faturamento', 'CMV', 'Lucro', 'Margem'])
+    cab.eachCell(c => {
+      c.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: VERDE_ARGB } }
+    })
+    for (const p of res.porProduto) {
+      const row = ws.addRow([p.codigo, p.produto, p.faturamento / 100, p.cmv / 100, p.lucro / 100, `${formatarNumero(p.margem)}%`])
+      row.getCell(3).numFmt = 'R$ #,##0.00'
+      row.getCell(4).numFmt = 'R$ #,##0.00'
+      row.getCell(5).numFmt = 'R$ #,##0.00'
+      row.getCell(5).font = { bold: true }
+    }
+    bordas(ws)
+    if (res.valorSemCusto > 0) {
+      const leg = ws.addRow([])
+      leg.getCell(1).value = `Itens sem custo cadastrado: ${formatarReais(res.valorSemCusto)} não entram no CMV.`
+      leg.getCell(1).font = { italic: true, size: 9, color: { argb: CINZA_ARGB } }
+    }
   }
 
   const buffer = await wb.xlsx.writeBuffer()

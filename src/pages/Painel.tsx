@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpFromLine, Banknote, Boxes, ChevronRight, CircleCheck, Clock, History, OctagonAlert, Package, PackageX, ScanBarcode, ShoppingBasket, ShoppingCart, TrendingUp, type LucideIcon } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, Banknote, Boxes, ChevronRight, CircleCheck, Clock, History, OctagonAlert, Package, PackageX, Percent, ScanBarcode, ShoppingBasket, ShoppingCart, TrendingUp, type LucideIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { ListaMovimentacoes } from '../components/ListaMovimentacoes'
@@ -17,7 +17,8 @@ import {
   situacaoReposicao,
   type Situacao,
 } from '../lib/estoque'
-import { formatarQtd, formatarValidade, hojeISO } from '../lib/formato'
+import { formatarNumero, formatarQtd, formatarValidade, hojeISO } from '../lib/formato'
+import { montarResultado, type Resultado } from '../lib/resultado'
 import { centavos, formatarReais } from '../pdv/venda'
 import type { Movimentacao, Unidade } from '../lib/tipos'
 import type { Venda } from '../lib/dados/vendas'
@@ -67,6 +68,8 @@ export function Painel() {
   const [recentes, setRecentes] = useState<Movimentacao[] | null>(null)
   const [vendasSemana, setVendasSemana] = useState<Venda[] | null>(null)
   const [falhaVendas, setFalhaVendas] = useState(false)
+  const [resultadoHoje, setResultadoHoje] = useState<Resultado | null>(null)
+  const [falhaResultado, setFalhaResultado] = useState(false)
 
   useEffect(() => {
     movimentos.listarMovimentacoes(empresa.empresa_id, loja.id, { limite: 8 }).then(setRecentes).catch(() => setRecentes([]))
@@ -76,6 +79,8 @@ export function Painel() {
     let ativo = true
     setVendasSemana(null)
     setFalhaVendas(false)
+    setResultadoHoje(null)
+    setFalhaResultado(false)
     const agora = new Date()
     const desde = new Date(agora)
     desde.setDate(desde.getDate() - 6)
@@ -84,11 +89,25 @@ export function Painel() {
     ate.setHours(23, 59, 59, 999)
     dadosVendas
       .listarVendas(empresa.empresa_id, loja.id, { desde: desde.toISOString(), ate: ate.toISOString() })
-      .then(lista => ativo && setVendasSemana(lista))
+      .then(lista => {
+        if (!ativo) return
+        setVendasSemana(lista)
+        const hoje = hojeISO()
+        const concluidasHoje = lista.filter(v => v.status === 'concluida' && hojeISO(new Date(v.ocorrido_em)) === hoje)
+        return dadosVendas
+          .itensDasVendas(concluidasHoje.map(v => v.id))
+          .then(itens => {
+            if (ativo) setResultadoHoje(montarResultado(concluidasHoje, itens))
+          })
+          .catch(() => {
+            if (ativo) setFalhaResultado(true)
+          })
+      })
       .catch(() => {
         if (ativo) {
           setVendasSemana([])
           setFalhaVendas(true)
+          setFalhaResultado(true)
         }
       })
     return () => {
@@ -168,6 +187,15 @@ export function Painel() {
   const vendasHoje = (vendasSemana ?? []).filter(v => v.status === 'concluida' && hojeISO(new Date(v.ocorrido_em)) === hoje)
   const totalVendidoHoje = vendasHoje.reduce((soma, venda) => soma + centavos(venda.total), 0)
   const ticketMedio = vendasHoje.length ? Math.round(totalVendidoHoje / vendasHoje.length) : 0
+  const semResultado = vendasSemana === null || resultadoHoje === null || falhaResultado
+  const detalheResultado = falhaResultado
+    ? 'Não foi possível atualizar'
+    : vendasSemana === null || resultadoHoje === null
+      ? 'Atualizando…'
+      : vendasHoje.length === 0
+        ? 'Sem vendas concluídas hoje'
+        : `${vendasHoje.length} vendas finalizadas hoje`
+  const valorResultado = (valor: number) => (semResultado ? '—' : formatarReais(valor))
   const diasVendas = useMemo(() => {
     const base = new Date()
     return Array.from({ length: 7 }, (_, indice) => {
@@ -232,6 +260,33 @@ export function Painel() {
           icone={TrendingUp}
           detalhe="por compra concluída hoje"
         />
+      </section>
+
+      <section className="cartao p-4 sm:p-5" aria-label="Resultado de hoje">
+        <h2 className="text-sm font-semibold text-ponto">Resultado de hoje</h2>
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Kpi
+            titulo="Faturamento bruto"
+            valor={valorResultado(resultadoHoje?.faturamentoBruto ?? 0)}
+            icone={Banknote}
+            tom="neutro"
+            detalhe={detalheResultado}
+          />
+          <Kpi
+            titulo="Lucro bruto"
+            valor={valorResultado(resultadoHoje?.lucro ?? 0)}
+            icone={TrendingUp}
+            tom="verde"
+            detalhe={detalheResultado}
+          />
+          <Kpi
+            titulo="Margem"
+            valor={semResultado ? '—' : `${formatarNumero(resultadoHoje?.margem ?? 0)}%`}
+            icone={Percent}
+            tom="verde"
+            detalhe={detalheResultado}
+          />
+        </div>
       </section>
 
       {pode.movimentar && (

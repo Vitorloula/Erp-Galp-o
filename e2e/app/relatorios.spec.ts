@@ -66,12 +66,13 @@ test.describe('Relatórios', () => {
     const wb = new ExcelJS.Workbook()
     await wb.xlsx.load(readFileSync(caminho) as unknown as ArrayBuffer)
     
-    // 4 abas: as 3 originais + a nova "Lista de compras" (evolução do produto)
+    // 5 abas: as 4 anteriores + "Resultado" (T-036)
     expect(wb.worksheets.map(w => w.name)).toEqual([
       'Resumo por produto',
       'Movimentações',
       'Posição de estoque',
       'Lista de compras',
+      'Resultado',
     ])
     
     expect(wb.getWorksheet('Movimentações')!.rowCount).toBe(5 + 6)
@@ -93,12 +94,13 @@ test.describe('Relatórios', () => {
     expect(pdf.subarray(0, 5).toString()).toBe('%PDF-')
     expect(pdf.length).toBeGreaterThan(20_000)
 
-    // Desmarca TODAS as 4 seções (o componente tem 4 hoje: resumo, movimentações, posição, compras)
+    // Desmarca TODAS as 5 seções (o componente tem 5 hoje: resumo, movimentações, posição, compras e resultado)
     const SECOES_DO_RELATORIO = [
       'Resumo por produto',
       'Movimentações',
       'Posição de estoque (com alertas)',
       'Lista de compras (reposição)',
+      'Resultado',
     ]
     for (const secao of SECOES_DO_RELATORIO) {
       await page.getByLabel(secao, { exact: true }).uncheck()
