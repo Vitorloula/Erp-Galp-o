@@ -1,6 +1,6 @@
 # Estado de Deploy — DevOps
 
-> Atualizado em **11/11/2026 ~23:20 (2ª revisão)** por DevOps (OpenBot), a partir de README.md, DOCUMENTACAO_ERP.md, `.github/workflows/`, `dist/_redirects`, `git` local, API pública do GitHub Actions e consulta **somente de leitura** ao MCP Cloudflare.
+> Atualizado em **13/11/2026 ~03:15 UTC (4ª revisão)** por DevOps (OpenBot), a partir de README.md, DOCUMENTACAO_ERP.md, `.github/workflows/`, `dist/_redirects`, `git` local, API pública do GitHub Actions e consulta **somente de leitura** aos MCPs Cloudflare e Supabase.
 
 ## 1. Onde publica
 
@@ -21,14 +21,14 @@
 - **Build**: `npm run build` → pasta `dist`. Node fixado em `22.12.0` via variável de ambiente.
 - **Variáveis de build** (iguais em produção e preview): `NODE_VERSION`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (chave publishable — pública por design; a proteção é RLS no banco. Valor não registrado aqui de propósito).
 - **Roteamento SPA**: `public/_redirects` (`/* /index.html 200`) está presente no `dist` — compatível com Cloudflare Pages.
-- **Último deploy de produção**: **12/11/2026 02:11 UTC**, commit `33aaac4` (fixes de e2e), todas as etapas com sucesso (deployment `7bdd983a`). Produção em dia com a branch publicada.
+- **Último deploy de produção**: **13/11/2026 03:03 UTC**, commit `e17d8b9` (T-036: custo no produto + faturamento/lucro), **todas as etapas com sucesso** (deployment `13984374`, build ~25 s, `commit_dirty: false`); produção **servindo o commit** — alias `erp-galp-o.pages.dev` e o deployment `13984374` retornam o mesmo asset `assets/index-CjJo_5Gn.js`. Deploys anteriores da faixa: `26ed1fc` (docs/auditoria, `7534965f`, 13/11 01:11 UTC) e `f3be01e` (remoção do `ia-diaria.yml`, `ee2e1be1`, 12/11 09:50 UTC).
 - **CI (GitHub Actions)**: `.github/workflows/testes.yml` roda em push/PR —
   - `qualidade` (Ubuntu): `npm run build` (= `tsc -p . && vite build`, cobre lint) + Vitest + `test:sql`;
   - `e2e` (Windows + Edge): `npm run test:e2e:ci` = Playwright `--workers=2 --retries=2` sobre **todos** os specs (`testDir: e2e`; 8 projetos). O spec novo `e2e/app/vendas-fila.spec.ts` roda nos projetos `app-computador` e `app-celular`.
   - O CI **não faz deploy**: a publicação é automática pela Pages, independente do resultado do CI.
-- **Estado do CI em 11/11 noite**: vermelho no job `e2e`. Histórico: último verde completo #32 (`48b16df`, 27/10). Vermelhos: #33 (`8b57d4d`), #34 (`4b71ba5`), #35 (`d1d50b1`), #36 (`4523621`), docs-only `5c7bcbd` e #38 (`33aaac4`).
-  - Causas determinísticas identificadas e **corrigidas** (commits `f2c46b9` e `33aaac4`, só arquivos de e2e): expectativa do RPC `registrar_entrada` sem `p_custo` (contrato mudou no custo de entrada, `d1d50b1`) e specs que usavam `getByLabel('Lote')`/`getByLabel('Validade')` na Entrada, que virou seleção de lote por **radio** (FEFO) com fluxo "Novo lote" em `cf95289`. Com os fixes, a suíte completa local passou **2×** (207 passed, 2 skipped, 0 failed).
-  - O run #38 (`33aaac4`) **ainda falhou no CI** (job `e2e`, ~254 s de Playwright, exit 1), com a suíte verde localmente — **falha só de ambiente de CI** até aqui. Logs e artefato do Playwright exigem **sign-in/admin** (API anônima: 403/401), então o teste que falhou no runner não pôde ser identificado sem credencial. Reprodutibilidade local: verde 2× seguidas. Pendência de diagnóstico: ver §3.7.
+- **Estado do CI em 13/11**: verde em cadeia — runs #39/#40 (fixes de e2e `f2c46b9`/`33aaac4`), #41 (`26ed1fc`, docs, success 13/11 01:16 UTC) e **#42 (`e17d8b9`, T-036, id `43356238120`, success 03:09 UTC: `qualidade` job `131658839080` em 29 s + `e2e` job `131658839436` em 7m13s, nenhum step falho)**.
+  - Contexto: entre 06/11 e 11/11 o `e2e` estava vermelho (#33–#38) por specs desatualizados (RPC `registrar_entrada` sem `p_custo`; Entrada virou seleção de lote por **radio**/FEFO com fluxo "Novo lote" em `cf95289`) — corrigidos em `f2c46b9` e `33aaac4`, só arquivos de e2e.
+  - O run #38 (`33aaac4`) falhou no CI com a suíte verde local; os 4 runs seguintes ficaram verdes com a mesma config → **flake pontual do runner** (windows-latest). Logs/artefato do #38 exigem sign-in admin (API anônima: 403/401); diagnóstico encerrado sem mudança de config.
 
 ### Git local
 
@@ -42,8 +42,8 @@
 3. **Versão do cliente (branch `galpao-1.x`) não tem ambiente publicado**: decidir qual branch é a produção oficial e se a outra precisa de projeto/URL separados.
 4. **Backup/restauração do Supabase em produção não ensaiado** (T-028). Backup local não substitui o de nuvem.
 5. **`ia-diaria.yml` ("🤖 Fábrica Autônoma Full-Stack")**: existe commitado no git, apagado **sem commit** na árvore de trabalho local, e **todos os 28 runs falharam** (agendado diário 03:00 UTC + manual). Falha visível nos summaries públicos: etapa de e-mail (`dawidd6/action-send-mail@v3`) — *"At least one of 'to', 'cc' or 'bcc' must be specified"* (destinatário não configurado) — e `exit code 1` do processo; também *"No files were found with the provided path: playwright-report"*. Não mexi no arquivo (deleção pendente de decisão; ver proposta na conversa).
-6. **T-034 (NFC-e/Asaas) vai exigir Workers/Edge Functions** com segredos server-side (a conta não tem nenhum Worker hoje; a migration `20261111090000_nfce_fila_gestao.sql` aguarda aplicação no Supabase de produção pelo usuário).
-7. **Falha do e2e só no CI (run #38)**: não identificada por falta de credencial. Ações possíveis, em ordem: (a) sign-in no GitHub para ler o log do job / baixar `playwright-report` (artefato de 2,9 MB com traces); (b) revalidar com novo run; (c) se confirmar flake de runner (tempo/CPU do windows-latest), aumentar `timeout`/`retries` no `playwright.config.ts` ou isolar o spec lento. **Não** alterei config às cegas.
+6. **T-034 (NFC-e/Asaas) vai exigir Workers/Edge Functions** com segredos server-side (a conta não tem nenhum Worker hoje; migrations `20261111090000_nfce_fila_gestao` e `20261112120000_custo_lucro` já aplicadas no Supabase de produção — histórico remoto confirmado via MCP de leitura em 13/11 ~03:12 UTC, 14 migrations, última = `20261112120000_custo_lucro`).
+7. **Falha do e2e só no CI (run #38)**: **encerrada como flake pontual do runner** — os 4 runs seguintes (#39–#42) ficaram verdes com a mesma config; o log do #38 continua inacessível sem sign-in admin (API anônima: 403/401). Nenhuma alteração de config foi feita.
 8. **Gate de deploy (opções, decisão do usuário)**:
    - (a) **Branch protection/ruleset na `saas`** exigindo PR + status checks (`Testes / qualidade`, `Testes / e2e`, `Cloudflare Pages`): gate real, mas todo push direto vira PR. Precisa de acesso admin ao GitHub.
    - (b) **Deploy movido para o CI** (job `deploy` com `needs: [qualidade, e2e]` + `wrangler pages deploy` e API token do Cloudflare em secret do GitHub, desligando a integração Git do Pages): mantém push direto e cria o gate; precisa de token do usuário (Cloudflare) e troca o mecanismo de publicação.
@@ -61,7 +61,7 @@
 
 ## 5. Não verificado (fora do alcance desta consulta)
 
-- **Supabase** (SMTP próprio, Site URL, backup automático/pause do plano, aplicação da migration da fila): conferir no painel.
+- **Supabase** (SMTP próprio, Site URL, backup automático/pause do plano): conferir no painel. Migrations remotas verificadas por leitura via MCP em 13/11 (~03:12 UTC): 14 no histórico, última `20261112120000_custo_lucro`; SMTP/backups seguem sem visibilidade pelo MCP.
 - **Log/artefato do run #38 do Actions**: exigem sign-in com direito de admin; API anônima só dá statuses/steps/annotations.
 - **Branch protection atual da `saas`**: settings do repositório não são públicos.
 - **Plano/limites/faturamento Cloudflare**: plano "standard" confirmado; limites de build não verificados.
@@ -69,6 +69,7 @@
 ## 6. Fontes
 
 - `README.md`, `DOCUMENTACAO_ERP.md`, `.github/workflows/testes.yml`, `dist/_redirects`/`public/_redirects`
-- `git` local e API pública do GitHub Actions (runs #32–#38, steps, annotations; 403/401 em logs e artefato)
+- `git` local e API pública do GitHub Actions (runs #32–#42, steps, annotations; 403/401 em logs e artefato)
 - MCP Cloudflare (leitura): `accounts_list`, `pages_list`, `pages_deployments_list`, `pages_domains_list`, `workers_legacy_scripts_list`
+- MCP Supabase (leitura): `list_migrations` (13/11 ~03:12 UTC)
 - `memoria/estado.json` (backlog T-028, T-034, T-035); `memoria/historico.md`

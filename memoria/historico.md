@@ -619,3 +619,35 @@ decisão de limitar ou não é do dono do produto.
 **Migration `20261112120000_custo_lucro.sql` continua NÃO aplicada no Supabase hospedado** —
 pendente da aprovação do Teste (commit, push e aplicação na nuvem). `GUIA_DE_TESTES.md` atualizado
 (38/2 da rodada focada, 66/2 da rodada completa, D-1 fechado e dois itens novos no checklist).
+
+## [2026-11-13 03:15] DevOps — deploy do T-036 (`e17d8b9`) + migration em produção: verificação completa
+
+**Deploy (Cloudflare Pages, projeto `erp-galp-o`) — LIMPO.** Commit `e17d8b92…` (T-036: custo no
+produto + faturamento/lucro), produção, deployment **`13984374`** (id completo
+`13984374-6802-4aa6-ae1c-515ff11b8494`), disparado por `github:push` na `saas` — **5/5 stages
+success** (queued 03:02:28 → deploy 03:03:05 UTC; build ~25 s; `commit_dirty: false`,
+`is_skipped: false`). Produção **servindo o commit**: o alias `erp-galp-o.pages.dev` e o deployment
+`13984374` retornam o mesmo asset `assets/index-CjJo_5Gn.js`. Deploy anterior da faixa: `26ed1fc`
+(docs/auditoria, `7534965f`, 01:11 UTC, também success).
+
+**CI (GitHub Actions, workflow "Testes") — VERDE.** Run **#42**, id **`43356238120`**
+(`e17d8b9`, push): **success** — `qualidade` (job `131658839080`) success em 29 s;
+`e2e` (job `131658839436`, Windows/Edge, workers=2/retries=2) success em 7m13s
+(03:02:32 → 03:09:45 UTC), nenhum step falho. Run anterior da faixa, **#41** (`26ed1fc`,
+id `43342884756`), também success (01:10:36 → 01:16:33 UTC). O flake do run #38 segue sem se
+repetir (4 runs verdes seguidos); log do #38 continua exigindo sign-in admin (API anônima
+403/401).
+
+**Migration T-036 em produção — CONFIRMADA por leitura própria** (MCP Supabase `list_migrations`,
+13/11 ~03:12 UTC): histórico remoto com **14** migrations, última **`20261112120000` /
+`20261112120000_custo_lucro`** (aplicada pelo Teste via MCP; a coluna `vendas_itens.custo_unitario`
+e o trigger `vendas_itens_custo` já estavam validados no laudo do QA). `20261111090000_nfce_fila_gestao`
+(fila NFC-e) presente no remoto desde 12/11.
+
+**Riscos/observações:** (1) produção publicou pelo push direto antes do fim do e2e — gate segue
+status quo (decisão do usuário em 12/11; PR-1 da auditoria de segurança segue aberto); (2) o front
+de `e17d8b9` lê `custo_unitario` que pode ser `null` (sem backfill) — o schema novo já estava no
+banco antes deste deploy e o front trata nulo, sem incompatibilidade vista; (3) nada commitado por
+mim: escritas só em `memoria/devops-estado.md` (cabeçalho, §2 deploy/CI, §3.6/3.7, §5, §6) e este
+append — `src/`, `supabase/`, `e2e/` e workflows intocados. Arquivo temporário de polling
+(`poll-run.mjs`) criado e removido.
