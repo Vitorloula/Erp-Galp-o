@@ -21,6 +21,14 @@ export interface Permissoes {
   cancelarVenda: boolean
   gerenciarCaixas: boolean
   verDivergencias: boolean
+  /** Módulo Serviços: receber aparelho e abrir a OS (papel de estoque). */
+  criarOrdem: boolean
+  /** Mover a OS pela cadeia (recebimento → diagnóstico → orçamento → execução → pronta). */
+  moverOrdem: boolean
+  /** Registrar pagamento e entregar a OS (o dinheiro é do caixa). */
+  entregarOrdem: boolean
+  /** Cancelar a OS com motivo (mesma regra do cancelamento de venda). */
+  cancelarOrdem: boolean
 }
 
 export const NOME_PAPEL: Record<Papel, string> = {
@@ -55,5 +63,9 @@ export function permissoes(papel: Papel, estado: EstadoEmpresa): Permissoes {
     cancelarVenda: papel === 'dono' || papel === 'gerente',
     gerenciarCaixas: gestao,
     verDivergencias: papel === 'dono' || papel === 'gerente',
+    criarOrdem: estoque,
+    moverOrdem: estoque,
+    entregarOrdem: (papel === 'dono' || papel === 'gerente' || papel === 'caixa') && estado !== 'suspensa' && estado !== 'cancelada',
+    cancelarOrdem: papel === 'dono' || papel === 'gerente',
   }
 }
