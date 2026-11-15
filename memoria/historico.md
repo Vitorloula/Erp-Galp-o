@@ -669,3 +669,69 @@ de e-mail do projeto; **A-2** Resultado (lucro/margem) visível para gerente, es
 decisão de produto pendente. Laudo completo em `memoria/laudo-producao-t036.md`. Nada commitado
 em `src/`: este append + o laudo são a única escrita. Tenant de teste permanece em produção
 (decisão de limpeza pendente do usuário).
+
+## 15/11/2026 — Arquiteto
+Pedido do usuário: **"fazer o módulo de serviços, que serviria para assistência técnica... para
+funcionar nas lojas de eletrônicos"** (celular, notebook, TV etc.). Prioridade definida pelo dono:
+**antes** de T-037/T-034/T-028.
+
+**Estado:** T-036 movida de `backlog` para `concluidos` — evidência: implementada no commit
+`e17d8b9`, deployada em produção (Cloudflare deployment `13984374`, CI #42 verde) e migration
+`20261112120000_custo_lucro` aplicada no Supabase de produção (histórico [2026-11-13 03:15] DevOps),
+com teste autenticado completo em produção como dono + os 3 papéis via convites reais
+(`memoria/laudo-producao-t036.md`, 13/11 à noite; `concluido_em` = fim do laudo em UTC). Achados
+A-1 (signup pela UI) e A-2 (lucro visível a gerente/estoquista/caixa) ficam pendentes do dono e não
+bloqueiam. Adicionado **T-038 "Módulo Serviços (Ordem de Serviço)" ao backlog (prioridade 1,
+feature)** e `plano_atual` apontando para ele (`plano_md: memoria/plano-modulo-servicos.md`,
+definido_em 15/11 12:50 UTC).
+
+**Plano:** `memoria/plano-modulo-servicos.md` — verificado contra o código (sem tabela de clientes:
+só `vendas.cliente_cpf`; saída de estoque é insert em `movimentacoes` com bloqueio de saldo em
+pt-BR, não há RPC `registrar_saida`; numeração server-side existe em `app.proximo_numero`/`contadores`;
+cupom 80mm reutilizável; papéis em `membros.papel` + `permissoes.ts`). Principais decisões de
+escopo a confirmar com o dono: (1) **cliente como texto na OS** (nome/telefone/doc; sem tabela
+`clientes` na v1 — deduplicação e reuso ficam para um follow-up); (2) **baixa de peças na ENTREGA**,
+não na aprovação — server-side, FEFO, gravando `SAIDA` auditável com bloqueio de estoque insuficiente;
+(3) **cobrança na própria OS** (`os_pagamentos`, padrão `vendas_pagamentos`) sem PDV — integração
+com o caixa offline é cara; `venda_id` reservado para o futuro; (4) número de OS **por empresa** via
+`app.proximo_numero('os')`; (5) **online-first** sem fila offline na v1; (6) notificação por botão
+"copiar mensagem" (sem WhatsApp automático — T-034); (7) transições de status permitem avançar
+livremente na cadeia (serviço simples não passa por 7 cliques), cancelar exige motivo. Fora do
+escopo: NFC-e/fiscal (T-034), Asaas, série/IMEI no estoque (T-035 — módulos independentes).
+
+Nada escrito em `src/` ou `supabase/`; escritas só em `memoria/` (plano novo, `estado.json`, este
+append). Nada commitado.
+
+## 15/11/2026 — Arquiteto (revisão do plano T-038 com o feedback do dono)
+O dono respondeu ao plano com 3 decisões. Plano (`memoria/plano-modulo-servicos.md`, agora com 14
+passos) e `estado.json` revisados:
+1. **Sem cadastro de cliente — CONFIRMADO**: campos de texto na OS; a alternativa da mini-tabela
+`clientes` saiu das suposições e virou decisão do dono (Decisão 1).
+2. **Garantia atrelada ao PRODUTO**: a coluna `produtos.garantia_meses` existe
+(`base_multiempresa.sql:283`) e está no grant de UPDATE (`:843-845`), mas verifiquei que o **RPC
+`salvar_produto` NÃO grava a coluna** (insert/update em `20261010130000_cadastro_para_pdv.sql:15-53`
+sem ela; `:844` é o grant de UPDATE direto, não o RPC) — correção de premissa registrada no plano:
+o novo **Passo 2** inclui migration pequena `20261115080000_garantia_produto.sql` (só a função, sem
+alterar tabela) + campo "Garantia (meses)" no `ProdutoForm` (padrão do T-036 com `custo_ultimo`).
+Na OS: sugestão = **maior garantia entre as peças do estoque** (fallback 90; 0 respeitado),
+`garantia_dias` continua editável; helper `sugerirGarantia` com teste; recibo mantém "Garantia até".
+Anota: usa a coluna legada, **não** implementa o T-035.
+3. **Calendário/agenda da assistência** (pedido textual do dono): novo **Passo 7** com
+`src/pages/ServicosAgenda.tsx` (`/os/agenda`) — calendário mensal por `prazo_prometido` agrupado
+por status (Orçamento/Em andamento/Prontas/Atrasadas em destaque; "Sem prazo" em seção própria;
+entregues/canceladas fora — agenda é trabalho pendente; sem arrastar na v1; sem agenda por técnico);
+atalhos na lista de OS e no card do Painel; nota de spec para o grid em 320 px; cenário novo de E2E
+(Passo 14) e regressão de `produtos.spec.ts` (novo campo).
+Critérios de aceite do QA atualizados (garantia do produto influencia a sugestão da OS; agenda
+verificável). Nada escrito em `src/` ou `supabase/`; só o plano, `estado.json` e este append.
+Nada commitado.
+
+## 15/11/2026 — Programador
+**Passo 1 (T-038) concluído** — Migration do módulo Serviços + prova SQL.
+Arquivos: `supabase/migrations/20261115090000_modulo_servicos.sql` (novo — tabelas `ordens_servico`/`os_itens`/`os_pagamentos`, gatilhos de numeração/carimbo/proteção, RPC `os_mudar_status` e `os_definir_itens`, RLS/grants/publication, `app.expurgar_empresa` estendido para apagar os dados de OS antes de vendas/empresas), `scripts/testar-sql.mjs` (novo bloco "Serviços (ordens de serviço):" entre "Funções das telas" e "PDV", 53 verificações novas).
+Gates: `npm run test:sql` → **330 verificações OK, 0 falha(s)** (antes: 276 OK; metatestes "51 políticas via (select …)", "anon só executa ver_convite" e expurgo continuam passando). Correção no caminho: o gatilho `app.os_itens_proteger` comparava `to_jsonb(new)-'baixado_em' = to_jsonb(old)-'baixado_em'` para permitir o carimbo de baixa na entrega, mas em BEFORE trigger a coluna GERADA `total` de NEW ainda não foi recalculada (vem null) e a comparação falhava — consertado excluindo também `total` dos dois lados (coluna gerada não pode ser atribuída por UPDATE, então a exceção não abre brecha).
+Divergência do plano (registrada): itens de OS entram/existem pela RPC nova `os_definir_itens(p_os, jsonb)` (dono/gerente/estoquista, só em `aberta`/`em_diagnostico`/`aguardando_aprovacao`, substituição atômica), e não por insert direto liberado — o grant de INSERT em `os_itens` fica só no dono para os testes de travamento; a travagem pós-aprovação é idêntica ao plano.
+Nada commitado.
+
+## 15/11/2026 — Programador
+Passos 2–14 (T-038) concluídos: garantia por produto (migration + ProdutoForm + detalhe), camada de dados os.ts, helper servicos.ts + testes, permissões, telas /os, /os/nova, /os/agenda, /os/:id, card no Painel, aba Serviços em Relatórios, export LGPD, e2e smoke. Gates: lint 0, npm test 142/142, test:sql 330/330, build 0, tsc -p e2e 0, Playwright (servicos+navegacao+painel-estoque+relatorios+produtos+lgpd+pdv) verdes com --workers=1. Commits por fase (ver git log). Nada pushado.
