@@ -423,6 +423,180 @@ await comoUsuario(intruso, async () => {
 }
 
 // ----------------------------------------------------------------------
+secao('Serviços (ordens de serviço):')
+{
+  // Garantia (meses) do produto: o RPC do cadastro passa a gravar a coluna.
+  const salvar = (quem, dados) => comoUsuario(quem, async () =>
+    (await um('select public.salvar_produto($1, null, $2, $3) as id', [empA, dados, '[]'])).id)
+  const tela = await salvar(donoA, { nome: 'Tela iPhone 12', unidade: 'un', preco_venda: 450, garantia_meses: 6 })
+  confere((await um('select garantia_meses from public.produtos where id = $1', [tela])).garantia_meses === 6,
+    'salvar_produto: grava a garantia do produto (meses)')
+  const semGarantia = await salvar(gerente, { nome: 'Película de vidro', unidade: 'un', preco_venda: 30 })
+  confere((await um('select garantia_meses from public.produtos where id = $1', [semGarantia])).garantia_meses === null,
+    'salvar_produto: sem garantia informada fica null')
+  const garantiaZero = await salvar(lojista1, { nome: 'Serviço de limpeza de placa', unidade: 'un', preco_venda: 80, garantia_meses: 0 })
+  confere((await um('select garantia_meses from public.produtos where id = $1', [garantiaZero])).garantia_meses === 0,
+    'salvar_produto: estoquista grava garantia (0 = sem garantia)')
+
+  // Peça com dois lotes: o que vence primeiro sai antes na entrega (FEFO).
+  await comoUsuario(lojista1, async () => {
+    await db.query(`select public.registrar_entrada($1, $2, 'FA-2027', '2027-06-30', 3)`, [lojaA1, tela])
+    await db.query(`select public.registrar_entrada($1, $2, '', null, 5)`, [lojaA1, tela])
+  })
+  const saldoLote = async lote => Number((await um(`select coalesce(s.saldo, 0) as s from public.vw_estoque s
+    join public.lotes l on l.id = s.lote_id where s.produto_id = $1 and l.lote = $2`, [tela, lote])).s)
+  confere(await saldoLote('FA-2027') === 3 && await saldoLote('') === 5,
+    'peça recebida em dois lotes (3 com validade e 5 sem)')
+
+  const os1 = await comoUsuario(donoA, async () => (await um(`insert into public.ordens_servico
+    (empresa_id, loja_id, cliente_nome, cliente_telefone, cliente_documento, aparelho_tipo, aparelho_marca_modelo,
+     aparelho_serie_imei, aparelho_cor, aparelho_senha, aparelho_acessorios, aparelho_estado, defeito_relatado, prazo_prometido)
+    values ($1, $2, 'Marcos Pereira', '(64) 99999-0001', '123.456.789-00', 'celular', 'iPhone 12', '356789104567891',
+            'preto', '1234', 'capa e carregador', 'riscado na tela', 'Tela quebrada, não liga', current_date + 7)
+    returning id, numero, status, criado_por_nome`, [empA, lojaA1])))
+  confere(Number(os1.numero) === 1 && os1.status === 'aberta' && os1.criado_por_nome === 'Ana Dona',
+    'ordem criada: numeração por empresa e carimbo do servidor', JSON.stringify(os1))
+  const os2 = await comoUsuario(donoA, async () => (await um(`insert into public.ordens_servico (empresa_id, loja_id, cliente_nome, cliente_telefone)
+    values ($1, $2, 'Júlia Alves', '(64) 99999-0002') returning id, numero`, [empA, lojaA1])))
+  confere(Number(os2.numero) === 2, 'segunda ordem da empresa segue a numeração (2)')
+
+  await comoUsuario(caixa, async () => {
+    confere((await um('select count(*)::int as n from public.ordens_servico')).n === 2, 'caixa consulta as ordens da loja')
+  })
+  await comoUsuario(caixa, () => esperaErro('caixa não recebe aparelho (não abre OS)', () =>
+    db.query(`insert into public.ordens_servico (empresa_id, loja_id, cliente_nome) values ($1, $2, 'X')`, [empA, lojaA1]), 'row-level security'))
+  const osB = await comoUsuario(donoB, async () => (await um(`insert into public.ordens_servico (empresa_id, loja_id, cliente_nome)
+    values ($1, $2, 'Cliente de Bruno') returning id, numero`, [empB, lojaB1])))
+  confere(Number(osB.numero) === 1, 'numeração é por empresa: a outra empresa também começa do 1')
+
+  const mover = (quem, os, status, motivo = null) => comoUsuario(quem, () =>
+    db.query('select public.os_mudar_status($1, $2, $3)', [os, status, motivo]))
+  const definirItens = (quem, os, itens) => comoUsuario(quem, () =>
+    db.query('select public.os_definir_itens($1, $2)', [os, JSON.stringify(itens)]))
+  const pagar = (quem, os, forma, valor) => comoUsuario(quem, () =>
+    db.query(`insert into public.os_pagamentos (empresa_id, os_id, loja_id, forma, valor) values ($1, $2, $3, $4, $5)`,
+      [empA, os, lojaA1, forma, valor]))
+
+  const itensTela = [{ origem: 'estoque', produto_id: tela, descricao: 'Tela iPhone 12', quantidade: 4, preco_unitario: 450 }]
+  await definirItens(lojista1, os1.id, itensTela)
+  const item1 = await um('select origem, produto_id, quantidade::float as q, preco_unitario::float as p, total::float as t from public.os_itens where os_id = $1', [os1.id])
+  confere(item1.q === 4 && item1.t === 1800, 'itens da OS gravados com o total calculado no servidor', JSON.stringify(item1))
+  await definirItens(lojista1, os1.id, itensTela)
+  confere((await um('select count(*)::int as n from public.os_itens where os_id = $1', [os1.id])).n === 1,
+    'redefinir os itens substitui (nada duplicado)')
+  await esperaErro('caixa não define itens', () => definirItens(caixa, os1.id, itensTela), 'não tem permissão')
+  await esperaErro('item sem descrição é recusado', () =>
+    definirItens(lojista1, os2.id, [{ produto_id: tela, quantidade: 1, preco_unitario: 1 }]), 'Informe a descrição')
+  await esperaErro('item sem quantidade é recusado', () =>
+    definirItens(lojista1, os2.id, [{ descricao: 'X', quantidade: 0, preco_unitario: 1 }]), 'Informe a quantidade')
+
+  await mover(lojista1, os1.id, 'em_diagnostico')
+  await esperaErro('não repete o mesmo status', () => mover(lojista1, os1.id, 'em_diagnostico'), 'A OS já está nesse status.')
+  await esperaErro('não volta na cadeia', () => mover(lojista1, os1.id, 'aberta'), 'não pode voltar de Em diagnóstico para Aberta')
+  await esperaErro('caixa não move a ordem', () => mover(caixa, os1.id, 'em_execucao'), 'não tem permissão')
+  await mover(lojista1, os1.id, 'aguardando_aprovacao')
+  confere((await um('select orcado_em is not null as ok from public.ordens_servico where id = $1', [os1.id])).ok,
+    'marco "orçado" carimbado ao enviar para aprovação')
+  await mover(lojista1, os1.id, 'aprovada')
+  const aprov = await um('select aprovada_em is not null as ok, aprovada_por_nome from public.ordens_servico where id = $1', [os1.id])
+  confere(aprov.ok && aprov.aprovada_por_nome === 'Lia Loja 1', 'aprovação do cliente registrada com quem aprovou', JSON.stringify(aprov))
+  await esperaErro('itens travados depois da aprovação (RPC)', () => definirItens(lojista1, os1.id, itensTela), 'não podem ser alterados')
+  await esperaErro('itens travados depois da aprovação (insert direto)', () =>
+    db.query(`insert into public.os_itens (empresa_id, os_id, loja_id, descricao, quantidade, preco_unitario) values ($1, $2, $3, 'Película extra', 1, 30)`,
+      [empA, os1.id, lojaA1]), 'não podem ser alterados')
+  await mover(lojista1, os1.id, 'em_execucao')
+  await mover(lojista1, os1.id, 'pronta')
+  confere((await um('select pronta_em is not null as ok from public.ordens_servico where id = $1', [os1.id])).ok, 'marco "pronta" carimbado')
+  await esperaErro('estoquista não entrega', () => mover(lojista1, os1.id, 'entregue'), 'dono, gerente ou caixa')
+
+  await esperaErro('estoquista não registra pagamento', () => pagar(lojista1, os1.id, '01', 100), 'row-level security')
+  await esperaErro('só recebe pagamento com a OS pronta', () => pagar(caixa, os2.id, '01', 100), 'row-level security')
+  await esperaErro('entrega sem pagamento é recusada', () => mover(caixa, os1.id, 'entregue'),
+    'Registre o pagamento de R$ 1800,00 antes de entregar')
+  await pagar(caixa, os1.id, '01', 100)
+  const pag1 = await um('select valor::float as v, registrado_por_nome from public.os_pagamentos where os_id = $1', [os1.id])
+  confere(pag1.v === 100 && pag1.registrado_por_nome === 'Carla Caixa', 'pagamento carimbado com quem registrou', JSON.stringify(pag1))
+  await esperaErro('pagamento insuficiente é recusado', () => mover(caixa, os1.id, 'entregue'),
+    'Registre o pagamento de R$ 1700,00 antes de entregar')
+  await pagar(caixa, os1.id, '17', 1700)
+  await mover(caixa, os1.id, 'entregue')
+  const entregue = await um(`select status, entregue_em is not null as ok, entregue_por_nome, garantia_dias
+    from public.ordens_servico where id = $1`, [os1.id])
+  confere(entregue.status === 'entregue' && entregue.ok && entregue.entregue_por_nome === 'Carla Caixa',
+    'entrega carimbada (quem entregou e quando)', JSON.stringify(entregue))
+  confere(await saldoLote('FA-2027') === 0 && await saldoLote('') === 4,
+    'baixa FEFO: o lote que vence primeiro sai antes (FA-2027 zerado, sem-lote com 4)')
+  const movs = (await db.query(`select l.lote, m.quantidade::float as q, m.documento, m.usuario_nome
+    from public.movimentacoes m join public.lotes l on l.id = m.lote_id
+    where m.origem_id is not null and m.documento = 'OS 000001' order by l.validade nulls last`)).rows
+  confere(movs.length === 2 && movs[0].lote === 'FA-2027' && movs[0].q === 3 && movs[1].lote === '' && movs[1].q === 1
+    && movs[0].usuario_nome === 'Carla Caixa',
+    'entrega grava SAIDAs FEFO com documento "OS 000001" e o autor do lançamento', JSON.stringify(movs))
+  confere((await um('select baixado_em is not null as ok from public.os_itens where os_id = $1', [os1.id])).ok,
+    'item de estoque fica marcado com a baixa (baixado_em)')
+
+  await esperaErro('OS entregue não muda mais (mesmo pelo app)', () => mover(donoA, os1.id, 'cancelada', 'Cliente arrependido'), 'não pode ser alterada')
+  await comoUsuario(donoA, async () => {
+    await esperaErro('OS entregue não muda mais (dono, direto)', () =>
+      db.query(`update public.ordens_servico set cliente_telefone = 'x' where id = $1`, [os1.id]), 'não pode ser alterada')
+    await semEfeito('OS entregue não é excluída', () => db.query(`delete from public.ordens_servico where id = $1`, [os1.id]))
+    await esperaErro('status não muda por UPDATE direto (coluna sem grant)', () =>
+      db.query(`update public.ordens_servico set status = 'cancelada' where id = $1`, [os1.id]), 'permission denied')
+  })
+
+  await definirItens(lojista1, os2.id, [{ origem: 'estoque', produto_id: tela, descricao: 'Tela iPhone 12', quantidade: 6, preco_unitario: 450 }])
+  await comoUsuario(lojista1, async () => {
+    const r = await db.query(`update public.ordens_servico set diagnostico = 'Necessária troca da tela', prazo_prometido = current_date + 3 where id = $1`, [os2.id])
+    confere(r.affectedRows === 1, 'estoquista edita o diagnóstico e o prazo da OS')
+  })
+  await mover(lojista1, os2.id, 'pronta')
+  await pagar(caixa, os2.id, '01', 2700)
+  await esperaErro('entrega sem peça suficiente cita o produto', () => mover(caixa, os2.id, 'entregue'),
+    'Estoque insuficiente: Tela iPhone 12 — necessário 6, disponível 4')
+  await esperaErro('caixa não cancela a ordem', () => mover(caixa, os2.id, 'cancelada', 'Cliente desistiu'), 'não tem permissão')
+  await esperaErro('estoquista não cancela a ordem', () => mover(lojista1, os2.id, 'cancelada', 'Cliente desistiu'), 'não tem permissão')
+  await esperaErro('cancelamento exige motivo', () => mover(gerente, os2.id, 'cancelada'), 'Informe o motivo do cancelamento')
+  await mover(gerente, os2.id, 'cancelada', 'Cliente não aprovou o orçamento')
+  const cancelada = await um(`select status, cancelada_por_nome, motivo_cancelamento from public.ordens_servico where id = $1`, [os2.id])
+  confere(cancelada.status === 'cancelada' && cancelada.cancelada_por_nome === 'Gil Gerente'
+    && cancelada.motivo_cancelamento === 'Cliente não aprovou o orçamento',
+    'cancelamento guarda motivo e quem cancelou', JSON.stringify(cancelada))
+  await esperaErro('OS cancelada não volta para a fila', () => mover(donoA, os2.id, 'pronta'), 'não pode ser alterada')
+
+  // Item avulso (peça/serviço sem cadastro): não baixa estoque.
+  const os3 = await comoUsuario(donoA, async () => (await um(`insert into public.ordens_servico (empresa_id, loja_id, cliente_nome)
+    values ($1, $2, 'Renata Souza') returning id, numero`, [empA, lojaA1])))
+  confere(Number(os3.numero) === 3, 'terceira ordem segue a numeração (3)')
+  await definirItens(lojista1, os3.id, [{ origem: 'avulsa', descricao: 'Solda em placa', quantidade: 1, preco_unitario: 100 }])
+  await mover(lojista1, os3.id, 'pronta')
+  await pagar(caixa, os3.id, '01', 100)
+  await mover(caixa, os3.id, 'entregue')
+  confere((await um(`select count(*)::int as n from public.movimentacoes where documento = 'OS 000003'`)).n === 0,
+    'item avulso não movimenta o estoque')
+  confere((await um('select baixado_em from public.os_itens where os_id = $1', [os3.id])).baixado_em === null,
+    'item avulso não recebe baixa')
+
+  await comoUsuario(donoB, async () => {
+    confere((await um('select count(*)::int as n from public.ordens_servico where empresa_id = $1', [empA])).n === 0,
+      'outra empresa não vê as minhas ordens')
+    confere((await um('select count(*)::int as n from public.os_itens where empresa_id = $1', [empA])).n === 0, '…nem os itens')
+    confere((await um('select count(*)::int as n from public.os_pagamentos where empresa_id = $1', [empA])).n === 0, '…nem os pagamentos')
+    await semEfeito('outra empresa não altera a minha ordem', () =>
+      db.query(`update public.ordens_servico set cliente_telefone = 'x' where id = $1`, [os1.id]))
+    await esperaErro('outra empresa não define itens', () =>
+      db.query('select public.os_definir_itens($1, $2)', [os1.id, '[]']), 'não tem permissão')
+    await esperaErro('outra empresa não move a ordem', () =>
+      db.query('select public.os_mudar_status($1, $2)', [os1.id, 'em_diagnostico']), 'não tem permissão')
+    await esperaErro('outra empresa não registra pagamento', () =>
+      db.query(`insert into public.os_pagamentos (empresa_id, os_id, loja_id, forma, valor) values ($1, $2, $3, '01', 10)`,
+        [empA, os1.id, lojaA1]), 'row-level security')
+  })
+
+  confere((await db.query('select * from app.verificar_saldos()')).rows.length === 0,
+    'saldos do estoque batem depois das baixas das ordens')
+}
+
+// ----------------------------------------------------------------------
 secao('PDV — caixa que vende sem internet:')
 {
   const dono = await criarUsuario('paulo@mercado.test', 'Paulo Dono')
