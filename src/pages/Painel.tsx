@@ -269,7 +269,7 @@ export function Painel() {
 
       <section className="cartao p-4 sm:p-5" aria-label="Resultado de hoje">
         <h2 className="text-sm font-semibold text-ponto">Resultado de hoje</h2>
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className={`mt-3 grid grid-cols-1 gap-3 ${pode.verResultado ? 'sm:grid-cols-3' : 'sm:grid-cols-1'}`}>
           <Kpi
             titulo="Faturamento bruto"
             valor={valorResultado(resultadoHoje?.faturamentoBruto ?? 0)}
@@ -277,20 +277,24 @@ export function Painel() {
             tom="neutro"
             detalhe={detalheResultado}
           />
-          <Kpi
-            titulo="Lucro bruto"
-            valor={valorResultado(resultadoHoje?.lucro ?? 0)}
-            icone={TrendingUp}
-            tom="verde"
-            detalhe={detalheResultado}
-          />
-          <Kpi
-            titulo="Margem"
-            valor={semResultado ? '—' : `${formatarNumero(resultadoHoje?.margem ?? 0)}%`}
-            icone={Percent}
-            tom="verde"
-            detalhe={detalheResultado}
-          />
+          {pode.verResultado && (
+            <>
+              <Kpi
+                titulo="Lucro bruto"
+                valor={valorResultado(resultadoHoje?.lucro ?? 0)}
+                icone={TrendingUp}
+                tom="verde"
+                detalhe={detalheResultado}
+              />
+              <Kpi
+                titulo="Margem"
+                valor={semResultado ? '—' : `${formatarNumero(resultadoHoje?.margem ?? 0)}%`}
+                icone={Percent}
+                tom="verde"
+                detalhe={detalheResultado}
+              />
+            </>
+          )}
         </div>
       </section>
 

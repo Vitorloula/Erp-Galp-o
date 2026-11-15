@@ -29,6 +29,8 @@ export interface Permissoes {
   entregarOrdem: boolean
   /** Cancelar a OS com motivo (mesma regra do cancelamento de venda). */
   cancelarOrdem: boolean
+  /** Ver o resultado (lucro/margem) do período — restrito a dono e gerente. */
+  verResultado: boolean
 }
 
 export const NOME_PAPEL: Record<Papel, string> = {
@@ -67,5 +69,6 @@ export function permissoes(papel: Papel, estado: EstadoEmpresa): Permissoes {
     moverOrdem: estoque,
     entregarOrdem: (papel === 'dono' || papel === 'gerente' || papel === 'caixa') && estado !== 'suspensa' && estado !== 'cancelada',
     cancelarOrdem: papel === 'dono' || papel === 'gerente',
+    verResultado: papel === 'dono' || papel === 'gerente',
   }
 }

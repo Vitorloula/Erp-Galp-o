@@ -113,7 +113,7 @@ function TabelaCompras({ linhas, total, conteudos }: TabelaComprasProps) {
 
 export function Relatorios() {
   const { produtos, lotes, versao, carregando, nomeCategoria } = useDados()
-  const { empresa, loja, lojas } = useAtiva()
+  const { empresa, loja, lojas, pode } = useAtiva()
   const titulo = tituloEmpresa(empresa.nome, loja.nome, (lojas?.length ?? 0) > 1)
   const toast = useToast()
   const [params, setParams] = useSearchParams()
@@ -303,12 +303,13 @@ export function Relatorios() {
       formato,
       nome: nomeArquivo(relatorio, formato),
       gerar: async () => {
+        const secoesEfetivas = pode.verResultado ? secoes : { ...secoes, resultado: false }
         if (formato === 'xlsx') {
           const { gerarExcel } = await import('../lib/exportar/excel')
-          return gerarExcel(relatorio, titulo, secoes)
+          return gerarExcel(relatorio, titulo, secoesEfetivas)
         }
         const { gerarPdf } = await import('../lib/exportar/pdf')
-        return gerarPdf(relatorio, titulo, secoes)
+        return gerarPdf(relatorio, titulo, secoesEfetivas)
       },
       avisos: toast,
       aoMudarEstado: setGerando,
@@ -535,8 +536,12 @@ export function Relatorios() {
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     <Kpi titulo="Faturamento bruto" valor={formatarReais(resultado.faturamentoBruto)} icone={Banknote} tom="neutro" />
                     <Kpi titulo="CMV" valor={formatarReais(resultado.cmv)} icone={PackageX} tom="vermelho" />
-                    <Kpi titulo="Lucro" valor={formatarReais(resultado.lucro)} icone={TrendingUp} tom="verde" />
-                    <Kpi titulo="Margem" valor={`${formatarNumero(resultado.margem)}%`} icone={Percent} tom="verde" />
+                    {pode.verResultado && (
+                      <>
+                        <Kpi titulo="Lucro" valor={formatarReais(resultado.lucro)} icone={TrendingUp} tom="verde" />
+                        <Kpi titulo="Margem" valor={`${formatarNumero(resultado.margem)}%`} icone={Percent} tom="verde" />
+                      </>
+                    )}
                   </div>
                   {resultado.valorSemCusto > 0 && (
                     <Aviso tom="alerta">
