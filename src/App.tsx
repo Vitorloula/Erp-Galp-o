@@ -22,6 +22,10 @@ import { Painel } from './pages/Painel'
 import { ProdutoDetalhe } from './pages/ProdutoDetalhe'
 import { Produtos } from './pages/Produtos'
 import { Pdv } from './pages/pdv/Pdv'
+import { Servicos } from './pages/Servicos'
+import { ServicosAgenda } from './pages/ServicosAgenda'
+import { ServicosRecebimento } from './pages/ServicosRecebimento'
+import { ServicosDetalhe } from './pages/ServicosDetalhe'
 import { Relatorios } from './pages/Relatorios'
 import { Vendas } from './pages/Vendas'
 
@@ -69,6 +73,10 @@ function Retaguarda({ chave }: { chave: string }) {
           <Route path="/empresas/nova" element={<BoasVindas dentroDoSistema />} />
           <Route path="/vendas" element={<Vendas />} />
           <Route path="/divergencias" element={<Divergencias />} />
+          <Route path="/os" element={<Servicos />} />
+          <Route path="/os/nova" element={<ServicosRecebimento />} />
+          <Route path="/os/agenda" element={<ServicosAgenda />} />
+          <Route path="/os/:id" element={<ServicosDetalhe />} />
           <Route path="*" element={<Navigate to="/painel" replace />} />
         </Route>
       </Routes>

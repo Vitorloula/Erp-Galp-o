@@ -20,6 +20,7 @@ import {
   Store,
   Users,
   WifiOff,
+  Wrench,
   type LucideIcon,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -130,6 +131,7 @@ export function Layout() {
   const menu: ItemMenu[] = [
     { para: '/painel', rotulo: 'Visão geral', icone: LayoutDashboard },
     { para: '/vendas', rotulo: 'Vendas e caixa', icone: Banknote },
+    { para: '/os', rotulo: 'Serviços', icone: Wrench },
     { para: '/produtos', rotulo: 'Produtos', icone: Package },
     { para: '/estoque', rotulo: 'Estoque', icone: Boxes },
     ...(pode.movimentar ? [{ para: '/movimentar', rotulo: 'Movimentar', icone: ArrowLeftRight }] : []),
@@ -294,7 +296,7 @@ export function Layout() {
             rotulo="Mais"
             icone={Ellipsis}
             contador={divergencias}
-            ativoEm={['/mais', '/produtos', '/relatorios', '/inventario', '/equipe', '/empresa', '/vendas', '/divergencias']}
+            ativoEm={['/mais', '/produtos', '/relatorios', '/inventario', '/equipe', '/empresa', '/vendas', '/divergencias', '/os']}
           />
         </div>
       </nav>
