@@ -26,6 +26,9 @@ const TABELAS = {
   vendas_pagamentos: '*',
   pdv_eventos: '*',
   divergencias: '*',
+  ordens_servico: '*',
+  os_itens: '*',
+  os_pagamentos: '*',
 } as const
 
 // `buscarTudo` pagina de 1000 em 1000; sem uma ordem estável uma tabela grande
@@ -50,6 +53,9 @@ const ORDEM: Record<string, string[]> = {
   vendas_pagamentos: ['id'],
   pdv_eventos: ['id'],
   divergencias: ['id'],
+  ordens_servico: ['id'],
+  os_itens: ['id'],
+  os_pagamentos: ['id'],
 }
 
 export interface ExportacaoLgpd {

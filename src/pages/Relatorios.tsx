@@ -20,7 +20,7 @@ import type { Movimentacao } from '../lib/tipos'
 
 const POR_PAGINA = 50
 
-type Aba = 'resumo' | 'movimentacoes' | 'posicao' | 'compras' | 'resultado'
+type Aba = 'resumo' | 'movimentacoes' | 'posicao' | 'compras' | 'resultado' | 'servicos'
 
 /** Rótulos ≤ 12 caracteres: 5 abas cabem no Segmentado até em 320 px ("Lucro" é o título curto da aba Resultado). */
 const OPCOES_ABA: { valor: Aba; rotulo: string }[] = [
@@ -29,6 +29,7 @@ const OPCOES_ABA: { valor: Aba; rotulo: string }[] = [
   { valor: 'posicao', rotulo: 'Posição' },
   { valor: 'compras', rotulo: 'Compras' },
   { valor: 'resultado', rotulo: 'Lucro' },
+  { valor: 'servicos', rotulo: 'Serviços' },
 ]
 
 const SECOES: readonly [keyof Secoes, string][] = [
@@ -37,6 +38,7 @@ const SECOES: readonly [keyof Secoes, string][] = [
   ['posicao', 'Posição de estoque (com alertas)'],
   ['compras', 'Lista de compras (reposição)'],
   ['resultado', 'Resultado'],
+  ['servicos', 'Serviços'],
 ]
 
 /** Rótulo legível da situação vinda do link do Estoque. */
@@ -154,7 +156,7 @@ export function Relatorios() {
   const [erro, setErro] = useState('')
   const [erroResultado, setErroResultado] = useState('')
   const [aba, setAba] = useState<Aba>('resumo')
-  const [secoes, setSecoes] = useState<Secoes>({ resumo: true, movimentacoes: true, posicao: true, compras: true, resultado: true })
+  const [secoes, setSecoes] = useState<Secoes>({ resumo: true, movimentacoes: true, posicao: true, compras: true, resultado: true, servicos: true })
   const [gerando, setGerando] = useState<'xlsx' | 'pdf' | null>(null)
   const [pagina, setPagina] = useState(1)
   const intervalo = periodo === 'personalizado' ? personalizado : intervaloRapido(periodo)
@@ -272,6 +274,7 @@ export function Relatorios() {
       posicao: relatorio.posicao.length,
       compras: relatorio.compras.length,
       resultado: relatorio.resultado?.porProduto.length ?? 0,
+      servicos: 0,
     }
   }, [relatorio])
 

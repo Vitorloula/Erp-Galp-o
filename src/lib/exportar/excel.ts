@@ -12,6 +12,8 @@ export interface Secoes {
   compras: boolean
   /** Faturamento bruto, CMV, lucro e margem por produto (T-036). */
   resultado: boolean
+  /** Ordens de serviço do período (T-038). */
+  servicos: boolean
 }
 
 const FUNDO = {

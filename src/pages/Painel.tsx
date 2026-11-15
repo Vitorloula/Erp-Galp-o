@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpFromLine, Banknote, Boxes, ChevronRight, CircleCheck, Clock, History, OctagonAlert, Package, PackageX, Percent, ScanBarcode, ShoppingBasket, ShoppingCart, TrendingUp, type LucideIcon } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, Banknote, Boxes, ChevronRight, CircleCheck, Clock, History, OctagonAlert, Package, PackageX, Percent, ScanBarcode, ShoppingBasket, ShoppingCart, TrendingUp, Wrench, type LucideIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { ListaMovimentacoes } from '../components/ListaMovimentacoes'
@@ -6,7 +6,7 @@ import { BadgeReposicao, BadgeSituacao, Carregando, Kpi, Vazio, cx } from '../co
 import { useAuth } from '../contexto/Auth'
 import { useDados } from '../contexto/Dados'
 import { useAtiva } from '../contexto/Empresa'
-import { movimentos, vendas as dadosVendas } from '../lib/dados'
+import { movimentos, os as dadosOS, vendas as dadosVendas } from '../lib/dados'
 import {
   PRIORIDADE,
   PRIORIDADE_ATENCAO,
@@ -70,6 +70,7 @@ export function Painel() {
   const [falhaVendas, setFalhaVendas] = useState(false)
   const [resultadoHoje, setResultadoHoje] = useState<Resultado | null>(null)
   const [falhaResultado, setFalhaResultado] = useState(false)
+  const [ordens, setOrdens] = useState<import('../lib/tipos').OS[]>([])
 
   useEffect(() => {
     movimentos.listarMovimentacoes(empresa.empresa_id, loja.id, { limite: 8 }).then(setRecentes).catch(() => setRecentes([]))
@@ -113,6 +114,10 @@ export function Painel() {
     return () => {
       ativo = false
     }
+  }, [versao, empresa.empresa_id, loja.id])
+
+  useEffect(() => {
+    dadosOS.listarOrdens(empresa.empresa_id, loja.id).then(setOrdens).catch(() => setOrdens([]))
   }, [versao, empresa.empresa_id, loja.id])
 
   const diasAlerta = empresa.config.dias_alerta ?? DIAS_ALERTA
@@ -454,6 +459,27 @@ export function Painel() {
           )}
         </section>
       </div>
+
+      <section className="cartao p-4" aria-label="Ordens de serviço" data-card="ordens">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-ponto">Ordens de serviço</h2>
+          <div className="flex gap-2 text-xs">
+            <Link to="/os" className="font-semibold text-ponto hover:underline">Lista</Link>
+            <Link to="/os/agenda" className="font-semibold text-ponto hover:underline">Agenda</Link>
+            {pode.criarOrdem && <Link to="/os/nova" className="font-semibold text-ponto hover:underline">Nova OS</Link>}
+          </div>
+        </div>
+        {ordens.length === 0 ? (
+          <Vazio icone={Wrench} titulo="Nenhuma ordem de serviço ainda." texto="Toque em Nova OS para receber o primeiro aparelho." />
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Kpi titulo="Em andamento" valor={ordens.filter(o => ['aberta','em_diagnostico','em_execucao'].includes(o.status)).length} icone={Wrench} tom="neutro" detalhe="Abertas, em diagnóstico e em execução" onClick={() => navegar('/os?grupo=em_andamento')} />
+            <Kpi titulo="Aguardando aprovação" valor={ordens.filter(o => o.status === 'aguardando_aprovacao').length} icone={Wrench} tom="neutro" detalhe="Orçamentos à espera do cliente" onClick={() => navegar('/os?status=aguardando_aprovacao')} />
+            <Kpi titulo="Prontas" valor={ordens.filter(o => o.status === 'pronta').length} icone={Wrench} tom="neutro" detalhe="À espera de entrega e pagamento" onClick={() => navegar('/os?status=pronta')} />
+            <Kpi titulo="Atrasadas" valor={ordens.filter(o => o.prazo_prometido && o.prazo_prometido < hojeISO() && o.status !== 'entregue' && o.status !== 'cancelada').length} icone={Wrench} tom="vermelho" detalhe="Prazo vencido, não entregues" onClick={() => navegar('/os?filtro=atrasada')} />
+          </div>
+        )}
+      </section>
     </div>
   )
 }
