@@ -19,9 +19,14 @@ test.describe('Serviços', () => {
     await expect(page.getByText('Informe o nome do cliente.')).toBeVisible()
   })
 
-  test('menu lateral tem item Serviços', async ({ page }) => {
-    await page.goto('/painel')
-    await expect(page.locator('aside').getByRole('link', { name: 'Serviços' })).toBeVisible()
+  test('menu tem item Serviços', async ({ page }) => {
+    if (test.info().project.name === 'app-celular') {
+      await page.goto('/mais')
+      await expect(page.getByRole('link', { name: 'Serviços' })).toBeVisible()
+    } else {
+      await page.goto('/painel')
+      await expect(page.locator('aside').getByRole('link', { name: 'Serviços' })).toBeVisible()
+    }
   })
 
   test('Painel tem card Ordens de serviço', async ({ page }) => {
