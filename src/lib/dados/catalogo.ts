@@ -47,12 +47,13 @@ function paraProduto(r: Record<string, unknown>): Produto {
     origem: numOuNulo(r.origem),
     ibs_aliquota: numOuNulo(r.ibs_aliquota),
     cbs_aliquota: numOuNulo(r.cbs_aliquota),
+    garantia_meses: numOuNulo(r.garantia_meses),
     codigos: [],
   }
 }
 
 const COLUNAS_PRODUTO_BASE =
-  'id, codigo_interno, nome, categoria_id, unidade, conteudo_embalagem, preco_venda, custo_ultimo, rastreio, pesavel, codigo_balanca, controla_estoque, fabricante, observacao, ativo, ncm, cfop, cst_csosn, origem, unidade_tributavel, cest, ibs_aliquota, cbs_aliquota, criado_em'
+  'id, codigo_interno, nome, categoria_id, unidade, conteudo_embalagem, preco_venda, custo_ultimo, rastreio, pesavel, codigo_balanca, controla_estoque, garantia_meses, fabricante, observacao, ativo, ncm, cfop, cst_csosn, origem, unidade_tributavel, cest, ibs_aliquota, cbs_aliquota, criado_em'
 const COLUNAS_PRODUTO = `${COLUNAS_PRODUTO_BASE}, estoque_minimo`
 
 /** true quando o banco ainda não tem a coluna do estoque mínimo (migration pendente). */

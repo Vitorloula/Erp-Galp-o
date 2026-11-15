@@ -44,6 +44,7 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
     pesavel: produto?.pesavel ?? false,
     codigo_balanca: produto?.codigo_balanca ?? null,
     controla_estoque: produto?.controla_estoque ?? true,
+    garantia_meses: produto?.garantia_meses ?? null,
     fabricante: produto?.fabricante ?? '',
     observacao: produto?.observacao ?? '',
     ativo: produto?.ativo ?? true,
@@ -63,6 +64,7 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
   const [precoTxt, setPrecoTxt] = useState(texto(produto?.preco_venda))
   const [custoTxt, setCustoTxt] = useState(texto(produto?.custo_ultimo))
   const [minimoTxt, setMinimoTxt] = useState(texto(produto?.estoque_minimo))
+  const [garantiaTxt, setGarantiaTxt] = useState(texto(produto?.garantia_meses))
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   const [lendo, setLendo] = useState(false)
@@ -99,6 +101,12 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
     }
     const minimo = minimoTxt.trim() ? lerNumero(minimoTxt) : null
     if (minimoTxt.trim() && (minimo === null || minimo < 0)) return setErro('Estoque mínimo inválido.')
+    const garantia = garantiaTxt.trim() ? lerNumero(garantiaTxt) : null
+    if (garantiaTxt.trim() && (garantia === null || garantia < 0 || !Number.isInteger(garantia))) {
+      setErro('Garantia inválida.')
+      document.getElementById('p-garantia')?.focus()
+      return
+    }
     const listaCodigos = adicionarCodigo() // código digitado e não adicionado também vale
     setSalvando(true)
     try {
@@ -117,6 +125,7 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
           custo_ultimo: custo,
           // 0 também é "desligado": o banco guarda null.
           estoque_minimo: minimo !== null && minimo > 0 ? minimo : null,
+          garantia_meses: garantia,
         },
         listaCodigos,
         produto?.id,
@@ -203,6 +212,19 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
           <input id="p-emb" className="campo" inputMode="decimal" value={embalagemTxt} onChange={e => setEmbalagemTxt(e.target.value)} placeholder={`Ex.: galão de 20 ${dados.unidade} → 20`} />
         </div>
         <p className="-mt-2 text-xs text-slate-500">Conteúdo por embalagem é opcional: permite lançar por embalagem (ex.: 3 galões = 60 L).</p>
+        <div>
+          <label className="rotulo" htmlFor="p-garantia">Garantia (meses)</label>
+          <input
+            id="p-garantia"
+            className="campo"
+            inputMode="numeric"
+            value={garantiaTxt}
+            onChange={e => setGarantiaTxt(e.target.value)}
+            placeholder="Opcional"
+            aria-describedby="p-garantia-dica"
+          />
+          <p id="p-garantia-dica" className="mt-1 text-xs text-slate-500">Usada para sugerir a garantia nas ordens de serviço.</p>
+        </div>
 
         {dados.controla_estoque && (
           <div className="space-y-3 rounded-xl border border-slate-200 p-3">

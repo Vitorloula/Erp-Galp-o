@@ -134,6 +134,8 @@ export interface Produto {
   codigo_balanca: string | null
   /** false: serviços e "Diversos" — não entram no estoque. */
   controla_estoque: boolean
+  /** Garantia em meses: alimenta a sugestão de garantia nas ordens de serviço (null = não configurada). */
+  garantia_meses: number | null
   fabricante: string | null
   observacao: string | null
   ativo: boolean
@@ -155,6 +157,7 @@ export type ProdutoDados = Pick<
   | 'pesavel'
   | 'codigo_balanca'
   | 'controla_estoque'
+  | 'garantia_meses'
   | 'fabricante'
   | 'observacao'
   | 'ativo'
@@ -237,4 +240,105 @@ export interface NovoAjuste {
 
 export interface NovaCorrecao extends NovoAjuste {
   referenciaId: number
+}
+
+// ───────────────── Módulo Serviços (Ordem de Serviço — T-038) ─────────────────
+
+export type StatusOS =
+  | 'aberta'
+  | 'em_diagnostico'
+  | 'aguardando_aprovacao'
+  | 'aprovada'
+  | 'em_execucao'
+  | 'pronta'
+  | 'entregue'
+  | 'cancelada'
+
+/** Ordem de serviço: o aparelho recebido para assistência técnica. */
+export interface OS {
+  id: string
+  loja_id: string
+  numero: number
+  status: StatusOS
+  cliente_nome: string
+  cliente_telefone: string | null
+  cliente_documento: string | null
+  aparelho_tipo: string | null
+  aparelho_marca_modelo: string | null
+  aparelho_serie_imei: string | null
+  aparelho_cor: string | null
+  /** Dado sensível de acesso: nunca impresso, oculto no detalhe. */
+  aparelho_senha: string | null
+  aparelho_acessorios: string | null
+  aparelho_estado: string | null
+  defeito_relatado: string | null
+  diagnostico: string | null
+  prazo_prometido: string | null
+  valor_mao_de_obra: number
+  desconto: number
+  garantia_dias: number | null
+  tecnico_id: string | null
+  tecnico_nome: string | null
+  criado_em: string
+  criado_por_nome: string | null
+  orcado_em: string | null
+  aprovada_em: string | null
+  aprovada_por_nome: string | null
+  pronta_em: string | null
+  entregue_em: string | null
+  entregue_por_nome: string | null
+  cancelada_em: string | null
+  cancelada_por_nome: string | null
+  motivo_cancelamento: string | null
+}
+
+/** Item do orçamento da OS: peça do estoque ou item avulso. */
+export interface ItemOS {
+  id: string
+  os_id: string
+  ordem: number
+  origem: 'estoque' | 'avulsa'
+  produto_id: string | null
+  descricao: string
+  quantidade: number
+  preco_unitario: number
+  total: number
+  /** Data da baixa no estoque (preenchida pela entrega). */
+  baixado_em: string | null
+  /** Garantia (meses) do produto no catálogo — só em itens de estoque; alimenta a sugestão da OS. */
+  garantia_meses: number | null
+}
+
+export interface PagamentoOS {
+  id: string
+  forma: string
+  valor: number
+  registrado_em: string
+  registrado_por_nome: string | null
+}
+
+/** Campos do formulário de recebimento (nova OS). */
+export interface DadosOS {
+  cliente_nome: string
+  cliente_telefone: string
+  cliente_documento: string
+  aparelho_tipo: string
+  aparelho_marca_modelo: string
+  aparelho_serie_imei: string
+  aparelho_cor: string
+  aparelho_senha: string
+  aparelho_acessorios: string
+  aparelho_estado: string
+  defeito_relatado: string
+  prazo_prometido: string | null
+  tecnico_nome: string
+}
+
+/** Item novo do orçamento, enviado à RPC os_definir_itens. */
+export interface ItemOSDados {
+  origem: 'estoque' | 'avulsa'
+  produto_id: string | null
+  descricao: string
+  quantidade: number
+  preco_unitario: number
 }

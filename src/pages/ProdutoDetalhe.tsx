@@ -100,6 +100,7 @@ export function ProdutoDetalhe() {
           <Info rotulo="Preço de venda" valor={formatarMoeda(produto.preco_venda)} />
           <Info rotulo="Último custo de entrada" valor={formatarMoeda(produto.custo_ultimo)} />
           <Info rotulo="Estoque mínimo" valor={produto.estoque_minimo ? formatarQtd(produto.estoque_minimo, produto.unidade) : '—'} />
+          <Info rotulo="Garantia" valor={produto.garantia_meses === null ? '—' : `${produto.garantia_meses} ${produto.garantia_meses === 1 ? 'mês' : 'meses'}`} />
           <Info rotulo="Unidade" valor={UNIDADES.find(u => u.valor === produto.unidade)?.nome ?? produto.unidade} />
           <Info rotulo="Conteúdo por embalagem" valor={produto.conteudo_embalagem ? formatarQtd(produto.conteudo_embalagem, produto.unidade) : '—'} />
           <Info rotulo="Fabricante" valor={produto.fabricante ?? '—'} />
