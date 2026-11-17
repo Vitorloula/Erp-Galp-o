@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpFromLine, Banknote, FileSpreadsheet, FileText, LoaderCircle, PackageX, Percent, RotateCcw, ShoppingCart, TrendingUp, X } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, Banknote, FileSpreadsheet, FileText, LoaderCircle, PackageX, Percent, RotateCcw, ShoppingCart, TrendingUp, Wrench, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { Paginacao } from '../components/Paginacao'
@@ -14,9 +14,11 @@ import { formatarDataHora, formatarEmbalagens, formatarNumero, formatarValidade,
 import { paginar } from '../lib/paginacao'
 import { PERIODOS, intervaloParaInstantes, intervaloRapido, juntarFiltros, periodoDaUrl, produtoDaUrl, type Intervalo, type PeriodoRapido } from '../lib/periodos'
 import { exportarComToast, montarRelatorio, nomeArquivo, tituloEmpresa, type LinhaCompraRel } from '../lib/relatorio'
-import { montarResultado, type Resultado } from '../lib/resultado'
+import { STATUS_OS } from '../lib/servicos'
 import { formatarReais } from '../pdv/venda'
-import type { Movimentacao } from '../lib/tipos'
+import { listarOrdens, pagamentosDasOrdens } from '../lib/dados/os'
+import { montarResultado, type Resultado } from '../lib/resultado'
+import type { Movimentacao, OS } from '../lib/tipos'
 
 const POR_PAGINA = 50
 
@@ -153,6 +155,8 @@ export function Relatorios() {
   const [movs, setMovs] = useState<Movimentacao[] | null>(null)
   const [vendasPeriodo, setVendasPeriodo] = useState<Venda[] | null>(null)
   const [itensPeriodo, setItensPeriodo] = useState<ItemVendaResumo[] | null>(null)
+  const [ordensPeriodo, setOrdensPeriodo] = useState<OS[] | null>(null)
+  const [pagamentosOS, setPagamentosOS] = useState<{ os_id: string; valor: number }[] | null>(null)
   const [erro, setErro] = useState('')
   const [erroResultado, setErroResultado] = useState('')
   const [aba, setAba] = useState<Aba>('resumo')
@@ -208,6 +212,8 @@ export function Relatorios() {
     setErro('')
     setVendasPeriodo(null)
     setItensPeriodo(null)
+    setOrdensPeriodo(null)
+    setPagamentosOS(null)
     setErroResultado('')
     const instantes = intervaloParaInstantes(intervalo)
     // Busca do início do período até agora: o que veio depois serve para calcular o saldo no fim do período.
@@ -232,6 +238,23 @@ export function Relatorios() {
         setItensPeriodo([])
         setErroResultado((e as Error).message)
       })
+    // Serviços (T-038): OS da loja, filtradas pelo período no cliente.
+    listarOrdens(empresa.empresa_id, loja.id)
+      .then(os => {
+        if (!ativo) return
+        const de = instantes.desde
+        const ate = instantes.ate
+        const noPeriodo = os.filter(o => {
+          const criada = new Date(o.criado_em).getTime()
+          return criada >= Date.parse(de) && criada <= Date.parse(ate)
+        })
+        setOrdensPeriodo(noPeriodo)
+        return pagamentosDasOrdens(noPeriodo.map(o => o.id)).then(pags => {
+          if (!ativo) return
+          setPagamentosOS(pags.map(p => ({ os_id: p.os_id, valor: p.valor })))
+        })
+      })
+      .catch(() => { if (ativo) { setOrdensPeriodo([]); setPagamentosOS([]) } })
     return () => {
       ativo = false
     }
@@ -247,6 +270,57 @@ export function Relatorios() {
       porProduto: r.porProduto.map(l => ({ ...l, codigo: l.produto_id ? (codigos.get(l.produto_id) ?? '') : '' })),
     }
   }, [vendasPeriodo, itensPeriodo, produtoId, produtos])
+
+  // Serviços (T-038): KPIs e tabelas da aba Serviços.
+  const servicos = useMemo(() => {
+    if (!ordensPeriodo) return null
+    const recebidas = ordensPeriodo.length
+    const entregues = ordensPeriodo.filter(o => o.status === 'entregue').length
+    const canceladas = ordensPeriodo.filter(o => o.status === 'cancelada').length
+    const osEntreguesIds = new Set(ordensPeriodo.filter(o => o.status === 'entregue').map(o => o.id))
+    const faturamento = (pagamentosOS ?? [])
+      .filter(p => osEntreguesIds.has(p.os_id))
+      .reduce((s, p) => s + Math.round(p.valor * 100), 0)
+    // Por status
+    const porStatus = new Map<string, { status: string; ordens: number; faturamento: number }>()
+    for (const o of ordensPeriodo) {
+      const entry = porStatus.get(o.status) ?? { status: o.status, ordens: 0, faturamento: 0 }
+      entry.ordens++
+      porStatus.set(o.status, entry)
+    }
+    for (const p of pagamentosOS ?? []) {
+      const os = ordensPeriodo.find(o => o.id === p.os_id)
+      if (os && os.status === 'entregue') {
+        const entry = porStatus.get('entregue')
+        if (entry) entry.faturamento += Math.round(p.valor * 100)
+      }
+    }
+    // Por técnico
+    const porTecnico = new Map<string, { tecnico: string; recebidas: number; entregues: number; faturado: number }>()
+    for (const o of ordensPeriodo) {
+      const nome = o.tecnico_nome?.trim() || 'Sem técnico'
+      const entry = porTecnico.get(nome) ?? { tecnico: nome, recebidas: 0, entregues: 0, faturado: 0 }
+      entry.recebidas++
+      if (o.status === 'entregue') entry.entregues++
+      porTecnico.set(nome, entry)
+    }
+    for (const p of pagamentosOS ?? []) {
+      const os = ordensPeriodo.find(o => o.id === p.os_id)
+      if (os && os.status === 'entregue') {
+        const nome = os.tecnico_nome?.trim() || 'Sem técnico'
+        const entry = porTecnico.get(nome)
+        if (entry) entry.faturado += Math.round(p.valor * 100)
+      }
+    }
+    return {
+      recebidas,
+      entregues,
+      canceladas,
+      faturamento,
+      porStatus: [...porStatus.values()].sort((a, b) => b.ordens - a.ordens),
+      porTecnico: [...porTecnico.values()].sort((a, b) => b.recebidas - a.recebidas),
+    }
+  }, [ordensPeriodo, pagamentosOS])
 
   const relatorio = useMemo(() => {
     if (!movs) return null
@@ -274,9 +348,9 @@ export function Relatorios() {
       posicao: relatorio.posicao.length,
       compras: relatorio.compras.length,
       resultado: relatorio.resultado?.porProduto.length ?? 0,
-      servicos: 0,
+      servicos: ordensPeriodo?.length ?? 0,
     }
-  }, [relatorio])
+  }, [relatorio, ordensPeriodo])
 
   // Seções escolhidas que sairiam sem nenhuma linha (T-022): avisar antes de baixar.
   const secoesVazias = useMemo(() => {
@@ -519,7 +593,7 @@ export function Relatorios() {
             <Kpi titulo="Ajustes e correções" valor={relatorio.totais.ajustes} icone={RotateCcw} />
           </div>
 
-          <Segmentado className="mb-3" valor={aba} aoMudar={setAba} opcoes={OPCOES_ABA} />
+          <Segmentado className="mb-3" valor={aba} aoMudar={setAba} opcoes={OPCOES_ABA} rolavel />
 
           {aba === 'resultado' ? (
             <div className="space-y-3">
@@ -572,6 +646,69 @@ export function Relatorios() {
                             <td className="px-3 py-2 text-right">{formatarReais(l.cmv)}</td>
                             <td className={cx('px-3 py-2 text-right font-semibold', l.lucro < 0 && 'text-red-700')}>{formatarReais(l.lucro)}</td>
                             <td className="px-3 py-2 text-right">{formatarNumero(l.margem)}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : aba === 'servicos' ? (
+            <div className="space-y-3">
+              {!ordensPeriodo ? (
+                <Carregando texto="Carregando ordens de serviço…" />
+              ) : ordensPeriodo.length === 0 ? (
+                <div className="cartao">
+                  <Vazio icone={Wrench} titulo="Sem ordens de serviço no período." texto="Nenhuma OS foi recebida neste intervalo." />
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <Kpi titulo="Recebidas" valor={servicos?.recebidas ?? 0} icone={Wrench} tom="neutro" />
+                    <Kpi titulo="Entregues" valor={servicos?.entregues ?? 0} icone={TrendingUp} tom="verde" />
+                    <Kpi titulo="Canceladas" valor={servicos?.canceladas ?? 0} icone={X} tom="vermelho" />
+                    <Kpi titulo="Faturamento de serviços" valor={formatarReais(servicos?.faturamento ?? 0)} icone={Banknote} tom="neutro" />
+                  </div>
+                  <div className="cartao overflow-x-auto">
+                    <h2 className="px-4 pt-4 text-sm font-semibold text-ponto">Por status</h2>
+                    <table className="w-full min-w-[480px] text-sm">
+                      <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        <tr>
+                          <th className="px-4 py-2.5">Status</th>
+                          <th className="px-3 py-2.5 text-right">Ordens</th>
+                          <th className="px-3 py-2.5 text-right">Faturamento</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 tabular-nums">
+                        {(servicos?.porStatus ?? []).map(s => (
+                          <tr key={s.status}>
+                            <td className="px-4 py-2 font-medium">{STATUS_OS[s.status as keyof typeof STATUS_OS] ?? s.status}</td>
+                            <td className="px-3 py-2 text-right">{s.ordens}</td>
+                            <td className="px-3 py-2 text-right">{s.faturamento > 0 ? formatarReais(s.faturamento) : '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="cartao overflow-x-auto">
+                    <h2 className="px-4 pt-4 text-sm font-semibold text-ponto">Por técnico</h2>
+                    <table className="w-full min-w-[480px] text-sm">
+                      <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        <tr>
+                          <th className="px-4 py-2.5">Técnico</th>
+                          <th className="px-3 py-2.5 text-right">Recebidas</th>
+                          <th className="px-3 py-2.5 text-right">Entregues</th>
+                          <th className="px-3 py-2.5 text-right">Faturado</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 tabular-nums">
+                        {(servicos?.porTecnico ?? []).map(t => (
+                          <tr key={t.tecnico}>
+                            <td className="px-4 py-2 font-medium">{t.tecnico}</td>
+                            <td className="px-3 py-2 text-right">{t.recebidas}</td>
+                            <td className="px-3 py-2 text-right">{t.entregues}</td>
+                            <td className="px-3 py-2 text-right">{t.faturado > 0 ? formatarReais(t.faturado) : '—'}</td>
                           </tr>
                         ))}
                       </tbody>

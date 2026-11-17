@@ -306,21 +306,31 @@ export function Segmentado<T extends string>({
   valor,
   aoMudar,
   className,
+  rolavel = false,
 }: {
   opcoes: { valor: T; rotulo: ReactNode }[]
   valor: T
   aoMudar: (v: T) => void
   className?: string
+  rolavel?: boolean
 }) {
   return (
-    <div className={cx('grid gap-1 rounded-2xl bg-slate-200/70 p-1', className)} style={{ gridTemplateColumns: `repeat(${opcoes.length}, minmax(0, 1fr))` }}>
+    <div
+      className={cx(
+        'gap-1 rounded-2xl bg-slate-200/70 p-1',
+        rolavel ? 'flex overflow-x-auto rolagem-x' : 'grid',
+        className,
+      )}
+      style={rolavel ? undefined : { gridTemplateColumns: `repeat(${opcoes.length}, minmax(0, 1fr))` }}
+    >
       {opcoes.map(o => (
         <button
           key={o.valor}
           type="button"
           onClick={() => aoMudar(o.valor)}
           className={cx(
-            'flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold transition',
+            'flex shrink-0 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold transition',
+            rolavel && 'whitespace-nowrap',
             o.valor === valor ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900',
           )}
         >

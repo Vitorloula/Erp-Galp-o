@@ -323,6 +323,7 @@ export function ServicosDetalhe() {
         {!travado && podeMover && (
           <div className="flex gap-2">
             <button type="button" className="btn btn-primario" disabled={salvando} onClick={salvarOrcamento}>Salvar orçamento</button>
+            <button type="button" className="btn btn-secundario" disabled={salvando} onClick={carregar}>Descartar</button>
           </div>
         )}
       </section>
