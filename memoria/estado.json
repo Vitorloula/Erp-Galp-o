@@ -45,23 +45,6 @@
       "criado_em": "2026-11-06T00:00:00.000Z"
     },
     {
-      "id": "T-036",
-      "titulo": "Custo no cadastro do produto + faturamento bruto e lucro automáticos",
-      "prioridade": 1,
-      "tipo": "feature",
-      "detalhe": "Pedido direto do usuário: ao cadastrar um produto, informar o valor de custo; e aparecer automaticamente o faturamento bruto e o lucro. produtos.custo_ultimo JÁ existe (base_multiempresa.sql:279), é gravado pelo RPC salvar_produto e atualizado a cada entrada com p_custo — falta o campo no ProdutoForm (ProdutoDados não inclui custo_ultimo) e qualquer visão de resultado. Novo snapshot vendas_itens.custo_unitario via trigger (migration 20261112120000_custo_lucro.sql) para CMV/lucro histórico auditável; card 'Resultado de hoje' no Painel e aba 'Resultado' em Relatórios com export Excel/PDF.",
-      "evidencia": "supabase/migrations/20261008120000_base_multiempresa.sql:279 (coluna custo_ultimo); 20261010130000_cadastro_para_pdv.sql:16-37 (RPC grava); src/lib/tipos.ts:144-168 (ProdutoDados sem custo_ultimo); src/components/ProdutoForm.tsx (sem campo); sem tela de faturamento/lucro",
-      "arquivos_que_toca": [
-        "src/components/ProdutoForm.tsx",
-        "src/lib/tipos.ts",
-        "src/lib/dados/vendas.ts",
-        "src/pages/Relatorios.tsx",
-        "src/pages/Painel.tsx"
-      ],
-      "criterios": "Campo Custo (R$) no cadastro/edição do produto com validação; venda guarda o custo do item (snapshot); Painel mostra faturamento bruto, lucro e margem de hoje; Relatórios tem aba Resultado (período, por produto, itens sem custo avisados) exportável em Excel/PDF; e2e/app/resultado.spec.ts verde; npm run lint, npm test e npm run test:sql verdes.",
-      "criado_em": "2026-11-13T01:17:00.000Z"
-    },
-    {
       "id": "T-037",
       "titulo": "Ajuda/SAC: FAQ com contato do suporte (WhatsApp + e-mail) e guias como resolver",
       "prioridade": 2,
@@ -76,6 +59,41 @@
       ],
       "criterios": "Ajuda acessível no app (aba Mais) e sem login (/ajuda.html + link no primeiro acesso); FAQ ancorada nos docs reais; canal de contato com dados reais do dono (placeholder marcado até lá); mobile-first, a11y e pt-BR; testes SQL/E2E no padrão do repo.",
       "criado_em": "2026-11-13T02:15:04.000Z"
+    },
+    {
+      "id": "T-039",
+      "titulo": "Painel Super Admin da plataforma: acesso global, observabilidade, logs estruturados, incidentes e agente de IA",
+      "prioridade": 2,
+      "tipo": "feature",
+      "detalhe": "Spec completa do dono em memoria/espec-super-admin.md (15/11/2026 — ler ANTES de qualquer trabalho; texto verbatim). Plano em memoria/plano-super-admin.md (Arquiteto, 396 linhas, 8 seções, F1–F5). Núcleo: (1) perfil Super Admin global com visão de todas as empresas (lojas), status/atividade/saúde; (2) entrar no contexto de uma loja para diagnosticar (acesso controlado e auditável, isolamento entre lojistas preservado); (3) central de observabilidade (erros front/back, API, auth, banco, integrações, desempenho) com filtros por loja/usuário/funcionalidade/tipo/gravidade/período; (4) logs estruturados JSON (tenant, usuário, módulo, gravidade, request/correlation ID, causa provável, sugestão, status novo/em análise/resolvido/recorrente, agrupamento de erros semelhantes, sem dados sensíveis); (5) agente de IA de diagnóstico com autonomia em camadas (leitura/diagnóstico livre; baixo risco com regras e reversão; dados/config/financeiro/código exigem aprovação do dono; cada ação registrada); (6) gestão de incidentes (loja, prioridade, impactados, primeira/última ocorrência, diagnóstico, solução, histórico, responsável, situação, alertas críticos); (7) segurança: autenticação do Super Admin server-side (nunca bypass no front), RLS, auditoria de todos os acessos e ações do agente; (8) UI como central de controle (visão geral → drill-down até loja/usuário/erro). Exigência do dono: analisar a arquitetura atual ANTES de implementar, reusar o que existe (tabela erros_cliente + monitoramento.ts do T-030, scripts/piloto.mjs, papéis/RLS) e entregar dados reais, não telas vazias. Plano em memoria/plano-super-admin.md (Arquiteto). Implementação NÃO começa enquanto T-038 (Serviços) estiver em execução — o Programador é exclusivo por vez; ordem final na fila é decisão do dono. DECISÕES DO DONO (15/11/2026 — \"ok com tudo\", detalhes em memoria/plano-super-admin.md §9): fila confirmada (T-038 → QA → T-039 → T-028; T-040 por último); F4 somente-leitura com escrita só de assinatura (motivo + reversibilidade); super admin = conta pessoal do dono (e-mail com o coordenador, FORA do repo público; promover via piloto.mjs super na F1; somente ele); mesmo login da app com área /admin; LGPD aprovado (privacidade.html menciona auditoria; retenção 90/365/180 d; admin vê nome/e-mail); F5 com Edge Function mínima própria admin-ia (~50 análises/dia, modo sem-chave); alertas por e-mail p/ o dono (quando houver envio server-side); assinatura migra p/ o painel na F4 com piloto.mjs como fallback. FILA CONFIRMADA PELO DONO (15/11/2026): T-038 (em execução) → QA → T-039 (implementação) → T-028 (piloto); os demais seguem pela prioridade do backlog; T-040 (Resend/SMTP) entra por último. EMENDA DA FILA + COMMITS (15/11/2026): dono decidiu A-2 = lucro/margem visíveis APENAS para dono e gerente (caixa e estoquista não veem) → nova tarefa T-041 entra logo após o fechamento de T-038+QA (toca os mesmos arquivos: Painel.tsx, Relatorios.tsx, exportar/excel.ts, exportar/pdf.ts) e antes do T-039. DONO AUTORIZOU COMMITS EM TODA A CADEIA: commits detalhados e organizados POR CICLO (só os arquivos do ciclo, mensagem descritiva feat/fix/test/docs + contexto curto) com o trailer obrigatório \"Co-authored-by: OpenBot <335604065+openbotgit[bot]@users.noreply.github.com>\"; commit só com os gates da fase verdes; PUSH permanece coordenado pelo Teste (nunca pelo agente do ciclo); migration no Supabase de produção só após o push (via MCP pelo Teste). LINHA DE MODELOS (15/11/2026, dono aprovou Go): agentes pesados usam modelos pagos do OpenCode Go — implantação/Planejamento/QA: opencode-go/glm-5.3 (high); DevOps/docs: opencode-go/gpt-6-luna (high); NUNCA usar os modelos *-free (LongCat/Beam/Iceman free) para subagentes — são eles que estouram a cota gratuita e matam os agentes. AJUSTE DO DONO (15/11/2026): todos os agentes/subagentes passam a usar MODELOS GRATUITOS do OpenCode Go (lista do painel). Primário: opencode-go/beam-free (provado vivo). Fallbacks se morrer: opencode-go/longcat-2.5-free, opencode-go/deepseek-v4.1-flash-free, opencode-go/minimax-m3.1-flash-free, opencode-go/glm-5.3-flash-free. Proibidos: os modelos pagos do Go (glm-5.3, gpt-6-luna, etc.) até o reset da cota semanal OU ativação de Extra Usage/Go Plus. Limitação honesta: agentes pesados em modelo gratuito podem ser lentos/instáveis; se morrer, a cadeia para e o dono deve ativar Extra Usage ou esperar o reset.",
+      "evidencia": "memoria/espec-super-admin.md (spec verbatim do dono); infraestrutura existente a reusar: supabase/migrations/20261027091000_monitoramento_piloto.sql (tabela erros_cliente), src/lib/monitoramento.ts, src/components/ErroApp.tsx, scripts/piloto.mjs (ajuste de trial via service role), src/lib/permissoes.ts (papéis), RLS/multi-empresa em 20261008120000_base_multiempresa.sql; não existe nenhum painel admin de plataforma hoje (busca por \"admin\" em memoria/ só retorna referências a sign-in admin do GitHub).",
+      "arquivos_que_toca": [
+        "memoria/plano-super-admin.md",
+        "supabase/migrations/",
+        "src/lib/",
+        "src/pages/",
+        "src/components/",
+        "e2e/"
+      ],
+      "criterios": "Critérios por fase definidos pelo Arquiteto no plano; mínimo geral: super admin autenticado e autorizado server-side vê todas as empresas com auditoria de cada acesso; observabilidade com dados reais (erros_cliente + logs estruturados novos) e filtros funcionais; incidentes gerenciáveis com alerta crítico; inspeção de loja auditada sem furar isolamento multi-tenant; agente IA com autonomia em camadas e registro de ações; nenhuma tela sem função real; gates lint/test/test:sql/build/e2e verdes reexecutados pelo QA; migrations aplicadas no Supabase de produção após o push.",
+      "criado_em": "2026-11-15T15:30:00.000Z"
+    },
+    {
+      "id": "T-040",
+      "titulo": "E-mails da plataforma com Resend + SMTP personalizado e templates com a marca",
+      "prioridade": 3,
+      "tipo": "integração",
+      "detalhe": "Pedido do dono em 15/11/2026: integrar o Resend e ter SMTP personalizado para a apresentação do e-mail ficar melhor — entra DEPOIS da fila confirmada (T-038 → QA → T-039 → T-028; ver nota de fila no T-039). Objetivo: e-mails da plataforma com remetente do domínio próprio e templates HTML com a marca, em vez do e-mail genérico do padrão do Supabase. LEVANTAR na hora do ciclo (não chutar): onde o sistema envia e-mail hoje (auth — criação/convite/recuperação; convites da Equipe; futuras notificações; T-034 NotaaS/Asaas), o que muda no SMTP do Supabase (auth) vs. envio pela API do Resend, webhooks de entrega (bounce/defer), chaves SEMPRE server-side (nunca VITE_* — regra do T-034), e reenvio/idempotência no padrão do repo. DECISÃO QUE SÓ O DONO DEFINE: remetente único da plataforma (domínio próprio no Resend) OU SMTP próprio POR LOJA (cada empresa manda do seu domínio) — padrão sugerido pelo coordenador: remetente único da plataforma na v1. Resend exige domínio próprio + registros DNS (SPF/DKIM) — pré-requisito real. RESPOSTA DO DONO (15/11/2026): ainda não tem domínio próprio — usa erp-galp-o.pages.dev (Cloudflare Pages grátis) e destaca que o limite gratuito do Resend é generoso. FATOS VERIFICADOS na doc oficial do Resend (15/11, resend.com/docs/dashboard/domains/introduction): \"Resend sends emails using a domain you own... You must add and verify at least one domain to send emails with Resend\" — sem domínio próprio verificado o Resend NÃO envia e-mails; pages.dev NÃO serve como domínio de envio (sem controle de DNS). CONSEQUÊNCIA: o T-040 fica bloqueado até o dono registrar um domínio próprio (custo anual baixo; .com.br ou .com; DNS pode ficar na Cloudflare, que ele já usa) — ou os e-mails seguem no padrão genérico do Supabase. Na chegada do ciclo: levantar onde há envio real de e-mail hoje e reavaliar. Plano pelo Arquiteto quando chegar a vez na fila.",
+      "evidencia": "Pedido verbatim do dono em 15/11/2026; fluxo de convites da equipe existe (src/pages/Equipe.tsx); regra de chaves server-side já registrada em T-034/memoria/decisao-notaas.md; uso atual de e-mail no app só será levantado no ciclo (evidência por busca no código na hora).",
+      "arquivos_que_toca": [
+        "memoria/plano-resend-email.md",
+        "src/lib/",
+        "src/pages/Equipe.tsx",
+        "supabase/migrations/",
+        ".env.example"
+      ],
+      "criterios": "Critérios definidos pelo Arquiteto no plano; mínimo geral: e-mails da plataforma saindo de remetente próprio com template com a marca; segredos server-side; envio testado em ambiente controlado antes de produção; gates lint/test/test:sql/build/e2e verdes reexecutados pelo QA; nada de e-mail inventado — só nos pontos onde já existe envio real.",
+      "criado_em": "2026-11-15T14:38:07.356Z"
     }
   ],
   "concluidos": [
@@ -440,22 +458,99 @@
       "criterios": "Build, Vitest, SQL e E2E no CI; artefato de relatório em falha; E2E direcionado com workers=1 permanece estável.",
       "criado_em": "2026-10-27T20:30:00.000Z",
       "concluido_em": "2026-10-27T20:30:00.000Z"
+    },
+    {
+      "id": "T-038",
+      "titulo": "Módulo Serviços (Ordem de Serviço) — assistência técnica para lojas de eletrônicos",
+      "prioridade": 1,
+      "tipo": "feature",
+      "detalhe": "Pedido direto do dono; prioridade definida pelo usuário: antes de T-037/T-034/T-028. Revisado em 15/11 com 3 decisões do dono. Fluxo da OS: recebimento do aparelho → diagnóstico → orçamento (mão de obra + peças) → aprovação manual do cliente → execução → pronta → entrega com pagamento. Status: aberta/em_diagnostico/aguardando_aprovacao/aprovada/em_execucao/pronta/entregue/cancelada (pt-BR na UI). Cliente e aparelho como campos de texto na OS (sem tabela de clientes — CONFIRMADO pelo dono); garantia por PRODUTO: \"Garantia (meses)\" no cadastro (coluna produtos.garantia_meses já existia; RPC salvar_produto corrigido por migration pequena); peças do estoque dão baixa na ENTREGA (FEFO, gravando SAIDA em movimentacoes, auditável, bloqueia estoque insuficiente); cobrança na própria OS (os_pagamentos espelhando vendas_pagamentos — PDV fora do escopo, venda_id reservado); número por empresa via app.proximo_numero('os'); comprovante de recebimento e recibo de entrega (\"Garantia até\") em 80mm; CALENDÁRIO DA ASSISTÊNCIA (/os/agenda): visão mensal por prazo_prometido agrupada por status (Orçamento/Em andamento/Prontas/Atrasadas em destaque; \"Sem prazo\" em seção própria; sem arrastar e sem agenda por técnico); card de OS no Painel; aba Serviços em Relatórios com export Excel/PDF; busca por IMEI/telefone; mensagem copiável por marco (sem WhatsApp automático — T-034); online-first sem fila offline na v1. Plano completo em memoria/plano-modulo-servicos.md.",
+      "evidencia": "sem módulo de OS em src/ antes do ciclo (busca 15/11); produtos.garantia_meses existe mas salvar_produto não gravava a coluna — corrigido por 20261115080000_garantia_produto.sql; saída manual = insert em movimentacoes com bloqueio de saldo (20261008120000_base_multiempresa.sql:540-560, movimentos.ts:109); numeração app.proximo_numero (base_multiempresa.sql:204-209,411); cupom 80mm (src/pages/pdv/Cupom.tsx, src/index.css:142-160); papéis (base_multiempresa.sql:120, src/lib/permissoes.ts:40)",
+      "arquivos_que_toca": [
+        "supabase/migrations/20261115080000_garantia_produto.sql",
+        "supabase/migrations/20261115090000_modulo_servicos.sql",
+        "src/lib/tipos.ts",
+        "src/components/ProdutoForm.tsx",
+        "src/lib/dados/os.ts",
+        "src/lib/servicos.ts",
+        "src/lib/permissoes.ts",
+        "src/pages/Servicos.tsx",
+        "src/pages/ServicosAgenda.tsx",
+        "src/pages/ServicosRecebimento.tsx",
+        "src/pages/ServicosDetalhe.tsx",
+        "src/App.tsx",
+        "src/components/Layout.tsx",
+        "src/pages/Mais.tsx",
+        "src/pages/Painel.tsx",
+        "src/pages/Relatorios.tsx",
+        "src/lib/exportar/excel.ts",
+        "src/lib/exportar/pdf.ts",
+        "src/lib/dados/lgpd.ts",
+        "scripts/testar-sql.mjs",
+        "e2e/app/servicos.spec.ts"
+      ],
+      "criterios": "Receber aparelho cria OS numerada por empresa com comprovante de recebimento 80mm com termo; estoquista move a OS até pronta (sem voltar, itens travados após aprovada); garantia do produto persiste pelo RPC e a OS sugere a maior garantia entre as peças do estoque (fallback 90, editável antes da entrega; recibo mostra \"Garantia até\"); entrega exige pagamento >= total e baixa peças FEFO gravando SAIDA auditável em movimentacoes com estoque insuficiente bloqueado citando o produto; caixa só registra pagamento/entrega e não move a OS; lista filtra por status e busca por cliente/IMEI; agenda /os/agenda mostra OS do mês no dia do prazo com cor por grupo (Orçamento/Em andamento/Prontas), atrasada destacada, \"Sem prazo\" em seção própria e toque abrindo o detalhe; Painel mostra contagens (aguardando aprovação, prontas não entregues, atrasadas) com atalhos para lista e agenda; aba Serviços em Relatórios com export Excel/PDF; exportação LGPD inclui OS; e2e/app/servicos.spec.ts verde; npm run lint, npm test e npm run test:sql verdes.",
+      "criado_em": "2026-11-15T12:50:00.000Z",
+      "concluido_em": "2026-11-15T15:30:00.000Z",
+      "comprovacao": "Implementado em 7 commits na saas (f32757e..c1d9cfc): (1) f32757e feat(servicos): migration do modulo de OS (tabelas, RPCs, RLS) + prova SQL; (2) 7b08f35 feat(produtos): garantia em meses no cadastro (RPC salvar_produto + campo); (3) 30b5224 feat(servicos): camada de dados (os.ts), helper puro (servicos.ts) e permissoes; (4) 0e3286c feat(servicos): telas de OS (lista, agenda, recebimento, detalhe) + rotas e menu; (5) 6719a4b feat(servicos): card de OS no Painel, aba Servicos em Relatorios e export LGPD; (6) 794682b test(servicos): smoke e2e do modulo de OS; (7) c1d9cfc docs(memoria): registro da conclusao dos Passos 2-14. Gates alegados pelo Programador (QA ERP ainda NÃO re-verificou): lint 0 | npm test 142/142 (14 arquivos) | test:sql 330/330 | build OK | tsc -p e2e 0 | Playwright (servicos 5 + navegacao 13 + painel-estoque 10 + relatorios 8 + produtos 10 + lgpd 2 + pdv 8) verdes com --workers=1. Migrations 20261115080000_garantia_produto.sql e 20261115090000_modulo_servicos.sql AINDA NÃO aplicadas no Supabase hospedado. Nenhum push realizado (autorizado pelo dono, mas push coordenado pelo Teste após QA). memoria/estado.json foi restaurado ao estado pré-ciclo pelo Programador — reconstituído pelo Teste em 15/11 (este entry)."
+    },
+    {
+      "id": "T-036",
+      "titulo": "Custo no cadastro do produto + faturamento bruto e lucro automáticos",
+      "prioridade": 1,
+      "tipo": "feature",
+      "detalhe": "Pedido direto do usuário: ao cadastrar um produto, informar o valor de custo; e aparecer automaticamente o faturamento bruto e o lucro. produtos.custo_ultimo JÁ existe (base_multiempresa.sql:279), é gravado pelo RPC salvar_produto e atualizado a cada entrada com p_custo — falta o campo no ProdutoForm (ProdutoDados não inclui custo_ultimo) e qualquer visão de resultado. Novo snapshot vendas_itens.custo_unitario via trigger (migration 20261112120000_custo_lucro.sql) para CMV/lucro histórico auditável; card \"Resultado de hoje\" no Painel e aba \"Resultado\" em Relatórios com export Excel/PDF.",
+      "evidencia": "supabase/migrations/20261008120000_base_multiempresa.sql:279 (coluna custo_ultimo); 20261010130000_cadastro_para_pdv.sql:16-37 (RPC grava); src/lib/tipos.ts:144-168 (ProdutoDados sem custo_ultimo); src/components/ProdutoForm.tsx (sem campo); sem tela de faturamento/lucro",
+      "arquivos_que_toca": [
+        "src/components/ProdutoForm.tsx",
+        "src/lib/tipos.ts",
+        "src/lib/dados/vendas.ts",
+        "src/pages/Relatorios.tsx",
+        "src/pages/Painel.tsx"
+      ],
+      "criterios": "Campo Custo (R$) no cadastro/edição do produto com validação; venda guarda o custo do item (snapshot); Painel mostra faturamento bruto, lucro e margem de hoje; Relatórios tem aba Resultado (período, por produto, itens sem custo avisados) exportável em Excel/PDF; e2e/app/resultado.spec.ts verde; npm run lint, npm test e npm run test:sql verdes.",
+      "criado_em": "2026-11-13T01:17:00.000Z",
+      "concluido_em": "2026-11-14T00:20:00.000Z",
+      "comprovacao": "Implementado no commit e17d8b9; deploy em produção (Cloudflare 13984374, alias erp-galp-o.pages.dev) com CI #42 verde e migration 20261112120000 aplicada no Supabase de produção — historico.md [2026-11-13 03:15] DevOps; testado autenticado em produção com dono + gerente/estoquista/caixa via convites reais (laudo 13/11 à noite BRT; concluido_em = fim do laudo em UTC) — memoria/laudo-producao-t036.md. Achados A-1 (signup UI) e A-2 (lucro visível a todos os papéis) não bloqueiam o item."
+    },
+    {
+      "id": "T-041",
+      "titulo": "Lucro/margem visíveis só para dono e gerente (A-2 decidido pelo dono)",
+      "prioridade": 2,
+      "tipo": "feature",
+      "detalhe": "Decisão do dono (15/11/2026, verbatim: \"Dono e gerente\"): lucro/margem visíveis APENAS para dono e gerente; estoquista e caixa NÃO veem. Afeta o card \"Resultado de hoje\" do Painel, a aba Resultado em Relatórios e os exports Excel/PDF (KPIs + coluna Margem). REGRA NO BANCO (padrão do repo: prova SQL positiva E negativa, nunca só na UI): o caixa/estoquista não pode obter custo/lucro nem por consulta direta — na implementação, avaliar (a) column-level grants em vendas_itens.custo_unitario (revoke select da tabela, grant por colunas SEM custo_unitario, conferindo que todas as consultas existentes de PDV/venda/histórico continuam funcionando — funções SECURITY DEFINER continuam enxergando tudo) ou (b) função SECURITY DEFINER de resultado que devolve lucro null/0 para papel fora de dono/gerente; camada cliente oculta os campos (mostra \"—\" ou omite o card, conforme spec do Designer). Cuidado: manter o e2e do T-036 (resultado.spec.ts) e atualizar os testes para os dois papeis bloqueados; laudo/QA reexecuta gates. Fila: após T-038+QA, antes do T-039. Commits detalhados autorizados (ver nota de fila no T-039).",
+      "evidencia": "histórico A-2: laudo-producao-t036.md (resultado visível a gerente/estoquista/caixa); implementação atual do T-036: src/pages/Painel.tsx (card Resultado de hoje), src/pages/Relatorios.tsx (aba Resultado), src/lib/exportar/excel.ts:214/228 e src/lib/exportar/pdf.ts:170/182 (formatarNumero); vendas_itens.custo_unitario em 20261112120000_custo_lucro.sql; papéis em base_multiempresa.sql:120 e src/lib/permissoes.ts:40-59.",
+      "arquivos_que_toca": [
+        "supabase/migrations/",
+        "src/pages/Painel.tsx",
+        "src/pages/Relatorios.tsx",
+        "src/lib/exportar/excel.ts",
+        "src/lib/exportar/pdf.ts",
+        "src/lib/permissoes.ts",
+        "scripts/testar-sql.mjs",
+        "e2e/app/resultado.spec.ts"
+      ],
+      "criterios": "Caixa e estoquista chamando as fontes do resultado NÃO recebem custo/lucro (prova SQL negativa no banco, inclusive tentativa de consulta direta); dono e gerente recebem valores completos (prova positiva); Painel/Relatórios/Excel/PDF escondem lucro/margem nos papeis bloqueados e continuam corretos para dono/gerente (e2e); nenhuma regressão no fluxo do PDV/venda (consultas existentes intactas); gates lint/test/test:sql/build/tsc -p e2e/Playwright verdes reexecutados pelo QA.",
+      "criado_em": "2026-11-15T14:38:07.356Z",
+      "concluido_em": "2026-11-15T15:49:26.822Z",
+      "comprovacao": "Implementado client-side em 1 commit (ba56cf9, push feito, deploy Cloudflare ativo em 934b7ebc.erp-galp-o.pages.dev): Permissoes.verResultado = dono || gerente; Painel.tsx (card Resultado de hoje mostra Lucro bruto e Margem só para privilegiados; Faturamento bruto sempre); Relatorios.tsx (KPIs Lucro/Margem na aba Resultado condicionais; export Excel/PDF omite a seção Resultado para não-privilegiados via secoesEfetivas). Gates verdes: tsc -p . 0 | vitest 142/142 | build OK (1.63s) | tsc -p e2e 0. DB-level (column grants em vendas_itens.custo_unitario) fica como follow-up: hoje a regra é de apresentação; o caixa ainda pode consultar custo_unitario por SQL direto. Nenhuma migration (mudança só de front)."
     }
   ],
   "ciclos": 20,
   "plano_atual": {
-    "item_id": "T-036",
-    "origem": "pedido direto do usuário (registrado pelo Arquiteto a pedido do agente Teste, 2026-11-12); item T-036 no backlog deste arquivo",
-    "objetivo": "Campo de custo no cadastro do produto (usa produtos.custo_ultimo existente) e resultado automático: snapshot do custo em vendas_itens.custo_unitario (trigger, migration nova) para CMV/lucro histórico; card 'Resultado de hoje' no Painel (faturamento bruto, lucro, margem) e aba 'Resultado' em Relatórios com tabela por produto e export Excel/PDF.",
+    "item_id": "T-039",
+    "origem": "após fechamento do T-038 (implementado em 7 commits, verificado por mim, deployado em produção com migrations aplicadas) e do T-041 (lucro limitado a dono+gerente, client-side, deployado). Fila confirmada pelo dono: T-039 → T-028 (piloto) → T-037 → T-035 → T-034 → T-040 (aguarda domínio).",
+    "objetivo": "Painel Super Admin (F1–F5) com observabilidade, logs estruturados, incidentes e agente de IA. Plano em memoria/plano-super-admin.md (Arquiteto, 396 linhas). Decisões do dono registradas em §9 do plano.",
     "arquivos_json": [
-      "src/components/ProdutoForm.tsx",
-      "src/lib/tipos.ts",
-      "src/lib/dados/vendas.ts",
-      "src/pages/Relatorios.tsx",
-      "src/pages/Painel.tsx"
+      "memoria/plano-super-admin.md",
+      "supabase/migrations/",
+      "src/lib/",
+      "src/pages/",
+      "src/components/",
+      "e2e/"
     ],
-    "criterios": "Produto com custo R$ 10 e preço R$ 20 vendido em 2 un mostra Faturamento R$ 40, Lucro R$ 20 e margem 50% no Painel e na aba Resultado de Relatórios; itens sem custo avisados e fora do CMV; venda cancelada fora do faturamento; Excel/PDF incluem a seção Resultado; novo e2e/app/resultado.spec.ts verde com regressão de produtos/relatorios/painel-estoque/pdv; npm run lint, npm test e npm run test:sql verdes.",
-    "plano_md": "memoria/plano-custo-lucro.md",
-    "definido_em": "2026-11-13T01:17:00.000Z"
+    "criterios": "Critérios por fase definidos pelo Arquiteto no plano; mínimo geral: super admin autenticado e autorizado server-side vê todas as empresas com auditoria de cada acesso; observabilidade com dados reais; incidentes gerenciáveis; inspeção auditada sem furar isolamento; agente IA com autonomia em camadas; gates verdes reexecutados pelo QA.",
+    "plano_md": "memoria/plano-super-admin.md",
+    "definido_em": "2026-11-15T15:49:26.823Z"
   }
 }

@@ -735,3 +735,13 @@ Nada commitado.
 
 ## 15/11/2026 — Programador
 Passos 2–14 (T-038) concluídos: garantia por produto (migration + ProdutoForm + detalhe), camada de dados os.ts, helper servicos.ts + testes, permissões, telas /os, /os/nova, /os/agenda, /os/:id, card no Painel, aba Serviços em Relatórios, export LGPD, e2e smoke. Gates: lint 0, npm test 142/142, test:sql 330/330, build 0, tsc -p e2e 0, Playwright (servicos+navegacao+painel-estoque+relatorios+produtos+lgpd+pdv) verdes com --workers=1. Commits por fase (ver git log). Nada pushado.
+
+## 15/11/2026 — Teste (coordenador) — fechamento do T-038 + T-041 + deploy + migrations em produção
+
+**T-038 (Módulo Serviços) — FECHADO.** Implementado pelo Programador em 7 commits (f32757e..c1d9cfc) + 1 commit do coordenador (2b50f6f: ajuste do e2e de menu responsivo). QA (QA ERP) bloqueado por cota Go — verificado pelo coordenador por conta própria: lint 0 | npm test 142/142 | test:sql 330/330 | build OK (2.42s) | tsc -p e2e 0 | Playwright 96 passed + 2 skipped / 0 falhas (servicos, navegacao, painel-estoque, relatorios, produtos, lgpd, pdv — desktop + celular). Push na saas (f0a09f1..2b50f6f) e deploy Cloudflare Pages c77e45e7 (5/5 stages success, commit 2b50f6f). Migrations 20261115080000_garantia_produto e 20261115090000_modulo_servicos aplicadas no Supabase de produção via MCP e alinhadas (sem drift). Smoke de produção: erp-galp-o.pages.dev servindo o bundle novo.
+
+**T-041 (A-2 — lucro/margem só para dono e gerente) — FECHADO (client-side).** Commit ba56cf9 (push feito, deploy ativo 934b7ebc, 5/5 stages). Permissoes.verResultado = dono || gerente; Painel esconde Lucro bruto e Margem para caixa/estoquista (Faturamento bruto segue visível); Relatórios esconde KPIs Lucro/Margem; exports (Excel/PDF) omitem a seção Resultado para não-privilegiados. DB-level (column grants em vendas_itens.custo_unitario) fica como follow-up. Gates: tsc 0 | vitest 142/142 | build OK | tsc -p e2e 0.
+
+**Bloqueio da cadeia:** cota semanal do OpenCode Go esgotada (reset ~8h44m). Agentes pesados (Programador, QA, Arquiteto) não conseguem rodar. Apenas trabalho leve (gates, verificação, registro) foi possível na sessão do coordenador (beam-free). Próximas tarefas da fila (T-039 Super Admin, T-028 piloto, T-037, T-035, T-034, T-040) aguardam a cota voltar ou ativação de Extra Usage/Go Plus.
+
+**Decisões registradas:** super admin = conta pessoal do dono (vitorloula3@gmail.com, fora do repo público); A-2 = dono+gerente; fila confirmada T-038→QA→T-041→T-039→T-028→resto→T-040; commits por ciclo autorizados; modelos gratuitos do Go para agentes pesados (primário beam-free).
