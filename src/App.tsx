@@ -44,14 +44,9 @@ guardarConviteDaUrl()
 function Sistema() {
   const { empresa, loja, lojas, vinculos, erro } = useEmpresa()
   const convite = useConvitePendente()
-  const [ehSuperAdmin, setEhSuperAdmin] = useState(false)
-  useEffect(() => { adminSouAdmin().then(setEhSuperAdmin).catch(() => setEhSuperAdmin(false)) }, [])
   if (convite.token) return <ConvitePendente {...convite} />
   if (!vinculos) return <Carregando texto="Abrindo a empresa..." />
-  if (!empresa) {
-    if (ehSuperAdmin) return <Navigate to="/admin" replace />
-    return <BoasVindas />
-  }
+  if (!empresa) return <BoasVindas />
   if (!lojas) return <Carregando texto="Abrindo a loja..." />
   if (!loja)
     return (
@@ -100,6 +95,12 @@ function Retaguarda({ chave }: { chave: string }) {
 
 function Rotas() {
   const { usuario, pronto, definindoSenha } = useAuth()
+  const [ehSuperAdmin, setEhSuperAdmin] = useState<boolean | null>(null)
+  useEffect(() => {
+    if (!usuario) { setEhSuperAdmin(null); return }
+    adminSouAdmin().then(setEhSuperAdmin).catch(() => setEhSuperAdmin(false))
+  }, [usuario])
+
   if (!configurado)
     return (
       <TelaCheia>
@@ -109,9 +110,29 @@ function Rotas() {
         </Aviso>
       </TelaCheia>
     )
-  if (!pronto) return <Carregando texto="Abrindo o sistema..." />
+  if (!pronto || ehSuperAdmin === null) return <Carregando texto="Abrindo o sistema..." />
   if (!usuario) return <Login />
   if (definindoSenha) return <NovaSenha />
+  // Super admin: vai direto pro painel da plataforma, sem carregar o Painel da loja
+  // (mesmo que a conta tenha loja associada — ela é só para super admin).
+  if (ehSuperAdmin) {
+    if (!window.location.pathname.startsWith('/admin')) return <Navigate to="/admin" replace />
+    return (
+      <Suspense fallback={<Carregando texto="Abrindo..." />}>
+        <Routes>
+          <Route element={<AdminLayout />}>
+            <Route path="/admin" element={<AdminPainel />} />
+            <Route path="/admin/empresas" element={<AdminPainel />} />
+            <Route path="/admin/empresas/:id" element={<AdminEmpresa />} />
+            <Route path="/admin/logs" element={<AdminObservabilidade />} />
+            <Route path="/admin/incidentes" element={<AdminIncidentes />} />
+            <Route path="/admin/auditoria" element={<AdminAuditoria />} />
+            <Route path="*" element={<Navigate to="/admin" replace />} />
+          </Route>
+        </Routes>
+      </Suspense>
+    )
+  }
   if (window.location.pathname.startsWith('/admin')) {
     return (
       <Suspense fallback={<Carregando texto="Abrindo..." />}>
