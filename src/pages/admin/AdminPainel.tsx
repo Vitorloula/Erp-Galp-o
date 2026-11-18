@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { RefreshCw, Building2, Activity, Siren } from 'lucide-react'
 import { Cabecalho, Carregando, Kpi, Vazio } from '../../components/ui'
-import { adminVisaoGeral, type AdminEmpresaResumo } from '../../lib/admin/cliente'
+import { adminVisaoGeral, adminIncidenteListar, type AdminEmpresaResumo } from '../../lib/admin/cliente'
 
 export function AdminPainel() {
   const [dados, setDados] = useState<AdminEmpresaResumo[] | null>(null)
+  const [criticos, setCriticos] = useState(0)
   const [erro, setErro] = useState<string | null>(null)
   const [carregando, setCarregando] = useState(false)
 
@@ -13,7 +14,12 @@ export function AdminPainel() {
     setCarregando(true)
     setErro(null)
     try {
-      setDados(await adminVisaoGeral())
+      const [d, incs] = await Promise.all([
+        adminVisaoGeral(),
+        adminIncidenteListar({ situacao: 'aberto', prioridade: 'critica' }),
+      ])
+      setDados(d)
+      setCriticos(incs.length)
     } catch (e) {
       setErro((e as Error).message)
     } finally {
@@ -41,7 +47,7 @@ export function AdminPainel() {
         <Kpi titulo="Trial vencendo (7d)" valor={trial7} icone={Building2} tom="amarelo" detalhe="vence nos próximos 7 dias" />
         <Kpi titulo="Suspensas" valor={suspensas} icone={Building2} tom={suspensas > 0 ? 'vermelho' : 'neutro'} detalhe="sem acesso a lançamentos" />
         <Kpi titulo="Erros (7d)" valor={erros7} icone={Activity} tom={erros7 > 0 ? 'vermelho' : 'neutro'} detalhe="ocorrências em todas as lojas" />
-        <Kpi titulo="Incidentes críticos abertos" valor="—" icone={Siren} detalhe="precisam de atenção" />
+        <Kpi titulo="Incidentes críticos abertos" valor={criticos} icone={Siren} tom={criticos > 0 ? 'vermelho' : 'neutro'} detalhe="precisam de atenção" />
       </div>
 
       <div className="mt-6 space-y-2">
