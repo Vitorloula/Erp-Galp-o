@@ -745,3 +745,6 @@ Passos 2–14 (T-038) concluídos: garantia por produto (migration + ProdutoForm
 **Bloqueio da cadeia:** cota semanal do OpenCode Go esgotada (reset ~8h44m). Agentes pesados (Programador, QA, Arquiteto) não conseguem rodar. Apenas trabalho leve (gates, verificação, registro) foi possível na sessão do coordenador (beam-free). Próximas tarefas da fila (T-039 Super Admin, T-028 piloto, T-037, T-035, T-034, T-040) aguardam a cota voltar ou ativação de Extra Usage/Go Plus.
 
 **Decisões registradas:** super admin = conta pessoal do dono (vitorloula3@gmail.com, fora do repo público); A-2 = dono+gerente; fila confirmada T-038→QA→T-041→T-039→T-028→resto→T-040; commits por ciclo autorizados; modelos gratuitos do Go para agentes pesados (primário beam-free).
+
+## 18/11/2026 — Programador (T-039 Painel Super Admin)
+F1–F5 implementados (commits por fase na branch saas). Migrations 20261116120000, 20261117120000, 20261118120000, 20261119120000, 20261120120000. Frontend: AdminLayout/Painel/Empresa/Auditoria/Observabilidade/Incidentes; rotas lazy /admin; link no Layout; cliente admin com correlação; piloto.mjs super/dessuper. testar-sql 335/335; lint 0; npm test 142/142; build OK; tsc -p e2e 0. Migrations não aplicadas em produção (coordenador via MCP após push). Nenhum push.
