@@ -1,4 +1,4 @@
-import { Suspense } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import { ConvitePendente, guardarConviteDaUrl, useConvitePendente } from './components/Convite'
 import { Layout } from './components/Layout'
@@ -9,6 +9,7 @@ import { DadosProvider } from './contexto/Dados'
 import { EmpresaProvider, useEmpresa } from './contexto/Empresa'
 import { configurado } from './lib/dados'
 import { lazy } from 'react'
+import { adminSouAdmin } from './lib/admin/cliente'
 import { BoasVindas } from './pages/BoasVindas'
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout').then(m => ({ default: m.AdminLayout })))
 const AdminPainel = lazy(() => import('./pages/admin/AdminPainel').then(m => ({ default: m.AdminPainel })))
@@ -43,9 +44,14 @@ guardarConviteDaUrl()
 function Sistema() {
   const { empresa, loja, lojas, vinculos, erro } = useEmpresa()
   const convite = useConvitePendente()
+  const [ehSuperAdmin, setEhSuperAdmin] = useState(false)
+  useEffect(() => { adminSouAdmin().then(setEhSuperAdmin).catch(() => setEhSuperAdmin(false)) }, [])
   if (convite.token) return <ConvitePendente {...convite} />
   if (!vinculos) return <Carregando texto="Abrindo a empresa..." />
-  if (!empresa) return <BoasVindas />
+  if (!empresa) {
+    if (ehSuperAdmin) return <Navigate to="/admin" replace />
+    return <BoasVindas />
+  }
   if (!lojas) return <Carregando texto="Abrindo a loja..." />
   if (!loja)
     return (
