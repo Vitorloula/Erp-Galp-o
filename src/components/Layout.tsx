@@ -16,6 +16,7 @@ import {
   Plus,
   RefreshCw,
   ScanBarcode,
+  ShieldCheck,
   ShoppingCart,
   Store,
   Users,
@@ -32,6 +33,7 @@ import { useDados } from '../contexto/Dados'
 import { useAtiva } from '../contexto/Empresa'
 import { formatarData } from '../lib/formato'
 import { configurarMonitoramento } from '../lib/monitoramento'
+import { adminSouAdmin } from '../lib/admin/cliente'
 import { NOME_PAPEL } from '../lib/permissoes'
 import type { Vinculo } from '../lib/tipos'
 import { Avatar } from './Avatar'
@@ -102,6 +104,8 @@ function AvisoAssinatura({ empresa }: { empresa: Vinculo }) {
 export function Layout() {
   const { usuario, sair } = useAuth()
   const { empresa, loja, lojas, vinculos, pode, trocarLoja } = useAtiva()
+  const [ehAdmin, setEhAdmin] = useState(false)
+  useEffect(() => { adminSouAdmin().then(setEhAdmin).catch(() => {}) }, [])
   const { erro, recarregar, versao } = useDados()
   const [divergencias, setDivergencias] = useState(0)
   const atualizacao = useAtualizacao()
@@ -141,6 +145,7 @@ export function Layout() {
     ...(pode.movimentar ? [{ para: '/inventario', rotulo: 'Inventário', icone: ClipboardList }] : []),
     ...(pode.convidar || pode.gerenciarEquipe ? [{ para: '/equipe', rotulo: 'Equipe', icone: Users }] : []),
     { para: '/empresa', rotulo: 'Empresa', icone: Building2 },
+    ...(ehAdmin ? [{ para: '/admin', rotulo: 'Painel da plataforma', icone: ShieldCheck }] : []),
   ]
   const variasLojas = (lojas?.length ?? 0) > 1
 

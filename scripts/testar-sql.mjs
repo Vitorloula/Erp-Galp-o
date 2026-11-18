@@ -72,7 +72,7 @@ secao('Estrutura (metatestes — falham se alguém criar tabela sem proteção):
   const semRls = tabelas.filter(t => !t.rls).map(t => t.nome)
   confere(semRls.length === 0, `todas as ${tabelas.length} tabelas têm RLS ligado`, semRls.join(', '))
 
-  const sistema = ['perfis', 'planos', 'plataforma_admins', 'empresas']
+  const sistema = ['perfis', 'planos', 'plataforma_admins', 'empresas', 'admin_auditoria', 'admin_incidentes', 'admin_incidente_acoes', 'admin_inspecoes', 'admin_incidente_analises']
   const comEmpresa = new Set((await db.query(`select table_name from information_schema.columns where table_schema = 'public' and column_name = 'empresa_id'`)).rows.map(r => r.table_name))
   const semEmpresa = tabelas.map(t => t.nome).filter(t => !sistema.includes(t) && !comEmpresa.has(t))
   confere(semEmpresa.length === 0, 'toda tabela de negócio tem empresa_id', semEmpresa.join(', '))
@@ -288,8 +288,10 @@ await comoUsuario(donoB, async () => {
     const c = await um(`select column_name from information_schema.column_privileges where table_schema = 'public' and table_name = $1 and grantee = 'authenticated' and privilege_type = 'UPDATE' limit 1`, [o.nome])
     colunasUpdate.set(o.nome, c?.column_name ?? 'empresa_id')
   }
+  const plataforma = ['admin_auditoria', 'admin_incidentes', 'admin_incidente_acoes', 'admin_inspecoes', 'admin_incidente_analises']
   await comoUsuario(donoA, async () => {
     for (const { nome, tipo } of objetos) {
+      if (plataforma.includes(nome)) continue
       const n = (await um(`select count(*)::int as n from public.${nome} where empresa_id = $1`, [empB])).n
       confere(n === 0, `${nome}: não lê dados da outra empresa`, `${n} linha(s) visível(is)`)
       if (tipo === 'VIEW') continue

@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import { ConvitePendente, guardarConviteDaUrl, useConvitePendente } from './components/Convite'
 import { Layout } from './components/Layout'
@@ -7,7 +8,14 @@ import { AuthProvider, useAuth } from './contexto/Auth'
 import { DadosProvider } from './contexto/Dados'
 import { EmpresaProvider, useEmpresa } from './contexto/Empresa'
 import { configurado } from './lib/dados'
+import { lazy } from 'react'
 import { BoasVindas } from './pages/BoasVindas'
+const AdminLayout = lazy(() => import('./pages/admin/AdminLayout').then(m => ({ default: m.AdminLayout })))
+const AdminPainel = lazy(() => import('./pages/admin/AdminPainel').then(m => ({ default: m.AdminPainel })))
+const AdminEmpresa = lazy(() => import('./pages/admin/AdminEmpresa').then(m => ({ default: m.AdminEmpresa })))
+const AdminObservabilidade = lazy(() => import('./pages/admin/AdminObservabilidade').then(m => ({ default: m.AdminObservabilidade })))
+const AdminIncidentes = lazy(() => import('./pages/admin/AdminIncidentes').then(m => ({ default: m.AdminIncidentes })))
+const AdminAuditoria = lazy(() => import('./pages/admin/AdminAuditoria').then(m => ({ default: m.AdminAuditoria })))
 import { EmpresaConfig } from './pages/EmpresaConfig'
 import { Divergencias } from './pages/Divergencias'
 import { Equipe } from './pages/Equipe'
@@ -98,6 +106,23 @@ function Rotas() {
   if (!pronto) return <Carregando texto="Abrindo o sistema..." />
   if (!usuario) return <Login />
   if (definindoSenha) return <NovaSenha />
+  if (window.location.pathname.startsWith('/admin')) {
+    return (
+      <Suspense fallback={<Carregando texto="Abrindo..." />}>
+        <Routes>
+          <Route element={<AdminLayout />}>
+            <Route path="/admin" element={<AdminPainel />} />
+            <Route path="/admin/empresas" element={<AdminPainel />} />
+            <Route path="/admin/empresas/:id" element={<AdminEmpresa />} />
+            <Route path="/admin/logs" element={<AdminObservabilidade />} />
+            <Route path="/admin/incidentes" element={<AdminIncidentes />} />
+            <Route path="/admin/auditoria" element={<AdminAuditoria />} />
+            <Route path="*" element={<Navigate to="/admin" replace />} />
+          </Route>
+        </Routes>
+      </Suspense>
+    )
+  }
   return (
     <EmpresaProvider key={usuario.id}>
       <Sistema />

@@ -30,6 +30,8 @@ function ajuda() {
   npm run piloto -- cortesia <empresa_id>
   npm run piloto -- trial <empresa_id> [dias=30]
   npm run piloto -- ativa <empresa_id> [dias=30]
+  npm run piloto -- super <email>
+  npm run piloto -- dessuper <email>
 
 Variáveis: SUPABASE_URL (ou VITE_SUPABASE_URL) e SUPABASE_SERVICE_ROLE_KEY.`)
 }
@@ -77,6 +79,24 @@ if (comando === 'status') {
   const { data: assinatura, error: erroAssinatura } = await sb.from('assinaturas').select('*').eq('empresa_id', empresaId).maybeSingle()
   if (erroAssinatura) falhar(erroAssinatura)
   console.log(JSON.stringify({ empresa, assinatura }, null, 2))
+  process.exit(0)
+}
+
+if (comando === 'super' || comando === 'dessuper') {
+  const email = empresaId
+  if (!email) { console.error('Informe o e-mail do usuário.'); process.exit(1) }
+  const { data: perfil, error: erroPerfil } = await sb.from('perfis').select('id').eq('email', email).maybeSingle()
+  if (erroPerfil) falhar(erroPerfil)
+  if (!perfil?.id) { console.error('Usuário não encontrado (precisa ter feito login ao menos uma vez).'); process.exit(1) }
+  if (comando === 'super') {
+    const { error } = await sb.from('plataforma_admins').upsert({ usuario_id: perfil.id })
+    if (error) falhar(error)
+    console.log(`Super admin concedido a ${email} (${perfil.id}).`)
+  } else {
+    const { error } = await sb.from('plataforma_admins').delete().eq('usuario_id', perfil.id)
+    if (error) falhar(error)
+    console.log(`Super admin removido de ${email} (${perfil.id}).`)
+  }
   process.exit(0)
 }
 
