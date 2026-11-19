@@ -6,6 +6,7 @@ import {
   gruposDaAgenda,
   grupoDaAgenda,
   interpretarPagamento,
+  marcosDaOS,
   mensagemOrcado,
   mensagemPronta,
   montarTotalOS,
@@ -169,6 +170,78 @@ describe('serviços > agenda', () => {
     expect(grupos.em_andamento.map(o => o.id)).toEqual(['2'])
     expect(grupos.prontas.map(o => o.id)).toEqual([])
     expect(grupos.atrasadas.map(o => o.id)).toEqual(['3'])
+  })
+})
+
+describe('serviços > histórico em linha', () => {
+  const marcos = (extra: Partial<OS> = {}) => marcosDaOS(os(extra))
+  const estados = (lista: ReturnType<typeof marcos>) => lista.map(m => m.estado)
+  const chaves = (lista: ReturnType<typeof marcos>) => lista.map(m => m.chave)
+
+  it('OS recém-aberta: recebida concluída e diagnóstico atual', () => {
+    const lista = marcos()
+    expect(estados(lista)).toEqual(['concluido', 'atual', 'pendente', 'pendente', 'pendente', 'pendente', 'pendente'])
+    expect(lista[0].data).toBe('2026-11-15T12:00:00Z')
+    expect(lista[0].por).toBe('Ana')
+    expect(lista[1].data).toBe(null)
+    expect(lista[1].detalhe).toBe('Em análise pelo técnico.')
+  })
+
+  it('orçamento enviado: orçamento concluído e aprovação atual', () => {
+    const lista = marcos({ status: 'aguardando_aprovacao', orcado_em: '2026-11-16T10:00:00Z' })
+    expect(estados(lista).slice(0, 4)).toEqual(['concluido', 'concluido', 'concluido', 'atual'])
+    expect(lista[2].data).toBe('2026-11-16T10:00:00Z')
+    expect(lista[2].detalhe).toBe('Orçamento enviado para aprovação do cliente.')
+    expect(lista[1].detalhe).toBe('Concluído ao enviar o orçamento, em 16/11/2026.')
+  })
+
+  it('aprovada e em execução param no marco Execução', () => {
+    const aprovada = marcos({ status: 'aprovada', orcado_em: '2026-11-16T10:00:00Z', aprovada_em: '2026-11-17T09:00:00Z' })
+    expect(aprovada[3].estado).toBe('concluido')
+    expect(aprovada[3].por).toBe(null)
+    expect(aprovada[4].estado).toBe('atual')
+    expect(aprovada[4].data).toBe(null)
+    expect(aprovada[4].detalhe).toBe('Serviço em andamento (a data de início não é registrada).')
+
+    const emExecucao = marcos({ status: 'em_execucao', aprovada_em: '2026-11-17T09:00:00Z' })
+    expect(emExecucao[4].estado).toBe('atual')
+  })
+
+  it('pronta destaca o marco de entrega do aparelho', () => {
+    const lista = marcos({ status: 'pronta', pronta_em: '2026-11-18T18:00:00Z' })
+    expect(lista[5].estado).toBe('atual')
+    expect(lista[5].data).toBe('2026-11-18T18:00:00Z')
+    expect(lista[6].estado).toBe('pendente')
+  })
+
+  it('entregue fica com todos os marcos concluídos', () => {
+    const lista = marcos({ status: 'entregue', pronta_em: '2026-11-18T18:00:00Z', entregue_em: '2026-11-19T11:00:00Z', entregue_por_nome: 'Bia' })
+    expect(estados(lista)).toEqual(Array(7).fill('concluido'))
+    expect(lista[6].por).toBe('Bia')
+  })
+
+  it('cancelada mostra só as etapas percorridas e o motivo no fim', () => {
+    const lista = marcos({
+      status: 'cancelada',
+      orcado_em: '2026-11-16T10:00:00Z',
+      cancelada_em: '2026-11-17T08:00:00Z',
+      cancelada_por_nome: 'Bia',
+      motivo_cancelamento: 'cliente desistiu',
+    })
+    expect(chaves(lista)).toEqual(['recebida', 'diagnostico', 'orcamento', 'cancelada'])
+    expect(lista[3]).toMatchObject({
+      chave: 'cancelada',
+      estado: 'cancelada',
+      por: 'Bia',
+      data: '2026-11-17T08:00:00Z',
+      detalhe: 'Motivo: cliente desistiu',
+    })
+  })
+
+  it('não inventa data onde o fluxo não registra carimbo', () => {
+    const lista = marcos({ status: 'entregue', orcado_em: '2026-11-16T10:00:00Z', aprovada_em: '2026-11-17T09:00:00Z', pronta_em: '2026-11-18T18:00:00Z', entregue_em: '2026-11-19T11:00:00Z' })
+    expect(lista[1].data).toBe(null)
+    expect(lista[4].data).toBe(null)
   })
 })
 

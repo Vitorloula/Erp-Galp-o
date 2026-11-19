@@ -56,6 +56,26 @@ sem cobrança automática**. O cupom sempre exibe **“DOCUMENTO SEM VALOR FISCA
 - Base reutilizável em `src/components/Etapas.tsx` (`Passos` e `NavegacaoEtapas`), acessível por
   teclado e com o indicador de etapas fixo no `subcabecalho` do `Modal` (fora do corpo rolável).
 
+### Detalhe da OS: histórico em linha
+
+- O topo da OS reúne cliente, aparelho, prazo, técnico, quem recebeu, status/atraso, ações
+  (imprimir, copiar mensagem, cancelar) e o **botão do próximo passo**, em vez de um cartão solto
+  no meio da página.
+- Histórico em linha horizontal (`src/components/LinhaTempoOS.tsx` + `marcosDaOS` em
+  `src/lib/servicos.ts`): Recebida → Diagnóstico → Orçamento → Aprovação → Execução → Pronta →
+  Entregue. Concluído = tique verde; atual = ponto escuro com anel amarelo; futuro = cinza;
+  cancelada = nó vermelho com o motivo. Clicar num marco abre data/hora, responsável e o que
+  aconteceu (com `aria-expanded`; no celular a linha rola e centraliza a etapa atual).
+- Diagnóstico e execução **não têm carimbo próprio** no banco: a tela mostra a data vizinha
+  (orçamento/pronta) e, quando não há registro, diz isso — não inventa data.
+- Desktop em duas colunas: conteúdo principal + resumo/financeiro (360 px, `sticky`). No celular,
+  uma coluna, com o resumo antes do formulário.
+- Cartões padronizados por `Secao` (`src/components/ui.tsx`), com ícone, título, descrição e ação;
+  dados em `dl`; orçamento em tabela; entrega com tiles Total/Pago/Falta, formas de pagamento e
+  garantia no mesmo cartão.
+- “Enviar orçamento” também salva o diagnóstico digitado. Antes, o texto se perdia se o operador
+  usasse o CTA do topo sem clicar em “Salvar diagnóstico”.
+
 ### Estoque por lote
 
 - Saldo materializado por loja e lote; histórico imutável de movimentações.

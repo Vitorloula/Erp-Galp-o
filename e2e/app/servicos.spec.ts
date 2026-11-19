@@ -93,6 +93,33 @@ test.describe('Serviços', () => {
     await expect(page.getByRole('heading', { level: 1, name: /OS 00000\d/ })).toBeVisible()
   })
 
+  test('histórico em linha mostra a etapa atual e abre os detalhes do marco', async ({ page }) => {
+    await page.goto('/os/nova')
+    await page.getByLabel('Nome do cliente *').fill('Carla Nunes')
+    await continuarEtapa(page)
+    await page.getByLabel('Tipo de aparelho *').fill('Celular')
+    await page.getByLabel('Marca e modelo *').fill('Xiaomi Redmi 12')
+    await continuarEtapa(page)
+    await page.getByLabel('Defeito relatado *').fill('Bateria descarrega rápido')
+    await page.getByRole('button', { name: 'Receber aparelho' }).click()
+    await page.getByRole('button', { name: 'Abrir OS' }).click()
+
+    const historico = page.getByRole('region', { name: 'Histórico da OS' })
+    await expect(historico).toBeVisible()
+    await expect(historico.getByRole('button', { name: 'Diagnóstico' })).toHaveAttribute('aria-current', 'step')
+    await expect(historico.getByRole('button', { name: 'Recebida' })).toHaveAttribute('aria-expanded', 'false')
+
+    await historico.getByRole('button', { name: 'Recebida' }).click()
+    await expect(historico.getByRole('button', { name: 'Recebida' })).toHaveAttribute('aria-expanded', 'true')
+    const detalhe = page.getByRole('region', { name: 'Detalhes de Recebida' })
+    await expect(detalhe).toContainText('Aparelho recebido e OS aberta.')
+    await expect(detalhe).toContainText('por Ana Teste')
+
+    // Clicar de novo fecha o detalhe (não deixa a faixa presa).
+    await historico.getByRole('button', { name: 'Recebida' }).click()
+    await expect(detalhe).toHaveCount(0)
+  })
+
   test('total em reais, pagamento vazio e entrega com recibo impresso', async ({ page }) => {
     const impressoes = await contarImpressoes(page)
 
@@ -110,8 +137,11 @@ test.describe('Serviços', () => {
     await page.getByRole('button', { name: 'Iniciar diagnóstico' }).click()
     // Mão de obra em reais: o total tem de aparecer como R$ 1.800,00 (não R$ 18,00).
     await page.getByLabel('Mão de obra (R$)').fill('1800')
+    // O CTA do topo também salva o diagnóstico digitado (não pode perdê-lo).
+    await page.getByLabel('Diagnóstico').fill('Display quebrado; troca necessária.')
     await page.getByRole('button', { name: 'Enviar orçamento' }).click()
     await expect(page.getByText('Total: R$ 1.800,00')).toBeVisible()
+    await expect(page.getByLabel('Diagnóstico')).toHaveValue('Display quebrado; troca necessária.')
 
     await page.getByRole('button', { name: 'Cliente aprovou o orçamento' }).click()
     await page.getByRole('button', { name: 'Iniciar execução' }).click()

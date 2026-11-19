@@ -361,6 +361,47 @@ export function Cabecalho({ titulo, subtitulo, acoes }: { titulo: string; subtit
   )
 }
 
+/**
+ * Cartão de seção padrão: cabeçalho com ícone tonal, título, descrição e ação,
+ * corpo e rodapé opcionais. Substitui os cartões "soltos" com títulos avulsos.
+ */
+export function Secao({
+  icone: Icone,
+  titulo,
+  descricao,
+  acao,
+  children,
+  rodape,
+  className,
+}: {
+  icone?: LucideIcon
+  titulo: ReactNode
+  descricao?: ReactNode
+  acao?: ReactNode
+  children: ReactNode
+  rodape?: ReactNode
+  className?: string
+}) {
+  return (
+    <section className={cx('cartao overflow-hidden', className)}>
+      <div className="flex items-start gap-3 border-b border-borda-loja px-4 py-3">
+        {Icone && (
+          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-superficie text-slate-500">
+            <Icone className="size-4" />
+          </span>
+        )}
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[13px] font-semibold leading-5 text-ponto">{titulo}</h2>
+          {descricao && <p className="text-[11px] leading-4 text-texto-secundario">{descricao}</p>}
+        </div>
+        {acao && <div className="shrink-0">{acao}</div>}
+      </div>
+      <div className="px-4 py-3.5">{children}</div>
+      {rodape && <div className="border-t border-borda-loja bg-superficie px-4 py-3">{rodape}</div>}
+    </section>
+  )
+}
+
 export function Aviso({ tom = 'info', children }: { tom?: 'info' | 'erro' | 'alerta'; children: ReactNode }) {
   const tons = {
     info: 'border-sky-200 bg-sky-50 text-sky-900',

@@ -5,11 +5,11 @@
 | Comando | Exit | Resultado |
 |---|---|---|
 | `npm run lint` (`tsc -p . --noEmit`) | 0 | sem erros de tipo |
-| `npm test` (Vitest) | 0 | **145/145** em 14 arquivos |
+| `npm test` (Vitest) | 0 | **152/152** em 14 arquivos |
 | `npm run test:sql` (PGlite) | 0 | **335/335** verificações (ciclo anterior; sem migration nesta entrega) |
 | `npm run build` | 0 | `tsc` + Vite + PWA |
 | `npx tsc -p e2e --noEmit` | 0 | specs e helpers E2E |
-| Playwright direcionado | 0 | **Produtos 8/8**, **Serviços 8/8**, **Modais 6/6** e **Resultado 5/5** no desktop, e **16/16** no celular (produtos + serviços), todos com `--workers=1`. A suíte inteira com 4 workers sofre com o fixture do servidor e a fila de sincronização (ver §5) |
+| Playwright direcionado | 0 | **Produtos 8/8**, **Serviços 9/9**, **Modais 6/6** e **Resultado 5/5** no desktop, e **17/17** no celular (produtos + serviços), todos com `--workers=1`. A suíte inteira com 4 workers sofre com o fixture do servidor e a fila de sincronização (ver §5) |
 
 Laudo da última rodada (custo e lucro, T-036): `memoria/laudo-custo-lucro.md` — **aprovado, sem
 defeito aberto** (a margem com casa decimal saiu com vírgula no Painel, nos Relatórios, no Excel
@@ -87,7 +87,9 @@ npm run test:e2e:ci      # CI, com retries
 - `e2e/app/servicos.spec.ts`: OS de ponta a ponta — recebimento em **3 etapas**
   (Cliente → Aparelho → Problema e prazo) com validação por etapa e dados preservados ao
   voltar (`continuarEtapa`/`voltarEtapa`), comprovante em 80 mm, total em centavos, pagamento
-  com campo vazio e entrega com recibo.
+  com campo vazio e entrega com recibo. O histórico em linha tem teste próprio: etapa atual com
+  `aria-current="step"`, detalhe expansível com data/autor e o diagnóstico preservado ao enviar
+  o orçamento pelo CTA do topo.
 - `e2e/app/modais.spec.ts`: valida que o cadastro de produto usa **etapas fixas**
   (`data-modal-subcabecalho`), que os dados não se perdem ao avançar/voltar e que o erro de
   validação foca o campo certo, além das medidas do modal em várias telas.

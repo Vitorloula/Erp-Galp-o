@@ -139,6 +139,141 @@ export function dicaGarantiaSugerida(itens: ReadonlyArray<Pick<ItemOS, 'origem' 
   return `Sugestão: maior garantia entre as peças (${dias} dias).`
 }
 
+// ─────────────────── Linha do tempo da OS ───────────────────
+
+export type ChaveMarcoOS =
+  | 'recebida'
+  | 'diagnostico'
+  | 'orcamento'
+  | 'aprovacao'
+  | 'execucao'
+  | 'pronta'
+  | 'entrega'
+  | 'cancelada'
+
+export type EstadoMarcoOS = 'concluido' | 'atual' | 'pendente' | 'cancelada'
+
+/** Um marco do histórico em linha. `data` é o carimbo real; null = etapa sem carimbo próprio. */
+export interface MarcoOS {
+  chave: ChaveMarcoOS
+  rotulo: string
+  data: string | null
+  por: string | null
+  detalhe: string
+  estado: EstadoMarcoOS
+}
+
+type OSParaMarcos = Pick<
+  OS,
+  | 'status'
+  | 'criado_em'
+  | 'criado_por_nome'
+  | 'orcado_em'
+  | 'aprovada_em'
+  | 'aprovada_por_nome'
+  | 'pronta_em'
+  | 'entregue_em'
+  | 'entregue_por_nome'
+  | 'cancelada_em'
+  | 'cancelada_por_nome'
+  | 'motivo_cancelamento'
+>
+
+/**
+ * Onde cada status para na linha do tempo (índice do marco atual).
+ * `aberta` já tem a Recebida concluída e espera o diagnóstico; `aprovada` espera
+ * a execução; `entregue` fica com todos os marcos concluídos (7 = depois do último).
+ */
+const ETAPA_ATUAL: Record<Exclude<StatusOS, 'cancelada'>, number> = {
+  aberta: 1,
+  em_diagnostico: 1,
+  aguardando_aprovacao: 3,
+  aprovada: 4,
+  em_execucao: 4,
+  pronta: 5,
+  entregue: 7,
+}
+
+function baseDaOS(os: OSParaMarcos): Omit<MarcoOS, 'estado' | 'detalhe'>[] {
+  return [
+    { chave: 'recebida', rotulo: 'Recebida', data: os.criado_em, por: os.criado_por_nome },
+    // Diagnóstico e execução não têm carimbo próprio: as datas vizinhas explicam a etapa.
+    { chave: 'diagnostico', rotulo: 'Diagnóstico', data: null, por: null },
+    { chave: 'orcamento', rotulo: 'Orçamento', data: os.orcado_em, por: null },
+    { chave: 'aprovacao', rotulo: 'Aprovação', data: os.aprovada_em, por: os.aprovada_por_nome },
+    { chave: 'execucao', rotulo: 'Execução', data: null, por: null },
+    { chave: 'pronta', rotulo: 'Pronta', data: os.pronta_em, por: null },
+    { chave: 'entrega', rotulo: 'Entregue', data: os.entregue_em, por: os.entregue_por_nome },
+  ]
+}
+
+function detalheDoMarco(chave: ChaveMarcoOS, estado: EstadoMarcoOS, os: OSParaMarcos): string {
+  switch (chave) {
+    case 'recebida':
+      return 'Aparelho recebido e OS aberta.'
+    case 'diagnostico':
+      if (estado === 'pendente') return 'Ainda não iniciado.'
+      if (estado === 'atual') return 'Em análise pelo técnico.'
+      return os.orcado_em
+        ? `Concluído ao enviar o orçamento, em ${formatarData(os.orcado_em)}.`
+        : 'Concluído ao enviar o orçamento.'
+    case 'orcamento':
+      return estado === 'pendente' ? 'Ainda não enviado ao cliente.' : 'Orçamento enviado para aprovação do cliente.'
+    case 'aprovacao':
+      return estado === 'pendente' ? 'Aguardando a resposta do cliente.' : 'Cliente aprovou o orçamento.'
+    case 'execucao':
+      if (estado === 'pendente') return 'Ainda não iniciada.'
+      if (estado === 'atual') return 'Serviço em andamento (a data de início não é registrada).'
+      return os.pronta_em ? `Concluída em ${formatarData(os.pronta_em)}.` : 'Concluída.'
+    case 'pronta':
+      return estado === 'pendente' ? 'Ainda não concluída.' : 'Serviço concluído; o cliente pode ser avisado.'
+    case 'entrega':
+      return estado === 'pendente' ? 'Ainda não entregue.' : 'Aparelho entregue ao cliente.'
+    case 'cancelada':
+      return os.motivo_cancelamento ? `Motivo: ${os.motivo_cancelamento}` : 'OS cancelada.'
+  }
+}
+
+/**
+ * Histórico da OS em marcos, sem consultar o banco. Não inventa datas: onde o
+ * fluxo não registra carimbo (diagnóstico e execução), `data` fica null e o
+ * detalhe explica. OS cancelada mostra só as etapas percorridas + o nó de cancelamento.
+ */
+export function marcosDaOS(os: OSParaMarcos): MarcoOS[] {
+  const base = baseDaOS(os)
+
+  if (os.status === 'cancelada') {
+    const percorridas = base.filter((_, i) => {
+      if (i === 0) return true
+      if (i === 1 || i === 2) return !!os.orcado_em
+      if (i === 3) return !!os.aprovada_em
+      if (i === 4 || i === 5) return !!os.pronta_em
+      return !!os.entregue_em
+    })
+    return [
+      ...percorridas.map(m => ({
+        ...m,
+        estado: 'concluido' as const,
+        detalhe: detalheDoMarco(m.chave, 'concluido', os),
+      })),
+      {
+        chave: 'cancelada',
+        rotulo: 'Cancelada',
+        data: os.cancelada_em,
+        por: os.cancelada_por_nome,
+        detalhe: detalheDoMarco('cancelada', 'cancelada', os),
+        estado: 'cancelada',
+      },
+    ]
+  }
+
+  const atual = ETAPA_ATUAL[os.status]
+  return base.map((m, i) => {
+    const estado: EstadoMarcoOS = i < atual ? 'concluido' : i === atual ? 'atual' : 'pendente'
+    return { ...m, estado, detalhe: detalheDoMarco(m.chave, estado, os) }
+  })
+}
+
 // ─────────────────── Mensagens copiáveis (Decisão 9) ───────────────────
 
 type OSParaMensagem = Pick<OS, 'cliente_nome' | 'cliente_telefone' | 'numero' | 'aparelho_tipo' | 'aparelho_marca_modelo' | 'prazo_prometido' | 'garantia_dias'>

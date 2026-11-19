@@ -556,9 +556,28 @@
       "criado_em": "2026-11-19T00:00:00.000Z",
       "concluido_em": "2026-11-19T17:01:05.031Z",
       "comprovacao": "Gates: lint 0 | npm test 145/145 em 14 arquivos | build 0 | tsc -p e2e 0. Playwright com --workers=1: desktop produtos 8/8, servicos 8/8, modais 6/6 e resultado 5/5; celular produtos 8/8 e servicos 8/8 (16/16). A rodada com 4 workers sofre com o fixture do servidor e a fila de sincronização do PDV, sempre sanada com --workers=1 e sem relação com as etapas. Nada commitado."
+    },
+    {
+      "id": "T-043",
+      "titulo": "Detalhe da OS: histórico em linha expansível e cartões compactos",
+      "prioridade": 2,
+      "tipo": "ux",
+      "detalhe": "Escopo do dono: somente o detalhe da OS (lista de OS, produto, estoque e relatórios ficaram fora). O histórico virou linha horizontal com 7 marcos (Recebida → Diagnóstico → Orçamento → Aprovação → Execução → Pronta → Entregue): concluído com tique, atual com ponto e anel, pendente em cinza e cancelada em nó vermelho. Cada marco abre data/hora, responsável e o que aconteceu (aria-expanded/aria-current; no celular a linha rola e centraliza a etapa atual). O topo reúne cliente, aparelho, prazo, técnico, status e ações + botão do próximo passo; o desktop ficou em duas colunas com Resumo e Financeiro sticky. Diagnóstico, orçamento (tabela) e entrega passaram a usar Secao, com dados em dl, tiles Total/Pago/Falta, barra de progresso e lista de pagamentos. Diagnóstico e execução não têm carimbo no banco e aparecem sem data inventada.",
+      "evidencia": "src/components/LinhaTempoOS.tsx (novo); src/lib/servicos.ts (marcosDaOS); src/lib/servicos.test.ts (7 casos novos); src/pages/ServicosDetalhe.tsx; src/components/ui.tsx (Secao); e2e/app/servicos.spec.ts (histórico + diagnóstico preservado); DOCUMENTACAO_ERP.md e GUIA_DE_TESTES.md atualizados.",
+      "arquivos_que_toca": [
+        "src/components/LinhaTempoOS.tsx",
+        "src/pages/ServicosDetalhe.tsx",
+        "src/lib/servicos.ts",
+        "src/components/ui.tsx",
+        "e2e/app/servicos.spec.ts"
+      ],
+      "criterios": "Histórico em linha expansível com a etapa atual marcada; datas só de carimbos existentes; fatos de pagamento/entrega/impressão e textos do e2e preservados; densidade compacta sem perder leitura no celular; gates lint/test/build/tsc e Playwright de servicos verdes.",
+      "criado_em": "2026-11-19T18:00:00.000Z",
+      "concluido_em": "2026-11-19T18:20:00.000Z",
+      "comprovacao": "Gates: lint 0 | npm test 152/152 em 14 arquivos | build 0 | tsc -p e2e 0. Playwright com --workers=1: servicos.spec.ts 9/9 no desktop e 9/9 no celular. Capturas conferidas no desktop e no celular. Sem migration, sem mudança de dados/rotas/permissões. Nada commitado."
     }
   ],
-  "ciclos": 20,
+  "ciclos": 21,
   "plano_atual": {
     "item_id": "T-028",
     "origem": "após fechamento do T-039 (implementado em 6 commits; QA pendente; migrations aplicadas em produção). Fila confirmada pelo dono: T-028 (piloto) → T-037 → T-035 → T-034 → T-040 (aguarda domínio).",
