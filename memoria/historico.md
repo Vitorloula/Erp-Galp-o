@@ -770,3 +770,19 @@ Escopo do dono: **só o detalhe da OS** (lista, produto, estoque e relatórios f
 - Correção real encontrada no caminho: “Enviar orçamento” pelo CTA do topo **perdia o diagnóstico digitado** (só gravava mão de obra/itens). Agora o avanço salva `defeito_relatado` e `diagnostico` junto; teste cobre.
 - E2E: novo caso em `servicos.spec.ts` (etapa atual com `aria-current`, expansão de “Recebida” com detalhe/autor e fechamento ao clicar de novo); teste de entrega agora confere que o diagnóstico digitado sobrevive ao envio do orçamento.
 - Gates: lint 0 | npm test 152/152 | build 0 | tsc -p e2e 0. Playwright com `--workers=1`: `servicos.spec.ts` 9/9 no desktop e 9/9 no celular. Sem migration, sem mudança de dados/rotas/permissões. Nada commitado.
+## 19/11/2026 â€” Programador (T-044 menu lateral abre e fecha)
+
+Pedido do dono: menu lateral abrir e fechar. DecisÃµes: **desktop recolhe para trilho de 76 px** (nÃ£o some), **celular fica na barra inferior** e a **preferÃªncia Ã© lembrada no aparelho**.
+
+- `src/components/Layout.tsx`: estado `menuAberto` lido/gravado em `galpao-menu-aberto` via `memoria` (mesmo helper de empresa/loja); botÃ£o no topo ao lado da marca (`PanelLeftClose`/`PanelLeftOpen`) com `aria-expanded`, `aria-controls="menu-lateral"` e rÃ³tulo â€œRecolher/Expandir menuâ€.
+- Aberto: 236 px como antes. Fechado: 76 px; logo vira Ã­cone, seletor de empresa/loja e â€œLOJA ATIVAâ€ somem, CTA do PDV vira o carrinho com `aria-label`, contador de divergÃªncias vira badge sobre o Ã­cone e o rodapÃ© empilha avatar + sair. Os rÃ³tulos continuam no DOM com `sr-only`, entÃ£o o nome acessÃ­vel dos links nÃ£o muda (e2e antigo segue valendo).
+- Largura do `aside` e `padding-left` do conteÃºdo animam juntos em 200 ms (`motion-reduce` desliga).
+- E2E novo em `e2e/app/navegacao.spec.ts` (desktop): expandido (>200 px) â†’ recolhe (<100 px) â†’ navega por â€œEstoqueâ€ sÃ³ com Ã­cone â†’ recarrega e continua recolhido â†’ reabre com â€œMENUâ€ visÃ­vel. No celular Ã© pulado.
+- Gates: lint 0 | npm test 152/152 | tsc -p e2e 0 | Playwright `navegacao.spec.ts` 27 passed + 1 skipped (14/14 desktop, 13/13 celular). Capturas conferidas nos dois estados. Sem mudanÃ§a de dados/rotas/permissÃµes. Nada commitado.
+
+## 19/11/2026 â€” Programador (T-045 aviso pesado â†’ nota discreta)
+
+Caixas coloridas (`Aviso`) estavam sendo usadas para texto explicativo fixo e competiam com os campos. Criado `Nota` (Ã­cone + texto secundÃ¡rio, sem fundo/borda) em `src/components/ui.tsx` e trocado em 12 ocorrÃªncias fixas: OS (orÃ§amento travado e entrega), editar lote, correÃ§Ã£o, fechamento de caixa, convite, inventÃ¡rio, reposiÃ§Ã£o, movimentar (ajuste, transferÃªncia, lote automÃ¡tico) e fila NFC-e. `Aviso` permanece para erro e risco real (assinatura, lote vencido, produto sem estoque, acesso, relÃ³gio, caixa em outra aba, itens sem custo, seÃ§Ã£o vazia, dica dispensÃ¡vel). A mensagem do orÃ§amento travado varia por status (aprovado / entregue / cancelada).
+
+- Gates: lint 0 | npm test 152/152 | build 0 | tsc -p e2e 0. Playwright com `--workers=1`: servicos 18/18, produtos 16/16, pdv 10/10, modais 6/6 e navegacao 27 passed + 1 skipped. Sem migration, sem mudanÃ§a de dados/rotas/permissÃµes. Nada commitado.
+

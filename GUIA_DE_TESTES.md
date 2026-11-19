@@ -9,7 +9,7 @@
 | `npm run test:sql` (PGlite) | 0 | **335/335** verificações (ciclo anterior; sem migration nesta entrega) |
 | `npm run build` | 0 | `tsc` + Vite + PWA |
 | `npx tsc -p e2e --noEmit` | 0 | specs e helpers E2E |
-| Playwright direcionado | 0 | **Produtos 8/8**, **Serviços 9/9**, **Modais 6/6** e **Resultado 5/5** no desktop, e **17/17** no celular (produtos + serviços), todos com `--workers=1`. A suíte inteira com 4 workers sofre com o fixture do servidor e a fila de sincronização (ver §5) |
+| Playwright direcionado | 0 | No desktop: **Produtos 8/8**, **Serviços 9/9**, **Modais 6/6**, **Resultado 5/5** e **Navegação 14/14**. No celular: **Produtos 8/8**, **Serviços 9/9** e **Navegação 13/13** (1 skip do menu lateral). Tudo com `--workers=1`; a suíte inteira com 4 workers sofre com o fixture do servidor e a fila de sincronização (ver §5) |
 
 Laudo da última rodada (custo e lucro, T-036): `memoria/laudo-custo-lucro.md` — **aprovado, sem
 defeito aberto** (a margem com casa decimal saiu com vírgula no Painel, nos Relatórios, no Excel
@@ -94,6 +94,9 @@ npm run test:e2e:ci      # CI, com retries
   (`data-modal-subcabecalho`), que os dados não se perdem ao avançar/voltar e que o erro de
   validação foca o campo certo, além das medidas do modal em várias telas.
 - `e2e/app/importar.spec.ts`: CSV com saldo inicial e erro por linha.
+- `e2e/app/navegacao.spec.ts`: telas abrem sem erro, menu leva a todas elas e o menu
+  lateral **recolhe/expande** (trilho de 76 px, `aria-expanded`, navegação por ícone,
+  preferência preservada no recarregar). No celular o teste do menu lateral é pulado.
 - `e2e/app/inventario.spec.ts`: contagem por lote, ajuste no lote correto e rascunho.
 - `e2e/app/lgpd.spec.ts`: exportação JSON e páginas públicas.
 - `e2e/app/estoque-repor.spec.ts`: chip, tabela e lista de compras iguais.

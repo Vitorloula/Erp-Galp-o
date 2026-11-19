@@ -76,6 +76,19 @@ sem cobrança automática**. O cupom sempre exibe **“DOCUMENTO SEM VALOR FISCA
 - “Enviar orçamento” também salva o diagnóstico digitado. Antes, o texto se perdia se o operador
   usasse o CTA do topo sem clicar em “Salvar diagnóstico”.
 
+### Avisos e notas (ui)
+
+- `Aviso` (caixa colorida) fica reservado para erro e risco real: falha de validação, assinatura
+  vencida/somente leitura, lote vencido, produto sem estoque, acesso negado, relógio do aparelho,
+  caixa aberto em outra aba, itens sem custo no resultado, seção vazia no relatório e dica
+  dispensável do Estoque.
+- `Nota` (`src/components/ui.tsx`) é a versão discreta: ícone pequeno (`Info` por padrão, `Lock`
+  quando o orçamento está travado) + texto secundário, sem fundo nem borda. Usada para explicação
+  fixa dentro de cartões/formulários (ex.: orçamento travado, editar lote, correção, fechamento de
+  caixa às cegas, convite por link, inventário cego, ajuste, transferência, reposição, fila NFC-e).
+- A mensagem do orçamento travado varia por status: aprovada/em execução/pronta = “aprovado pelo
+  cliente”; entregue = “OS entregue”; cancelada = “OS cancelada”.
+
 ### Estoque por lote
 
 - Saldo materializado por loja e lote; histórico imutável de movimentações.
@@ -125,6 +138,18 @@ sem cobrança automática**. O cupom sempre exibe **“DOCUMENTO SEM VALOR FISCA
 - Painel do dono para dados da empresa, lojas, caixas, equipe e assinatura.
 - Configuração do comportamento de venda sem saldo e do formato de etiquetas da balança.
 - Dados cadastrais de loja editáveis: CNPJ, IE, endereço e UF.
+
+### Navegação e menu lateral
+
+- No computador o menu lateral abre em 236 px e pode ser recolhido para um trilho de
+  76 px com os ícones (botão no topo, ao lado da marca): os itens seguem clicáveis, com
+  `title` e o mesmo nome acessível. A escolha fica guardada no aparelho
+  (`galpao-menu-aberto`, via `memoria`) e a largura do conteúdo acompanha, com transição
+  que respeita `prefers-reduced-motion`.
+- Recolhido, o menu esconde rótulos, seletor de loja e a caixa “Loja ativa”, mantém os
+  contadores (badge sobre o ícone) e empilha avatar e sair no rodapé.
+- No celular a navegação continua na barra inferior fixa + tela “Mais”; o menu lateral
+  não aparece.
 
 ### LGPD, privacidade e monitoramento
 

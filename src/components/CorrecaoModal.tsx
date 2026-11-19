@@ -6,7 +6,7 @@ import { NOME_TIPO, arred, formatarDataHora, formatarDelta, formatarQtd, formata
 import type { Movimentacao } from '../lib/tipos'
 import { CampoQuantidade } from './CampoQuantidade'
 import { useToast } from './Toast'
-import { Aviso, Carregando, Modal } from './ui'
+import { Aviso, Carregando, Modal, Nota } from './ui'
 
 interface Props {
   movimentacao: Movimentacao | null
@@ -105,7 +105,7 @@ function Conteudo({ m, aoFechar }: { m: Movimentacao; aoFechar: () => void }) {
           <Carregando texto="Verificando correções anteriores..." />
         ) : (
           <>
-            <Aviso tom="info">O lançamento original continua no histórico. Será criado um novo lançamento de correção com a diferença.</Aviso>
+            <Nota>O lançamento original continua no histórico. Será criado um novo lançamento de correção com a diferença.</Nota>
             {!zerar && <CampoQuantidade produto={produto} aoMudar={setCorreta} rotulo={`Quantidade correta da ${NOME_TIPO[m.tipo].toLowerCase()}`} id="qtd-correta" autoFocus />}
             <label className="flex items-center gap-2.5 text-sm font-medium text-slate-700">
               <input type="checkbox" className="size-4.5 accent-ponto" checked={zerar} onChange={e => setZerar(e.target.checked)} />

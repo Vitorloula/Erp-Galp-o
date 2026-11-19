@@ -575,9 +575,49 @@
       "criado_em": "2026-11-19T18:00:00.000Z",
       "concluido_em": "2026-11-19T18:20:00.000Z",
       "comprovacao": "Gates: lint 0 | npm test 152/152 em 14 arquivos | build 0 | tsc -p e2e 0. Playwright com --workers=1: servicos.spec.ts 9/9 no desktop e 9/9 no celular. Capturas conferidas no desktop e no celular. Sem migration, sem mudança de dados/rotas/permissões. Nada commitado."
+    },
+    {
+      "id": "T-044",
+      "titulo": "Menu lateral abre e fecha (trilho de ícones no desktop)",
+      "prioridade": 2,
+      "tipo": "ux",
+      "detalhe": "Pedido do dono: o menu lateral abre e fecha. Decisões confirmadas: no computador o menu recolhe para um trilho de 76 px só com ícones (não some), no celular a barra inferior fixa + tela Mais continuam iguais e a escolha fica lembrada no aparelho. Aberto são 236 px como antes; fechado esconde rótulos, seletor de empresa/loja e a caixa Loja ativa, mantém os contadores como badge sobre o ícone e empilha avatar/sair no rodapé. Botão no topo ao lado da marca com PanelLeftClose/PanelLeftOpen, aria-expanded e aria-controls.",
+      "evidencia": "src/components/Layout.tsx (menuAberto, alternarMenu, CHAVE_MENU_ABERTO, aside com id=menu-lateral); e2e/app/navegacao.spec.ts (teste do recolher/expandir); DOCUMENTACAO_ERP.md (Navegação e menu lateral); GUIA_DE_TESTES.md.",
+      "arquivos_que_toca": [
+        "src/components/Layout.tsx",
+        "e2e/app/navegacao.spec.ts"
+      ],
+      "criterios": "Recolher/expandir com largura animada (motion-reduce desliga); preferência lembrada em galpao-menu-aberto; itens continuam com o mesmo nome acessível e clicáveis no trilho; celular inalterado; gates lint/test/build/tsc e Playwright de navegacao verdes.",
+      "criado_em": "2026-11-19T19:00:00.000Z",
+      "concluido_em": "2026-11-19T19:40:00.000Z",
+      "comprovacao": "Gates: lint 0 | npm test 152/152 em 14 arquivos | build 0 | tsc -p e2e 0. Playwright com --workers=1: navegacao.spec.ts 27 passed + 1 skipped (14/14 desktop, 13/13 celular). Capturas do menu aberto e recolhido conferidas. Sem migration, sem mudança de dados/rotas/permissões."
+    },
+    {
+      "id": "T-045",
+      "titulo": "Aviso pesado → Nota discreta para explicações fixas (ui)",
+      "prioridade": 2,
+      "tipo": "design",
+      "detalhe": "Caixas coloridas (Aviso) estavam sendo usadas para texto explicativo fixo e competiam com os campos. Criado Nota (ícone + texto secundário, sem fundo/borda) em src/components/ui.tsx e trocado nas 12 ocorrências fixas: OS (orçamento travado e entrega), editar lote, correção, fechamento de caixa, convite, inventário, reposição, movimentar (ajuste, transferência, lote automático) e fila NFC-e. Aviso permanece para erro e risco real (assinatura, lote vencido, produto sem estoque, acesso, relógio, caixa em outra aba, itens sem custo, seção vazia, dica dispensável). A mensagem do orçamento travado varia por status (aprovado / entregue / cancelada).",
+      "evidencia": "src/components/ui.tsx (Nota); src/pages/ServicosDetalhe.tsx; src/pages/ProdutoDetalhe.tsx; src/components/CorrecaoModal.tsx; src/pages/pdv/MenuCaixa.tsx; src/pages/Equipe.tsx; src/pages/Inventario.tsx; src/components/ReposicaoForm.tsx; src/components/FilaNFCe.tsx; src/pages/Movimentar.tsx; DOCUMENTACAO_ERP.md.",
+      "arquivos_que_toca": [
+        "src/components/ui.tsx",
+        "src/pages/ServicosDetalhe.tsx",
+        "src/pages/ProdutoDetalhe.tsx",
+        "src/components/CorrecaoModal.tsx",
+        "src/pages/pdv/MenuCaixa.tsx",
+        "src/pages/Equipe.tsx",
+        "src/pages/Inventario.tsx",
+        "src/components/ReposicaoForm.tsx",
+        "src/components/FilaNFCe.tsx",
+        "src/pages/Movimentar.tsx"
+      ],
+      "criterios": "Nota sem fundo/borda; Aviso mantido para erro/risco; textos preservados (e2e não quebra); gates lint/test/build/tsc e Playwright de servicos/produtos/pdv/modais/navegacao verdes.",
+      "criado_em": "2026-11-19T20:00:00.000Z",
+      "concluido_em": "2026-11-19T20:30:00.000Z",
+      "comprovacao": "Gates: lint 0 | npm test 152/152 em 14 arquivos | build 0 | tsc -p e2e 0. Playwright com --workers=1: servicos 18/18, produtos 16/16, pdv 10/10, modais 6/6 e navegacao 27 passed + 1 skipped. Sem migration, sem mudança de dados/rotas/permissões."
     }
   ],
-  "ciclos": 21,
+  "ciclos": 23,
   "plano_atual": {
     "item_id": "T-028",
     "origem": "após fechamento do T-039 (implementado em 6 commits; QA pendente; migrations aplicadas em produção). Fila confirmada pelo dono: T-028 (piloto) → T-037 → T-035 → T-034 → T-040 (aguarda domínio).",

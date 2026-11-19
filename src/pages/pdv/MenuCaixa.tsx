@@ -1,7 +1,7 @@
 import { ArrowDownToLine, ArrowUpFromLine, ChevronRight, Download, History, Lock, Printer, RefreshCw, TriangleAlert, XCircle, type LucideIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useToast } from '../../components/Toast'
-import { Aviso, Modal, cx } from '../../components/ui'
+import { Aviso, Modal, Nota, cx } from '../../components/ui'
 import { useAuth } from '../../contexto/Auth'
 import { useAtiva } from '../../contexto/Empresa'
 import { formatarDataHora, formatarHora, lerNumero } from '../../lib/formato'
@@ -262,7 +262,7 @@ function FecharCaixa({ aoConcluir }: { aoConcluir: () => void }) {
 
   return (
     <form className="space-y-4" onSubmit={fechar}>
-      <Aviso tom="info">Conte o que há no caixa e informe abaixo. O valor esperado só aparece depois (fechamento às cegas).</Aviso>
+      <Nota>Conte o que há no caixa e informe abaixo. O valor esperado só aparece depois (fechamento às cegas).</Nota>
       <p className="text-sm text-slate-600">
         {concluidas.length} venda(s) nesta sessão, aberta em {formatarDataHora(pdv.sessao!.aberta_em)}.
       </p>

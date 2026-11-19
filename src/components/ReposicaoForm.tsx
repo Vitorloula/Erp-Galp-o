@@ -6,7 +6,7 @@ import { arred, formatarNumero } from '../lib/formato'
 import type { Produto } from '../lib/tipos'
 import { CampoQuantidade } from './CampoQuantidade'
 import { useToast } from './Toast'
-import { Aviso, Modal } from './ui'
+import { Aviso, Modal, Nota } from './ui'
 
 export interface ReposicaoFormProps {
   /** null = modal fechado. */
@@ -81,7 +81,7 @@ function Formulario({ produto, aoFechar }: ReposicaoFormProps & { produto: Produ
         }}
       >
         {erro && <Aviso tom="erro">{erro}</Aviso>}
-        <Aviso tom="info">Ao atingir o mínimo o produto aparece em “Repor” no Painel e no Estoque.</Aviso>
+        <Nota>Ao atingir o mínimo o produto aparece em “Repor” no Painel e no Estoque.</Nota>
         <div>
           <CampoQuantidade
             key={`${produto.id}:${produto.estoque_minimo ?? 'sem'}`}

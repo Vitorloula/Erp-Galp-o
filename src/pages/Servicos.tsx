@@ -114,7 +114,7 @@ export function Servicos() {
         />
       </div>
 
-      <div className="rolagem-x flex gap-2" role="group" aria-label="Filtrar por status">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por status">
         {CHIP_STATUS.map(c => {
           const ativo = chip === c.chave
           const contagem = c.chave === 'em_andamento'

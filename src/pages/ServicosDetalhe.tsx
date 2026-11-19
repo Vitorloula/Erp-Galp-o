@@ -5,6 +5,7 @@ import {
   ClipboardList,
   Copy,
   KeyRound,
+  Lock,
   Package,
   Phone,
   Printer,
@@ -20,7 +21,7 @@ import { BuscaProduto } from '../components/BuscaProduto'
 import { ImpressaoOS, useImpressaoAutomatica, type DadosImpressaoOS } from '../components/ImpressaoOS'
 import { LinhaTempoOS } from '../components/LinhaTempoOS'
 import { useToast } from '../components/Toast'
-import { Aviso, Modal, Secao, cx } from '../components/ui'
+import { Aviso, Modal, Nota, Secao, cx } from '../components/ui'
 import { useAtiva } from '../contexto/Empresa'
 import { os as dadosOS } from '../lib/dados'
 import { formatarData, formatarDataHora, formatarNumero } from '../lib/formato'
@@ -135,6 +136,7 @@ export function ServicosDetalhe() {
   const faltaCentavos = faltamPagamentos(totalCentavos, detalhe.pagamentos)
   const pctPago = totalCentavos > 0 ? Math.min(100, Math.round((pagoCentavos / totalCentavos) * 100)) : 0
   const travado = os.status === 'aprovada' || os.status === 'em_execucao' || os.status === 'pronta' || os.status === 'entregue' || os.status === 'cancelada'
+  const textoOrcamentoTravado = os.status === 'entregue' ? 'OS entregue: orçamento e pagamento estão fechados.' : os.status === 'cancelada' ? 'OS cancelada: o orçamento não pode mais mudar.' : 'Orçamento aprovado pelo cliente: itens, mão de obra e desconto não podem mais mudar.'
   const podeMover = pode.moverOrdem
   const podeEntregar = pode.entregarOrdem && os.status === 'pronta'
   const dica = dicaGarantiaSugerida(itens)
@@ -415,7 +417,7 @@ export function ServicosDetalhe() {
             descricao="Peças, mão de obra e desconto"
             acao={<span className="text-[11px] text-slate-400">{itens.length} {itens.length === 1 ? 'item' : 'itens'}</span>}
           >
-            {travado && <Aviso tom="alerta">Orçamento aprovado pelo cliente: itens, mão de obra e desconto não podem mais mudar.</Aviso>}
+            {travado && <Nota icone={Lock} className="mb-3">{textoOrcamentoTravado}</Nota>}
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
@@ -589,7 +591,7 @@ export function ServicosDetalhe() {
           )}
 
           {os.status === 'pronta' && !pode.entregarOrdem && (
-            <Aviso tom="alerta">A entrega é feita por dono, gerente ou caixa. Peça para um deles registrar o pagamento e entregar a OS.</Aviso>
+            <Nota className="mb-3">A entrega é feita por dono, gerente ou caixa. Peça para um deles registrar o pagamento e entregar a OS.</Nota>
           )}
         </div>
 

@@ -13,6 +13,8 @@ import {
   LayoutDashboard,
   LogOut,
   Package,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   RefreshCw,
   ScanBarcode,
@@ -27,6 +29,7 @@ import {
 import { useEffect, useState } from 'react'
 import { useAtualizacao } from '../lib/atualizacao'
 import { vendas as dadosVendas } from '../lib/dados'
+import { memoria } from '../lib/dados/cliente'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import { useAuth } from '../contexto/Auth'
 import { useDados } from '../contexto/Dados'
@@ -41,6 +44,9 @@ import { Aviso, Modal, cx } from './ui'
 
 /** Nome do produto; o nome da empresa aparece separadamente no seletor. */
 export const NOME_SISTEMA = (import.meta.env.VITE_NOME_SISTEMA as string | undefined) || 'ponto'
+
+/** Preferência do aparelho: menu lateral aberto ou só com ícones. */
+const CHAVE_MENU_ABERTO = 'galpao-menu-aberto'
 
 interface ItemMenu {
   para: string
@@ -111,6 +117,14 @@ export function Layout() {
   const atualizacao = useAtualizacao()
   const [tentando, setTentando] = useState(false)
   const [escolhendo, setEscolhendo] = useState(false)
+  const [menuAberto, setMenuAberto] = useState(() => memoria.ler<boolean>(CHAVE_MENU_ABERTO) ?? true)
+
+  function alternarMenu() {
+    setMenuAberto(aberto => {
+      memoria.gravar(CHAVE_MENU_ABERTO, !aberto)
+      return !aberto
+    })
+  }
 
   useEffect(() => {
     configurarMonitoramento({
@@ -150,65 +164,111 @@ export function Layout() {
   const variasLojas = (lojas?.length ?? 0) > 1
 
   return (
-    <div className="min-h-dvh lg:pl-[236px]">
+    <div className={cx('min-h-dvh transition-[padding-left] duration-200 ease-out motion-reduce:transition-none', menuAberto ? 'lg:pl-[236px]' : 'lg:pl-[76px]')}>
       {/* Menu lateral (computador) */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[236px] flex-col border-r border-borda-loja bg-superficie lg:flex">
-        <div className="space-y-5 px-4 py-5">
-          <Marca />
+      <aside
+        id="menu-lateral"
+        className={cx(
+          'fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-borda-loja bg-superficie transition-[width] duration-200 ease-out motion-reduce:transition-none lg:flex',
+          menuAberto ? 'w-[236px]' : 'w-[76px]',
+        )}
+      >
+        <div className={cx(menuAberto ? 'space-y-5 px-4 py-5' : 'flex flex-col items-center gap-3 px-2 py-4')}>
+          <div className={cx('flex gap-2', menuAberto ? 'items-center justify-between' : 'flex-col items-center')}>
+            {menuAberto ? (
+              <Marca />
+            ) : (
+              <img src="/icone.svg" alt={NOME_SISTEMA} className="size-8 shrink-0 rounded-[9px]" />
+            )}
+            <button
+              type="button"
+              className="btn btn-fantasma shrink-0 p-2"
+              onClick={alternarMenu}
+              aria-expanded={menuAberto}
+              aria-controls="menu-lateral"
+              aria-label={menuAberto ? 'Recolher menu' : 'Expandir menu'}
+              title={menuAberto ? 'Recolher menu' : 'Expandir menu'}
+            >
+              {menuAberto ? <PanelLeftClose className="size-4.5" /> : <PanelLeftOpen className="size-4.5" />}
+            </button>
+          </div>
           <button
-            className="flex w-full items-center gap-2.5 rounded-xl border border-borda-loja bg-white px-3 py-2.5 text-left transition hover:bg-white"
+            className={cx(
+              'flex w-full items-center gap-2.5 rounded-xl border border-borda-loja bg-white py-2.5 text-left transition hover:bg-white',
+              menuAberto ? 'px-3' : 'justify-center px-2',
+            )}
             onClick={() => setEscolhendo(true)}
             title="Trocar de empresa"
             aria-label={`Trocar de empresa: ${empresa.nome}`}
           >
             <Store className="size-4 shrink-0 text-texto-secundario" />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-xs font-semibold text-slate-900">{empresa.nome}</span>
-              <span className="block truncate text-[11px] text-texto-secundario">Empresa ativa</span>
-            </span>
-            <ChevronsUpDown className="size-4 shrink-0 text-slate-400" />
+            {menuAberto && (
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-semibold text-slate-900">{empresa.nome}</span>
+                <span className="block truncate text-[11px] text-texto-secundario">Empresa ativa</span>
+              </span>
+            )}
+            {menuAberto && <ChevronsUpDown className="size-4 shrink-0 text-slate-400" />}
           </button>
-          {variasLojas && <SeletorLoja />}
+          {variasLojas && menuAberto && <SeletorLoja />}
         </div>
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 pt-1">
-          <p className="px-3 pb-2 text-[10px] font-semibold tracking-[1.1px] text-slate-400">MENU</p>
+        <nav className={cx('flex-1 space-y-1 overflow-y-auto pt-1', menuAberto ? 'px-3' : 'px-2')}>
+          {menuAberto && <p className="px-3 pb-2 text-[10px] font-semibold tracking-[1.1px] text-slate-400">MENU</p>}
           {pode.vender && (
-            <Link to="/pdv" className="mb-2 flex items-center gap-3 rounded-[9px] bg-ponto px-3 py-2.5 text-sm font-semibold text-white hover:bg-neutral-800">
-              <ShoppingCart className="size-5 text-letreiro" /> Abrir o caixa (PDV)
+            <Link
+              to="/pdv"
+              aria-label="Abrir o caixa (PDV)"
+              title={menuAberto ? undefined : 'Abrir o caixa (PDV)'}
+              className={cx(
+                'mb-2 flex items-center rounded-[9px] bg-ponto text-sm font-semibold text-white hover:bg-neutral-800',
+                menuAberto ? 'gap-3 px-3 py-2.5' : 'justify-center py-2.5',
+              )}
+            >
+              <ShoppingCart className="size-5 shrink-0 text-letreiro" />
+              {menuAberto && 'Abrir o caixa (PDV)'}
             </Link>
           )}
           {menu.map(item => (
             <NavLink
               key={item.para}
               to={item.para}
+              aria-label={item.rotulo}
+              title={menuAberto ? undefined : item.rotulo}
               className={({ isActive }) =>
                 cx(
-                  'flex items-center gap-3 rounded-[9px] px-3 py-2.5 text-sm font-medium transition',
+                  'relative flex items-center rounded-[9px] text-sm font-medium transition',
+                  menuAberto ? 'gap-3 px-3 py-2.5' : 'justify-center py-2.5',
                   isActive ? 'bg-letreiro text-ponto' : 'text-slate-600 hover:bg-white hover:text-ponto',
                 )
               }
             >
-              <item.icone className="size-5" />
-              <span className="flex-1">{item.rotulo}</span>
-              {!!item.contador && <span className="rounded-full bg-red-600 px-1.5 text-xs font-bold text-white">{item.contador}</span>}
+              <item.icone className="size-5 shrink-0" />
+              <span className={cx('flex-1', !menuAberto && 'sr-only')}>{item.rotulo}</span>
+              {!!item.contador && (
+                menuAberto
+                  ? <span className="ml-auto rounded-full bg-red-600 px-1.5 text-xs font-bold text-white">{item.contador}</span>
+                  : <span className="absolute right-2 top-1.5 rounded-full bg-red-600 px-1 text-[10px] font-bold leading-4 text-white">{item.contador}</span>
+              )}
             </NavLink>
           ))}
         </nav>
-        <div className="border-t border-borda-loja p-3">
-          {!variasLojas && (
+        <div className={cx('border-t border-borda-loja', menuAberto ? 'p-3' : 'flex flex-col items-center gap-2 p-2')}>
+          {menuAberto && !variasLojas && (
             <div className="mb-2 rounded-xl border border-borda-loja bg-white p-3">
               <p className="text-[10px] font-medium tracking-[.8px] text-slate-400">LOJA ATIVA</p>
               <p className="mt-1 truncate text-xs font-semibold text-slate-900">{loja.nome}</p>
               <p className="mt-0.5 truncate text-[11px] text-texto-secundario">Ponto de venda</p>
             </div>
           )}
-          <div className="flex items-center gap-3 rounded-xl px-2 py-2">
+          <div className={cx('flex items-center rounded-xl', menuAberto ? 'gap-3 px-2 py-2' : 'flex-col gap-1 py-1')}>
             <Avatar nome={usuario?.nome} tamanho="sm" className="bg-letreiro text-ponto" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-slate-800">{usuario?.nome}</p>
-              <p className="text-xs text-slate-500">{NOME_PAPEL[empresa.papel]}</p>
-            </div>
-            <button onClick={sair} className="btn btn-fantasma p-2" title="Sair">
+            {menuAberto && (
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-slate-800">{usuario?.nome}</p>
+                <p className="text-xs text-slate-500">{NOME_PAPEL[empresa.papel]}</p>
+              </div>
+            )}
+            <button onClick={sair} className="btn btn-fantasma p-2" aria-label="Sair" title="Sair">
               <LogOut className="size-4.5" />
             </button>
           </div>

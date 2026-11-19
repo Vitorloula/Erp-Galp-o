@@ -5,7 +5,7 @@ import { CorrecaoModal } from '../components/CorrecaoModal'
 import { ListaMovimentacoes } from '../components/ListaMovimentacoes'
 import { ProdutoForm } from '../components/ProdutoForm'
 import { useToast } from '../components/Toast'
-import { Aviso, BadgeSituacao, Carregando, Modal, PresetsValidade, Vazio, cx } from '../components/ui'
+import { Aviso, BadgeSituacao, Carregando, Modal, Nota, PresetsValidade, Vazio, cx } from '../components/ui'
 import { useDados } from '../contexto/Dados'
 import { useAtiva } from '../contexto/Empresa'
 import { catalogo, movimentos } from '../lib/dados'
@@ -215,7 +215,7 @@ function EditarLote({ lote, aoFechar }: { lote: Lote | null; aoFechar: () => voi
       }
     >
       <div className="space-y-4">
-        <Aviso tom="info">Use apenas para corrigir número do lote ou validade digitados errado. As quantidades não mudam.</Aviso>
+        <Nota>Use apenas para corrigir número do lote ou validade digitados errado. As quantidades não mudam.</Nota>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="rotulo" htmlFor="el-lote">Lote</label>

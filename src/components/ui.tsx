@@ -5,6 +5,7 @@ import {
   CircleCheck,
   Clock,
   Equal,
+  Info,
   LoaderCircle,
   Minus,
   OctagonAlert,
@@ -409,6 +410,16 @@ export function Aviso({ tom = 'info', children }: { tom?: 'info' | 'erro' | 'ale
     alerta: 'border-amber-200 bg-amber-50 text-amber-900',
   }
   return <div className={cx('rounded-xl border px-3.5 py-2.5 text-sm', tons[tom])}>{children}</div>
+}
+
+/** Nota discreta para explicação fixa (sem fundo/borda): ícone + texto secundário. */
+export function Nota({ icone: Icone = Info, children, className }: { icone?: LucideIcon; children: ReactNode; className?: string }) {
+  return (
+    <p className={cx('flex items-start gap-2 text-xs leading-5 text-texto-secundario', className)}>
+      <Icone className="mt-0.5 size-3.5 shrink-0 text-slate-400" aria-hidden />
+      <span className="min-w-0">{children}</span>
+    </p>
+  )
 }
 
 const PRESETS_VALIDADE = [

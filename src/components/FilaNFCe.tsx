@@ -8,7 +8,7 @@ import { formatarDataHora, formatarHora, formatarNumero, hojeISO } from '../lib/
 import { criarEmissorNFCe } from '../lib/nfce'
 import { NOME_FORMA, centavos, formatarReais, numeroVenda, type FormaPagamento } from '../pdv/venda'
 import { useToast } from './Toast'
-import { Aviso, Carregando, Modal, Vazio, cx } from './ui'
+import { Aviso, Carregando, Modal, Nota, Vazio, cx } from './ui'
 
 /** Rótulo e cor de cada estado da NFC-e (usado na lista de vendas e na fila). */
 export const NFCE_STATUS: Record<Venda['nfce_status'], { rotulo: string; classe: string }> = {
@@ -141,9 +141,7 @@ export function FilaNFCe({
 
   return (
     <div className="space-y-3">
-      <Aviso tom="info">
-        {pendentes} pendentes · {comErro} com erro
-      </Aviso>
+      <Nota className="mb-1">{pendentes} pendentes · {comErro} com erro</Nota>
       {aviso && !aberta && <Aviso tom="alerta">{aviso}</Aviso>}
       {reemitindo && !aberta && <Aviso tom="info">Reemitindo nota…</Aviso>}
       {erroAcao && !aberta && <Aviso tom="erro">{erroAcao}</Aviso>}

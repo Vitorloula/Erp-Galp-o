@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Navigate } from 'react-router'
 import { Avatar } from '../components/Avatar'
 import { useToast } from '../components/Toast'
-import { Aviso, Cabecalho, Carregando, Modal, Vazio, cx } from '../components/ui'
+import { Aviso, Cabecalho, Carregando, Modal, Nota, Vazio, cx } from '../components/ui'
 import { useAuth } from '../contexto/Auth'
 import { useAtiva } from '../contexto/Empresa'
 import { empresas } from '../lib/dados'
@@ -214,7 +214,7 @@ function NovoConvite({ aberto, aoFechar, aoCriar }: { aberto: boolean; aoFechar:
     <Modal aberto={aberto} aoFechar={fechar} titulo="Convidar pessoa">
       {link ? (
         <div className="space-y-4">
-          <Aviso tom="info">Envie o link abaixo. Ele vale por 7 dias e pode ser usado uma única vez.</Aviso>
+          <Nota>Envie o link abaixo. Ele vale por 7 dias e pode ser usado uma única vez.</Nota>
           <input className="campo font-mono text-xs" readOnly value={link} aria-label="Link do convite" onFocus={e => e.target.select()} />
           <div className="grid grid-cols-2 gap-2">
             <button

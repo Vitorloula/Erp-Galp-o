@@ -57,6 +57,34 @@ test.describe('Navegação', () => {
     }
   })
 
+  test('menu lateral recolhe, lembra a escolha e continua navegando', async ({ page }, info) => {
+    test.skip(ehCelular(info), 'o menu lateral só existe no computador')
+    await page.goto('/painel')
+    const menu = page.locator('#menu-lateral')
+    await expect(menu).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Recolher menu' })).toHaveAttribute('aria-expanded', 'true')
+    expect((await menu.boundingBox())?.width ?? 0).toBeGreaterThan(200)
+
+    await page.getByRole('button', { name: 'Recolher menu' }).click()
+    await expect(page.getByRole('button', { name: 'Expandir menu' })).toHaveAttribute('aria-expanded', 'false')
+    await expect.poll(async () => (await menu.boundingBox())?.width ?? 0).toBeLessThan(100)
+
+    // Recolhido, o item continua com o mesmo nome acessível.
+    await menu.getByRole('link', { name: 'Estoque' }).click()
+    await expect(page).toHaveURL(/\/estoque$/)
+
+    // A escolha fica guardada no aparelho.
+    await page.reload()
+    await expect(page.getByRole('button', { name: 'Expandir menu' })).toBeVisible()
+    await expect.poll(async () => (await menu.boundingBox())?.width ?? 0).toBeLessThan(100)
+
+    // Reabrir devolve os rótulos e a largura.
+    await page.getByRole('button', { name: 'Expandir menu' }).click()
+    await expect(page.getByRole('button', { name: 'Recolher menu' })).toBeVisible()
+    await expect.poll(async () => (await menu.boundingBox())?.width ?? 0).toBeGreaterThan(200)
+    await expect(menu.getByText('MENU')).toBeVisible()
+  })
+
   test('avisa quando o aparelho fica sem internet', async ({ page, context }) => {
     await page.goto('/painel')
     await expect(page.getByText(/(Bom dia|Boa tarde|Boa noite)/)).toBeVisible()

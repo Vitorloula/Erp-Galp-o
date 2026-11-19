@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router'
 import { BuscaProduto, type ExtrasLeitura } from '../components/BuscaProduto'
 import { CampoQuantidade } from '../components/CampoQuantidade'
 import { useToast } from '../components/Toast'
-import { Aviso, BadgeSituacao, Cabecalho, PresetsValidade, Segmentado, cx } from '../components/ui'
+import { Aviso, BadgeSituacao, Cabecalho, Nota, PresetsValidade, Segmentado, cx } from '../components/ui'
 import { useDados } from '../contexto/Dados'
 import { useAtiva } from '../contexto/Empresa'
 import { movimentos } from '../lib/dados'
@@ -331,7 +331,7 @@ function FormEntrada({ produto, extras, aoConcluir }: { produto: Produto; extras
           )}
           {criandoNovo && !validade && <p className="text-xs text-slate-500">Deixe a validade em branco apenas se o produto não tiver vencimento.</p>}
 
-          {extras?.validade && <Aviso tom="info">Lote e validade preenchidos automaticamente pelo código da embalagem.</Aviso>}
+          {extras?.validade && <Nota>Lote e validade preenchidos automaticamente pelo código da embalagem.</Nota>}
         </fieldset>
       ) : (
         <p className="text-xs text-slate-500">Este produto não controla lote/validade — a entrada será lançada sem lote.</p>
@@ -504,7 +504,7 @@ function FormAjuste({ produto, loteInicial, aoConcluir }: { produto: Produto; lo
 
   return (
     <form onSubmit={registrar} className="cartao space-y-4 p-4">
-      <Aviso tom="info">Use o ajuste após uma contagem física (inventário). Para corrigir um lançamento específico, use <strong>Corrigir</strong> no Histórico.</Aviso>
+      <Nota>Use o ajuste após uma contagem física (inventário). Para corrigir um lançamento específico, use <strong>Corrigir</strong> no Histórico.</Nota>
       <div>
         <label className="rotulo" htmlFor="lote-ajuste">Lote</label>
         <select id="lote-ajuste" className="campo" value={loteId} onChange={e => setLoteId(e.target.value)}>
@@ -582,7 +582,7 @@ function FormTransferencia({
 
   return (
     <form onSubmit={registrar} className="cartao space-y-4 p-4">
-      <Aviso tom="info">A transferência grava saída e entrada juntas. Se alguma validação falhar, o saldo das duas lojas permanece igual.</Aviso>
+      <Nota>A transferência grava saída e entrada juntas. Se alguma validação falhar, o saldo das duas lojas permanece igual.</Nota>
       <div>
         <label className="rotulo" htmlFor="loja-destino">Loja de destino</label>
         <select id="loja-destino" className="campo" value={destinoId} onChange={e => setDestinoId(e.target.value)}>

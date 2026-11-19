@@ -2,7 +2,7 @@ import { Boxes, ClipboardCheck, LoaderCircle, RotateCcw, Search } from 'lucide-r
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Paginacao } from '../components/Paginacao'
 import { useToast } from '../components/Toast'
-import { Aviso, Cabecalho, Carregando, PresetsValidade, Vazio, cx } from '../components/ui'
+import { Aviso, Cabecalho, Carregando, Nota, PresetsValidade, Vazio, cx } from '../components/ui'
 import { useDados } from '../contexto/Dados'
 import { useAtiva } from '../contexto/Empresa'
 import { catalogo, movimentos } from '../lib/dados'
@@ -260,10 +260,10 @@ export function Inventario() {
         }
       />
 
-      <Aviso tom="info">
+      <Nota className="mb-4">
         Conte o que está na prateleira sem consultar o sistema. Produtos com mais de um lote aparecem em linhas separadas —
         a diferença vai para o lote que você contou. O rascunho fica salvo neste aparelho até finalizar.
-      </Aviso>
+      </Nota>
 
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
         <div className="relative flex-1">
