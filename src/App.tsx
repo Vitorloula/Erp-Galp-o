@@ -97,7 +97,8 @@ function Rotas() {
   const { usuario, pronto, definindoSenha } = useAuth()
   const [ehSuperAdmin, setEhSuperAdmin] = useState<boolean | null>(null)
   useEffect(() => {
-    if (!usuario) { setEhSuperAdmin(null); return }
+    if (!usuario) { setEhSuperAdmin(false); return }
+    setEhSuperAdmin(null)
     adminSouAdmin().then(setEhSuperAdmin).catch(() => setEhSuperAdmin(false))
   }, [usuario])
 
@@ -110,7 +111,8 @@ function Rotas() {
         </Aviso>
       </TelaCheia>
     )
-  if (!pronto || ehSuperAdmin === null) return <Carregando texto="Abrindo o sistema..." />
+  if (!pronto) return <Carregando texto="Abrindo o sistema..." />
+  if (usuario && ehSuperAdmin === null) return <Carregando texto="Abrindo o sistema..." />
   if (!usuario) return <Login />
   if (definindoSenha) return <NovaSenha />
   // Super admin: vai direto pro painel da plataforma, sem carregar o Painel da loja
