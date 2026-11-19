@@ -5,6 +5,7 @@ import {
   faltamPagamentos,
   gruposDaAgenda,
   grupoDaAgenda,
+  interpretarPagamento,
   mensagemOrcado,
   mensagemPronta,
   montarTotalOS,
@@ -109,6 +110,20 @@ describe('serviços > totais e pagamento', () => {
     expect(faltamPagamentos(50000, [])).toBe(50000)
     expect(faltamPagamentos(50000, [{ valor: 350 }, { valor: 150 }])).toBe(0)
     expect(faltamPagamentos(50000, [{ valor: 470 }])).toBe(3000)
+  })
+  it('valor digitado: vazio recebe o que falta e aceita o formato brasileiro', () => {
+    expect(interpretarPagamento('', 180000)).toEqual({ valor: 1800 })
+    expect(interpretarPagamento('   ', 50000)).toEqual({ valor: 500 })
+    expect(interpretarPagamento('1800', 180000)).toEqual({ valor: 1800 })
+    expect(interpretarPagamento('1.800,00', 180000)).toEqual({ valor: 1800 })
+    expect(interpretarPagamento('R$ 1.800,00', 180000)).toEqual({ valor: 1800 })
+    expect(interpretarPagamento('50,5', 180000)).toEqual({ valor: 50.5 })
+  })
+  it('valor digitado: recusa vazio sem falta, zero, texto e valor acima do que falta', () => {
+    expect(interpretarPagamento('', 0).erro).toBe('Não falta nada a receber nesta OS.')
+    expect(interpretarPagamento('0', 180000).erro).toBe('Informe um valor maior que zero.')
+    expect(interpretarPagamento('abc', 180000).erro).toBe('Informe um valor maior que zero.')
+    expect(interpretarPagamento('2.000,00', 180000).erro).toBe('O valor passa do que falta (R$ 1.800,00).')
   })
 })
 

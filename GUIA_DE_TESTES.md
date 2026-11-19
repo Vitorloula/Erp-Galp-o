@@ -1,15 +1,15 @@
 # Guia de Testes — ERP Galpão
 
-## 1. Estado atual (12/11/2026)
+## 1. Estado atual (19/11/2026)
 
 | Comando | Exit | Resultado |
 |---|---|---|
 | `npm run lint` (`tsc -p . --noEmit`) | 0 | sem erros de tipo |
-| `npm test` (Vitest) | 0 | **124/124** em 13 arquivos |
-| `npm run test:sql` (PGlite) | 0 | **265/265** verificações |
+| `npm test` (Vitest) | 0 | **145/145** em 14 arquivos |
+| `npm run test:sql` (PGlite) | 0 | **335/335** verificações (ciclo anterior; sem migration nesta entrega) |
 | `npm run build` | 0 | `tsc` + Vite + PWA |
 | `npx tsc -p e2e --noEmit` | 0 | specs e helpers E2E |
-| Playwright direcionado | 0 | **38 passaram, 2 pulados** — resultado 5, relatórios 6 e painel-estoque 9 (20 por projeto × computador e celular; o pulado é um teste de saída já pulado no celular). Rodada completa do ciclo: **66 passaram, 2 pulados** (com produtos e PDV) |
+| Playwright direcionado | 0 | **Produtos 8/8**, **Serviços 8/8**, **Modais 6/6** e **Resultado 5/5** no desktop, e **16/16** no celular (produtos + serviços), todos com `--workers=1`. A suíte inteira com 4 workers sofre com o fixture do servidor e a fila de sincronização (ver §5) |
 
 Laudo da última rodada (custo e lucro, T-036): `memoria/laudo-custo-lucro.md` — **aprovado, sem
 defeito aberto** (a margem com casa decimal saiu com vírgula no Painel, nos Relatórios, no Excel
@@ -81,7 +81,16 @@ npm run test:e2e:ci      # CI, com retries
 
 ### Telas (Playwright)
 
-- `e2e/app/produtos.spec.ts`: catálogo, detalhe de lotes, mínimo persistido.
+- `e2e/app/produtos.spec.ts`: catálogo, detalhe de lotes, mínimo persistido. O cadastro é
+  preenchido em **etapas** (`e2e/apoio/etapas.ts` → `etapaProduto`/`salvarProduto`):
+  Dados → Preços → Estoque → Fiscal.
+- `e2e/app/servicos.spec.ts`: OS de ponta a ponta — recebimento em **3 etapas**
+  (Cliente → Aparelho → Problema e prazo) com validação por etapa e dados preservados ao
+  voltar (`continuarEtapa`/`voltarEtapa`), comprovante em 80 mm, total em centavos, pagamento
+  com campo vazio e entrega com recibo.
+- `e2e/app/modais.spec.ts`: valida que o cadastro de produto usa **etapas fixas**
+  (`data-modal-subcabecalho`), que os dados não se perdem ao avançar/voltar e que o erro de
+  validação foca o campo certo, além das medidas do modal em várias telas.
 - `e2e/app/importar.spec.ts`: CSV com saldo inicial e erro por linha.
 - `e2e/app/inventario.spec.ts`: contagem por lote, ajuste no lote correto e rascunho.
 - `e2e/app/lgpd.spec.ts`: exportação JSON e páginas públicas.
@@ -118,6 +127,8 @@ npx playwright test e2e/app/inventario.spec.ts --project=app-computador --worker
 npx playwright test e2e/app/importar.spec.ts --project=app-celular --workers=1
 npx playwright test e2e/app/vendas-fila.spec.ts --workers=1
 npx playwright test e2e/app/resultado.spec.ts --workers=1
+npx playwright test e2e/app/servicos.spec.ts --project=app-computador --workers=1
+npx playwright test e2e/app/modais.spec.ts --project=app-computador --workers=1
 ```
 
 Para ver o relatório: `npm run test:e2e:relatorio`.

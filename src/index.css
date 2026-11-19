@@ -143,6 +143,9 @@
 .cupom-impressao {
   display: none;
 }
+/* O cupom precisa ser filho direto do <body> (createPortal): na impressão os demais
+   filhos do body — inclusive o #root inteiro — ficam ocultos. Ver Cupom.tsx (PDV)
+   e ImpressaoOS.tsx (Serviços). */
 @media print {
   @page {
     size: 80mm auto;

@@ -1,3 +1,4 @@
+import { etapaProduto, salvarProduto } from '../apoio/etapas.ts'
 import { dataDaqui, escolherProduto, expect, linhasEstoque, test, toast } from '../base.ts'
 
 test.describe('Produtos', () => {
@@ -21,13 +22,15 @@ test.describe('Produtos', () => {
     await d.getByLabel('Nome do produto *').fill('  Fungicida   Teste 250 EC ')
     await d.getByLabel('Unidade *').selectOption('L')
     await d.getByLabel('Categoria').selectOption({ label: 'Defensivo agrícola' })
-    await d.getByLabel(/Conteúdo por embalagem/).fill('5')
-    await d.getByLabel(/Estoque mínimo/).fill('12')
-    await d.getByLabel('Custo (R$)').fill('7,50')
     await d.getByLabel('Código de barras').fill('7890000099990')
     await d.getByLabel('Fabricante').fill('Teste S.A.')
     await d.getByLabel('Observações').fill('Classe III')
-    await d.getByRole('button', { name: 'Salvar' }).click()
+    await etapaProduto(d, 'Preços')
+    await d.getByLabel(/Conteúdo por embalagem/).fill('5')
+    await d.getByLabel('Custo (R$)').fill('7,50')
+    await etapaProduto(d, 'Estoque')
+    await d.getByLabel(/Estoque mínimo/).fill('12')
+    await salvarProduto(d)
 
     // 🔧 CORREÇÃO: o código `(P0013)` no toast é opcional.
     // O `recarregar('catalogo')` pode ler cache antes do banco propagar, e o
@@ -49,31 +52,34 @@ test.describe('Produtos', () => {
     await page.goto('/produtos')
     await page.getByRole('button', { name: 'Novo produto' }).first().click()
     const d = page.getByRole('dialog', { name: 'Novo produto' })
-    await d.getByRole('button', { name: 'Salvar' }).click()
+    await d.getByRole('button', { name: 'Continuar' }).click()
     await expect(d.getByText('Informe o nome do produto.')).toBeVisible()
 
     await d.getByLabel('Nome do produto *').fill('Duplicado')
     await d.getByLabel('Código de barras').fill('7891000000014')
-    await d.getByRole('button', { name: 'Salvar' }).click()
+    await salvarProduto(d)
     await expect(d.getByText('O código 7891000000014 já está cadastrado no produto "Glifosato 480 SL".')).toBeVisible()
 
+    await etapaProduto(d, 'Dados')
     await d.getByRole('button', { name: 'Remover código 7891000000014' }).click()
     await d.getByLabel('Código interno').fill('p0001')
-    await d.getByRole('button', { name: 'Salvar' }).click()
+    await salvarProduto(d)
     await expect(d.getByText('Já existe um produto com este código interno.')).toBeVisible()
 
-    await d.getByLabel(/Conteúdo por embalagem/).fill('abc')
+    await etapaProduto(d, 'Dados')
     await d.getByLabel('Código interno').fill('')
-    await d.getByRole('button', { name: 'Salvar' }).click()
+    await etapaProduto(d, 'Preços')
+    await d.getByLabel(/Conteúdo por embalagem/).fill('abc')
+    await d.getByRole('button', { name: 'Continuar' }).click()
     await expect(d.getByText('Conteúdo por embalagem inválido.')).toBeVisible()
 
     await d.getByLabel(/Conteúdo por embalagem/).fill('')
     await d.getByLabel('Custo (R$)').fill('abc')
-    await d.getByRole('button', { name: 'Salvar' }).click()
+    await d.getByRole('button', { name: 'Continuar' }).click()
     await expect(d.getByText('Custo inválido.')).toBeVisible()
     await expect(d.getByLabel('Custo (R$)')).toBeFocused()
 
-    await d.getByRole('button', { name: 'Cancelar' }).click()
+    await d.getByRole('button', { name: 'Fechar' }).click()
     await expect(d).toBeHidden()
     await expect(page.getByText('12 produtos ativos')).toBeVisible()
   })
@@ -85,7 +91,7 @@ test.describe('Produtos', () => {
     const d = page.getByRole('dialog', { name: 'Editar produto' })
     await expect(d.getByLabel('Nome do produto *')).toHaveValue('Óleo mineral adjuvante')
     await d.getByLabel('Nome do produto *').fill('Óleo mineral adjuvante (balde 5 L)')
-    await d.getByRole('button', { name: 'Salvar' }).click()
+    await salvarProduto(d)
     await expect(toast(page, 'Produto atualizado.')).toBeVisible()
     await expect(page.getByRole('heading', { level: 1, name: 'Óleo mineral adjuvante (balde 5 L)' })).toBeVisible()
   })
@@ -96,7 +102,7 @@ test.describe('Produtos', () => {
     await page.getByRole('button', { name: 'Editar' }).click()
     const d = page.getByRole('dialog', { name: 'Editar produto' })
     await d.getByLabel(/Produto ativo/).uncheck()
-    await d.getByRole('button', { name: 'Salvar' }).click()
+    await salvarProduto(d)
     await expect(page.getByText('inativo').first()).toBeVisible()
     // histórico do produto continua disponível
     await expect(page.locator('[data-mov]')).toHaveCount(3)

@@ -69,7 +69,7 @@ test.describe('Modais', () => {
   // Várias combinações de tela/reload e o caixa (que abre uma sessão) passam dos 45 s padrão.
   test.setTimeout(120_000)
 
-  test('Produtos: formulário longo fica na janela, rola por dentro e mantém cabeçalho/rodapé', async ({ page }) => {
+  test('Produtos: etapas fixas mantêm cabeçalho/rodapé e preservam os dados', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 })
     await abrirProdutos(page)
 
@@ -84,8 +84,8 @@ test.describe('Modais', () => {
     const m = await medirModal(page)
     dentroDaJanela(m)
     expect(m.painel.topo, 'no desktop, com espaço, o modal fica centralizado').toBeGreaterThan(0)
-    expect(m.corpo, 'o formulário longo precisa ter uma área de rolagem').not.toBeNull()
-    expect(m.rodape, 'o rodapé com Cancelar/Salvar precisa existir').not.toBeNull()
+    expect(m.corpo, 'o corpo do formulário precisa existir').not.toBeNull()
+    expect(m.rodape, 'o rodapé com Cancelar/Continuar precisa existir').not.toBeNull()
 
     // O overlay (portal, z-50) cobre a sidebar (z-30), e não a sidebar sobre o modal.
     const cobreSidebar = await page.evaluate(() => {
@@ -103,31 +103,34 @@ test.describe('Modais', () => {
     }))
     expect(camadas.toast, 'o toast precisa ficar acima do modal').toBeGreaterThan(camadas.modal)
 
-    // Cabeçalho e botões continuam visíveis antes e depois de rolar o corpo.
+    // Cabeçalho, etapas e botões continuam na janela em qualquer etapa.
     await expect(d.getByRole('heading', { name: 'Novo produto' })).toBeVisible()
     await expect(d.getByRole('button', { name: 'Cancelar' })).toBeVisible()
-    await expect(d.getByRole('button', { name: 'Salvar' })).toBeVisible()
+    await expect(d.getByRole('button', { name: 'Continuar' })).toBeVisible()
+    const barra = page.locator('[data-modal-subcabecalho]')
+    await expect(barra).toContainText('Etapa 1 de 4')
+    await expect(barra.getByRole('button', { name: /Etapa 1: Dados/ })).toHaveAttribute('aria-current', 'step')
 
-    const rolagem = await rolarCorpoAteOFim(page)
-    expect(rolagem.scrollHeight, 'este formulário é maior que a área visível').toBeGreaterThan(rolagem.clientHeight)
-    expect(rolagem.scrollTop, 'a rolagem interna deve chegar ao fim').toBeGreaterThan(0)
+    // O que foi digitado nos Dados continua ao visitar a etapa seguinte e voltar.
+    await d.getByLabel('Nome do produto *').fill('Produto em etapas')
+    await d.getByRole('button', { name: 'Continuar' }).click()
+    await expect(d.getByRole('button', { name: /Etapa 2: Preços/ })).toHaveAttribute('aria-current', 'step')
+    await expect(page.locator('#p-preco')).toBeInViewport()
+    await expect(d.getByRole('button', { name: 'Voltar' })).toBeVisible()
+    await d.getByRole('button', { name: 'Voltar' }).click()
+    await expect(d.getByLabel('Nome do produto *')).toHaveValue('Produto em etapas')
 
-    // O último campo fica acima do rodapé, sem ser coberto.
-    const ultimo = await page.evaluate(() => {
-      const corpo = document.querySelector<HTMLElement>('[data-modal-corpo]')!
-      const rodape = document.querySelector<HTMLElement>('[data-modal-rodape]')!
-      const campo = document.querySelector<HTMLElement>('#p-cbs')! // último campo do cadastro
-      const c = corpo.getBoundingClientRect()
-      const f = rodape.getBoundingClientRect()
-      const u = campo.getBoundingClientRect()
-      return { campoBase: u.bottom, corpoBase: c.bottom, rodapeTopo: f.top }
-    })
-    expect(ultimo.campoBase, 'o último campo não pode ficar atrás do rodapé').toBeLessThanOrEqual(ultimo.rodapeTopo + 0.5)
-    expect(ultimo.rodapeTopo, 'o rodapé começa onde o corpo termina').toBeGreaterThanOrEqual(ultimo.corpoBase - 1.5)
-    await expect(page.locator('#p-cbs')).toBeInViewport()
-    await expect(d.getByRole('button', { name: 'Salvar' })).toBeVisible()
+    // Enter também avança de etapa.
+    await d.getByLabel('Nome do produto *').press('Enter')
+    await expect(d.getByRole('button', { name: /Etapa 2: Preços/ })).toHaveAttribute('aria-current', 'step')
 
-    await d.getByRole('button', { name: 'Cancelar' }).click()
+    // Erro de validação fica na etapa do campo, com foco nele.
+    await d.getByLabel('Custo (R$)').fill('abc')
+    await d.getByRole('button', { name: 'Continuar' }).click()
+    await expect(d.getByText('Custo inválido.')).toBeVisible()
+    await expect(d.getByLabel('Custo (R$)')).toBeFocused()
+
+    await d.getByRole('button', { name: 'Fechar' }).click()
     await expect(d).toBeHidden()
     await expect.poll(() => page.evaluate(() => getComputedStyle(document.body).overflow)).not.toBe('hidden')
   })
@@ -179,7 +182,7 @@ test.describe('Modais', () => {
       dentroDaJanela(m)
       expect(m.painel.altura, `${tamanho.width}x${tamanho.height}`).toBeLessThanOrEqual(m.janela.altura)
       await expect(d.getByRole('button', { name: 'Cancelar' })).toBeVisible()
-      await expect(d.getByRole('button', { name: 'Salvar' })).toBeVisible()
+      await expect(d.getByRole('button', { name: 'Continuar' })).toBeVisible()
 
       await d.getByRole('button', { name: 'Cancelar' }).click()
       await expect(d).toBeHidden()

@@ -52,9 +52,10 @@ async function relatorioReposicao() {
   return montarRelatorio(intervaloRapido('30dias'), produtosRepor, lotesRepor, [], () => 'Defensivo agrícola')
 }
 
-const TODAS = { resumo: true, movimentacoes: true, posicao: true, compras: true, resultado: false }
-const SEM_COMPRAS = { resumo: true, movimentacoes: true, posicao: true, compras: false, resultado: false }
-const SO_COMPRAS = { resumo: false, movimentacoes: false, posicao: false, compras: true, resultado: false }
+const TODAS = { resumo: true, movimentacoes: true, posicao: true, compras: true, resultado: false, servicos: false }
+const SEM_COMPRAS = { resumo: true, movimentacoes: true, posicao: true, compras: false, resultado: false, servicos: false }
+const SO_COMPRAS = { resumo: false, movimentacoes: false, posicao: false, compras: true, resultado: false, servicos: false }
+const SO_SERVICOS = { resumo: false, movimentacoes: false, posicao: false, compras: false, resultado: false, servicos: true }
 
 async function lerWb(blob: Blob) {
   const wb = new ExcelJS.Workbook()
@@ -150,5 +151,41 @@ describe('exportação', () => {
     expect(comCompras.subarray(0, 5).toString()).toBe('%PDF-')
     // A tabela de compras (e a legenda) só existem quando a seção está marcada.
     expect(comCompras.length).toBeGreaterThan(semCompras.length)
+  })
+
+  it('exporta a aba/página Serviços com as OS do período e o TOTAL', async () => {
+    const r = await relatorioDemo()
+    const comServicos = {
+      ...r,
+      servicos: {
+        linhas: [
+          {
+            os: 'OS 000123',
+            cliente: 'Maria Souza',
+            aparelho: 'Celular Samsung Galaxy A54',
+            status: 'Entregue',
+            recebidaEm: '2026-11-01',
+            prazo: '2026-11-05',
+            entregueEm: '2026-11-04',
+            tecnico: 'Ana',
+            total: 180000,
+          },
+        ],
+        faturamento: 180000,
+      },
+    }
+
+    const wb = await lerWb(await gerarExcel(comServicos, 'Empresa Teste', SO_SERVICOS))
+    expect(wb.worksheets.map(w => w.name)).toEqual(['Serviços'])
+    const ws = wb.getWorksheet('Serviços')!
+    expect(ws.getCell('A6').value).toBe('OS 000123')
+    expect(ws.getCell('E6').value).toBeInstanceOf(Date)
+    expect(ws.getCell('I6').value).toBe(1800)
+    const total = ws.getRow(7)
+    expect(total.getCell(1).value).toBe('TOTAL')
+    expect(total.getCell(9).value).toBe(1800)
+
+    const pdf = Buffer.from(await (await gerarPdf(comServicos, 'Empresa Teste', SO_SERVICOS)).arrayBuffer())
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-')
   })
 })

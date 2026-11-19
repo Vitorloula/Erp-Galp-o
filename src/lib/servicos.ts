@@ -3,7 +3,7 @@
  * Dinheiro em CENTAVOS inteiros (padrão do PDV e do Painel); o banco devolve reais.
  */
 import { formatarReais } from '../pdv/venda'
-import { formatarData, hojeISO, normalizarBusca, somarDias } from './formato'
+import { formatarData, hojeISO, lerNumero, normalizarBusca, somarDias } from './formato'
 import type { ItemOS, OS, StatusOS } from './tipos'
 
 /** Rótulos exatos de status (snake_case no banco, pt-BR na tela). */
@@ -63,6 +63,21 @@ export function faltamPagamentos(total: number, pagamentos: ReadonlyArray<{ valo
 export function atrasada(os: Pick<OS, 'prazo_prometido' | 'status'>, hoje = hojeISO()): boolean {
   if (!os.prazo_prometido || os.status === 'entregue' || os.status === 'cancelada') return false
   return os.prazo_prometido < hoje
+}
+
+/**
+ * Lê o valor digitado em "Registrar pagamento" (reais).
+ * Campo vazio = recebe o que falta; aceita "1.800,00", "1800" e "R$ 1.800,00".
+ * Devolve `erro` (texto pronto para a tela) quando o valor não serve.
+ */
+export function interpretarPagamento(texto: string, faltaCentavos: number): { valor: number | null; erro?: string } {
+  if (faltaCentavos <= 0) return { valor: null, erro: 'Não falta nada a receber nesta OS.' }
+  if (!texto.trim()) return { valor: faltaCentavos / 100 }
+  const valor = lerNumero(texto.replace(/r\$/gi, ''))
+  if (valor === null || valor <= 0) return { valor: null, erro: 'Informe um valor maior que zero.' }
+  const centavos = Math.round(valor * 100)
+  if (centavos > faltaCentavos) return { valor: null, erro: `O valor passa do que falta (${formatarReais(faltaCentavos)}).` }
+  return { valor: centavos / 100 }
 }
 
 // ─────────────────── Agenda da assistência (Decisão 14) ───────────────────

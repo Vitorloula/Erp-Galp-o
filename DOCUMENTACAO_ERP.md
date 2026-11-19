@@ -43,6 +43,19 @@ sem cobrança automática**. O cupom sempre exibe **“DOCUMENTO SEM VALOR FISCA
 - O saldo inicial entra como movimentação `ENTRADA` com documento
   “Saldo inicial importado”.
 
+### Formulários longos (etapas)
+
+- Cadastro e edição de produto e recebimento de OS usam o **mesmo padrão de etapas**: o operador
+  avança com “Continuar”, volta com “Voltar” e fecha o ciclo no botão final. Isso evita cadastro
+  pela metade — não dá para concluir sem passar por todas as etapas.
+- Produto em **4 etapas**: Dados → Preços → Estoque → Fiscal (NFC-e). O botão final é **Salvar**;
+  cada “Continuar” valida só a etapa atual e, se falhar, mostra a mensagem e foca o campo.
+- Recebimento de OS em **3 etapas**: Cliente → Aparelho → Problema e prazo. O botão final é
+  **Receber aparelho**. “Voltar” preserva os dados e Enter avança. O comprovante e a impressão
+  não mudaram.
+- Base reutilizável em `src/components/Etapas.tsx` (`Passos` e `NavegacaoEtapas`), acessível por
+  teclado e com o indicador de etapas fixo no `subcabecalho` do `Modal` (fora do corpo rolável).
+
 ### Estoque por lote
 
 - Saldo materializado por loja e lote; histórico imutável de movimentações.

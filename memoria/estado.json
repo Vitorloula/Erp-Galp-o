@@ -536,6 +536,26 @@
       "criado_em": "2026-11-15T15:30:00.000Z",
       "concluido_em": "2026-11-18T22:29:48.571Z",
       "comprovacao": "Implementado pelo Programador em 6 commits (b7016ca..c95d4b1) na saas: F1 base (guard app.sou_super_admin, admin_auditoria, RPCs admin_visao_geral/admin_ver_empresa/admin_auditoria_listar, admin_sou_admin), F2 observabilidade estruturada (erros_cliente + fingerprint trigger + backfill + admin_log_listar/grupos/status), F3 incidentes (admin_incidentes + admin_incidente_acoes + RPCs), F4 inspeção somente-leitura auditável + admin_ajustar_assinatura, F5 agente IA (admin_incidente_analises + pacote sanitizado + limite diário + Edge Function admin-ia modo sem-chave). Gates alegados: lint 0 | npm test 142/142 | test:sql 335/335 | build OK | tsc -p e2e 0. Migrations 20261116120000..20261120120000 aplicadas no Supabase de produção via MCP e alinhadas (sem drift). Telas admin em nível placeholder (lógica nas RPCs/migrations). Nenhum push realizado. memoria/spec-super-admin.md permaneceu não versionado (commitado pelo coordenador)."
+    },
+    {
+      "id": "T-042",
+      "titulo": "Formulários longos em etapas: cadastro de produto e recebimento de OS no mesmo padrão",
+      "prioridade": 2,
+      "tipo": "ux",
+      "detalhe": "Escopo aprovado pelo dono: formulários longos em etapas (EmpresaConfig, BoasVindas, EditarLoja, Equipe e Movimentar ficaram fora). A primeira versão usou abas no produto; o dono preferiu o mesmo componente do serviço, porque em abas o cliente podia concluir o cadastro sem passar por estoque e fiscal. Base nova em src/components/Etapas.tsx (Passos + NavegacaoEtapas), com o indicador fixo no slot subcabecalho do Modal. Produto: 4 etapas Dados → Preços → Estoque → Fiscal (NFC-e), Continuar valida só a etapa atual, erro foca o campo e o botão final Salvar revalida tudo; Enter avança. OS: Cliente → Aparelho → Problema e prazo, com Continuar/Voltar, Enter avança e dados preservados. Sem migration, sem mudança de dados ou rotas.",
+      "evidencia": "src/components/Etapas.tsx (novo); src/components/ui.tsx (subcabecalho); src/components/ProdutoForm.tsx (4 etapas); src/pages/ServicosRecebimento.tsx (3 etapas); e2e/apoio/etapas.ts (novo helper); e2e/app/produtos.spec.ts, servicos.spec.ts, resultado.spec.ts e modais.spec.ts ajustados; DOCUMENTACAO_ERP.md e GUIA_DE_TESTES.md atualizados.",
+      "arquivos_que_toca": [
+        "src/components/Etapas.tsx",
+        "src/components/ui.tsx",
+        "src/components/ProdutoForm.tsx",
+        "src/pages/ServicosRecebimento.tsx",
+        "e2e/apoio/etapas.ts",
+        "e2e/app/"
+      ],
+      "criterios": "Produto e OS no mesmo padrão de etapas; não dá para concluir o cadastro de produto sem passar por Preços, Estoque e Fiscal; Continuar valida só a etapa atual e o erro leva ao campo; Salvar revalida todas as etapas; Voltar/Enter preservam o que foi digitado; comprovante, recibo e impressão sem regressão; gates lint/test/build/tsc e Playwright dos specs afetados verdes.",
+      "criado_em": "2026-11-19T00:00:00.000Z",
+      "concluido_em": "2026-11-19T17:01:05.031Z",
+      "comprovacao": "Gates: lint 0 | npm test 145/145 em 14 arquivos | build 0 | tsc -p e2e 0. Playwright com --workers=1: desktop produtos 8/8, servicos 8/8, modais 6/6 e resultado 5/5; celular produtos 8/8 e servicos 8/8 (16/16). A rodada com 4 workers sofre com o fixture do servidor e a fila de sincronização do PDV, sempre sanada com --workers=1 e sem relação com as etapas. Nada commitado."
     }
   ],
   "ciclos": 20,

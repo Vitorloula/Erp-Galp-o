@@ -3,7 +3,8 @@ import { NOME_TIPO, arred, grupoDoTipo, hojeISO } from './formato'
 import type { Intervalo } from './periodos'
 import { intervaloParaInstantes } from './periodos'
 import type { Resultado } from './resultado'
-import type { Lote, Movimentacao, Produto, TipoMov, Unidade } from './tipos'
+import { montarTotalOS, numeroOS, STATUS_OS } from './servicos'
+import type { ItemOS, Lote, Movimentacao, OS, Produto, TipoMov, Unidade } from './tipos'
 
 export interface LinhaMovRel {
   id: number
@@ -75,7 +76,55 @@ export interface Relatorio {
   compras: LinhaCompraRel[]
   /** Resultado do período (T-036), preenchido pela tela de Relatórios. */
   resultado?: Resultado
+  /** Ordens de serviço do período (T-038), preenchido pela tela de Relatórios. */
+  servicos?: ServicosRel
   totais: { entradas: number; saidas: number; ajustes: number }
+}
+
+/** Uma linha da exportação "Serviços": uma OS do período. */
+export interface LinhaServicoRel {
+  /** "OS 000123". */
+  os: string
+  cliente: string
+  aparelho: string
+  status: string
+  /** AAAA-MM-DD (a exportação formata). */
+  recebidaEm: string
+  prazo: string
+  entregueEm: string
+  tecnico: string
+  /** Total da OS em centavos. */
+  total: number
+}
+
+export interface ServicosRel {
+  linhas: LinhaServicoRel[]
+  /** Pagamentos recebidos no período (OS entregues), em centavos. */
+  faturamento: number
+}
+
+/** Monta as linhas da seção Serviços (totais por OS a partir dos itens e da mão de obra). */
+export function montarServicosRel(ordens: readonly OS[], itens: readonly ItemOS[], faturamento: number): ServicosRel {
+  const porOS = new Map<string, ItemOS[]>()
+  for (const i of itens) {
+    const lista = porOS.get(i.os_id) ?? []
+    lista.push(i)
+    porOS.set(i.os_id, lista)
+  }
+  return {
+    linhas: ordens.map(o => ({
+      os: numeroOS(o.numero),
+      cliente: o.cliente_nome,
+      aparelho: [o.aparelho_tipo, o.aparelho_marca_modelo].filter(Boolean).join(' '),
+      status: STATUS_OS[o.status],
+      recebidaEm: o.criado_em.slice(0, 10),
+      prazo: o.prazo_prometido ?? '',
+      entregueEm: o.entregue_em?.slice(0, 10) ?? '',
+      tecnico: o.tecnico_nome ?? '',
+      total: montarTotalOS(porOS.get(o.id) ?? [], o.valor_mao_de_obra, o.desconto),
+    })),
+    faturamento,
+  }
 }
 
 /**

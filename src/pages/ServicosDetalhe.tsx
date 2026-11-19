@@ -2,14 +2,25 @@ import { Copy, Printer } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router'
 import { BuscaProduto } from '../components/BuscaProduto'
+import { ImpressaoOS, useImpressaoAutomatica, type DadosImpressaoOS } from '../components/ImpressaoOS'
 import { useToast } from '../components/Toast'
 import { Aviso, Cabecalho, Modal, cx } from '../components/ui'
 import { useAtiva } from '../contexto/Empresa'
 import { os as dadosOS } from '../lib/dados'
-import { NOME_FORMA } from '../pdv/venda'
 import { formatarData } from '../lib/formato'
-import { formatarReais } from '../pdv/venda'
-import { dicaGarantiaSugerida, mensagemOrcado, mensagemPronta, numeroOS, proximoStatus, STATUS_OS } from '../lib/servicos'
+import {
+  dicaGarantiaSugerida,
+  faltamPagamentos,
+  interpretarPagamento,
+  mensagemOrcado,
+  mensagemPronta,
+  montarTotalOS,
+  numeroOS,
+  proximoStatus,
+  sugerirGarantia,
+  STATUS_OS,
+} from '../lib/servicos'
+import { formatarReais, NOME_FORMA } from '../pdv/venda'
 import type { DetalheOS } from '../lib/dados/os'
 import type { ItemOS, StatusOS } from '../lib/tipos'
 
@@ -28,6 +39,8 @@ export function ServicosDetalhe() {
   const [detalhe, setDetalhe] = useState<DetalheOS | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
+  const [erroPagamento, setErroPagamento] = useState('')
+  const [erroEntrega, setErroEntrega] = useState('')
   const [diagnosticoTxt, setDiagnosticoTxt] = useState('')
   const [defeitoTxt, setDefeitoTxt] = useState('')
   const [maoObra, setMaoObra] = useState(0)
@@ -44,6 +57,10 @@ export function ServicosDetalhe() {
   const [mostrarSenha, setMostrarSenha] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [avancoStatus, setAvancoStatus] = useState<StatusOS | null>(null)
+  /** Cada incremento manda o cupom (via portal) para a impressão, já com os dados atuais. */
+  const [pedidoImpressao, setPedidoImpressao] = useState(0)
+
+  useImpressaoAutomatica(pedidoImpressao)
 
   async function carregar() {
     if (!id) return
@@ -54,9 +71,11 @@ export function ServicosDetalhe() {
       setItens(d.itens)
       setMaoObra(d.os.valor_mao_de_obra)
       setDesconto(d.os.desconto)
-      setGarantiaDias(d.os.garantia_dias)
+      // Ao ficar pronta, sugere a garantia das peças (o usuário ainda pode mudar).
+      setGarantiaDias(d.os.garantia_dias ?? (d.os.status === 'pronta' ? sugerirGarantia(d.itens) : null))
       setDefeitoTxt(d.os.defeito_relatado ?? '')
       setDiagnosticoTxt(d.os.diagnostico ?? '')
+      setErro('')
     } catch (er) {
       setErro((er as Error).message)
     } finally {
@@ -70,14 +89,49 @@ export function ServicosDetalhe() {
   if (erro || !detalhe) return <div className="cartao border-red-200 bg-red-50 p-3 text-sm text-red-800">{erro || 'OS não encontrada.'}</div>
 
   const os = detalhe.os
-  const totalCentavos = ((): number => {
-    const itensCent = itens.reduce((s, i) => s + Math.round(i.quantidade * i.preco_unitario * 100), 0)
-    return Math.max(0, itensCent + Math.round(maoObra * 100) - Math.round(desconto * 100))
-  })()
-  const totalReais = totalCentavos / 100
+  // Dinheiro em centavos; o banco devolve reais nos pagamentos.
+  const totalCentavos = montarTotalOS(itens, maoObra, desconto)
+  const pagoCentavos = detalhe.pagamentos.reduce((soma, p) => soma + Math.round(p.valor * 100), 0)
+  const faltaCentavos = faltamPagamentos(totalCentavos, detalhe.pagamentos)
   const travado = os.status === 'aprovada' || os.status === 'em_execucao' || os.status === 'pronta' || os.status === 'entregue' || os.status === 'cancelada'
   const podeMover = pode.moverOrdem
   const podeEntregar = pode.entregarOrdem && os.status === 'pronta'
+  const dica = dicaGarantiaSugerida(itens)
+
+  const tipoImpressao = os.status === 'entregue' ? 'recibo' : os.status === 'aguardando_aprovacao' ? 'orcamento' : 'comprovante'
+  const dadosImpressao: DadosImpressaoOS = {
+    tipo: tipoImpressao,
+    numero: os.numero,
+    criadoEm: os.criado_em,
+    status: os.status,
+    cliente: { nome: os.cliente_nome, telefone: os.cliente_telefone, documento: os.cliente_documento },
+    aparelho: {
+      tipo: os.aparelho_tipo,
+      marcaModelo: os.aparelho_marca_modelo,
+      serie: os.aparelho_serie_imei,
+      cor: os.aparelho_cor,
+      acessorios: os.aparelho_acessorios,
+      estado: os.aparelho_estado,
+    },
+    defeito: defeitoTxt || os.defeito_relatado,
+    diagnostico: diagnosticoTxt || os.diagnostico,
+    prazo: os.prazo_prometido,
+    tecnico: os.tecnico_nome,
+    recebidoPor: os.criado_por_nome,
+    itens,
+    maoDeObra: maoObra,
+    desconto,
+    total: totalCentavos,
+    pagamentos: detalhe.pagamentos,
+    entregueEm: os.entregue_em,
+    entreguePor: os.entregue_por_nome,
+    garantiaDias,
+    motivoCancelamento: os.motivo_cancelamento,
+    empresa: empresa.nome,
+    loja,
+  }
+
+  const imprimir = () => setPedidoImpressao(p => p + 1)
 
   async function salvarDiagnostico() {
     if (!id) return
@@ -125,29 +179,45 @@ export function ServicosDetalhe() {
 
   async function registrarPagamento() {
     if (!id) return
-    const v = Number(valorPag.replace(',', '.'))
-    if (!v || v <= 0) return
+    setErroPagamento('')
+    const lido = interpretarPagamento(valorPag, faltaCentavos)
+    if (lido.erro || lido.valor === null) {
+      setErroPagamento(lido.erro ?? 'Valor inválido.')
+      return
+    }
     setSalvando(true)
     try {
-      await dadosOS.registrarPagamento(empresa.empresa_id, loja.id, id, forma, v)
+      await dadosOS.registrarPagamento(empresa.empresa_id, loja.id, id, forma, lido.valor)
       setValorPag('')
+      toast.sucesso(`Pagamento de ${formatarReais(Math.round(lido.valor * 100))} registrado.`)
       await carregar()
-    } catch (er) { setErro((er as Error).message) } finally { setSalvando(false) }
+    } catch (er) {
+      setErroPagamento((er as Error).message)
+    } finally {
+      setSalvando(false)
+    }
   }
 
   async function entregar() {
     if (!id) return
-    if (garantiaDias !== os.garantia_dias) {
-      await dadosOS.salvarOrdem(id, { garantia_dias: garantiaDias })
+    if (faltaCentavos > 0) {
+      setErroEntrega(`Falta receber ${formatarReais(faltaCentavos)} para entregar a OS.`)
+      return
     }
+    setErroEntrega('')
     setSalvando(true)
     try {
+      if (garantiaDias !== os.garantia_dias) await dadosOS.salvarOrdem(id, { garantia_dias: garantiaDias })
       await dadosOS.mudarStatus(id, 'entregue')
-      toast.sucesso('Entregue.')
       setModalEntregar(false)
+      toast.sucesso('Aparelho entregue. Recibo liberado para impressão.')
       await carregar()
-      setTimeout(() => window.print(), 50)
-    } catch (er) { setErro((er as Error).message) } finally { setSalvando(false) }
+      imprimir()
+    } catch (er) {
+      setErroEntrega((er as Error).message)
+    } finally {
+      setSalvando(false)
+    }
   }
 
   async function cancelar() {
@@ -163,8 +233,8 @@ export function ServicosDetalhe() {
 
   async function copiarMensagem() {
     let texto = ''
-    if (os.status === 'aguardando_aprovacao') texto = mensagemOrcado(os, totalReais)
-    else if (os.status === 'pronta') texto = mensagemPronta({ ...os, garantia_dias: garantiaDias }, totalReais)
+    if (os.status === 'aguardando_aprovacao') texto = mensagemOrcado(os, totalCentavos)
+    else if (os.status === 'pronta') texto = mensagemPronta({ ...os, garantia_dias: garantiaDias }, totalCentavos)
     try {
       await navigator.clipboard.writeText(texto)
       toast.sucesso('Mensagem copiada. Cole no WhatsApp do cliente.')
@@ -175,13 +245,6 @@ export function ServicosDetalhe() {
   const CADEIA: StatusOS[] = ['aberta','em_diagnostico','aguardando_aprovacao','aprovada','em_execucao','pronta','entregue']
   const posteriores: StatusOS[] = (os.status === 'entregue' || os.status === 'cancelada') ? [] : CADEIA.slice(CADEIA.indexOf(os.status) + 1)
 
-  const faltam = ((): number => {
-    const pago = detalhe.pagamentos.reduce((s: number, p: { valor: number }) => s + Math.round(p.valor * 100), 0)
-    return Math.max(0, totalCentavos - pago)
-  })()
-
-  const dica = dicaGarantiaSugerida(itens)
-
   return (
     <div className="space-y-5">
       <Cabecalho
@@ -189,7 +252,14 @@ export function ServicosDetalhe() {
         subtitulo={`${os.cliente_nome} · ${os.aparelho_tipo ?? ''} ${os.aparelho_marca_modelo ?? ''}`.trim()}
         acoes={
           <>
-            <button type="button" className="btn btn-secundario" onClick={() => window.print()} aria-label="Imprimir comprovante de recebimento"><Printer className="size-4" /></button>
+            <button
+              type="button"
+              className="btn btn-secundario"
+              onClick={imprimir}
+              aria-label={tipoImpressao === 'recibo' ? 'Imprimir recibo de entrega' : tipoImpressao === 'orcamento' ? 'Imprimir orçamento' : 'Imprimir comprovante de recebimento'}
+            >
+              <Printer className="size-4" />
+            </button>
             {(os.status === 'aguardando_aprovacao' || os.status === 'pronta') && (
               <button type="button" className="btn btn-secundario" onClick={copiarMensagem} aria-label={os.status === 'aguardando_aprovacao' ? 'Copiar mensagem do orçamento' : 'Copiar mensagem de aparelho pronto'}><Copy className="size-4" /></button>
             )}
@@ -293,7 +363,7 @@ export function ServicosDetalhe() {
             <div key={it.id ?? idx} className="flex items-center gap-2 rounded-lg border border-slate-200 p-2 text-sm">
               <span className={cx('rounded px-1.5 py-0.5 text-[10px] font-semibold', it.origem === 'estoque' ? 'bg-sky-100 text-sky-800' : 'bg-slate-100 text-slate-700')}>{it.origem === 'estoque' ? 'Estoque' : 'Avulsa'}</span>
               <span className="flex-1 truncate">{it.descricao}</span>
-              <span className="tabular-nums">{it.quantidade} × {formatarReais(it.preco_unitario)}</span>
+              <span className="tabular-nums">{it.quantidade} × {formatarReais(Math.round(it.preco_unitario * 100))}</span>
               {!travado && podeMover && (
                 <button type="button" className="text-red-600" aria-label={`Remover ${it.descricao}`} onClick={() => setItens(prev => prev.filter((_, i) => i !== idx))}>✕</button>
               )}
@@ -315,9 +385,9 @@ export function ServicosDetalhe() {
         )}
 
         <div className="border-t border-slate-200 pt-2 text-sm">
-          <p>Subtotal (mão de obra + itens): {formatarReais((itens.reduce((s, i) => s + i.quantidade * i.preco_unitario, 0) + maoObra))}</p>
-          <p>Desconto: {formatarReais(desconto)}</p>
-          <p className="font-semibold">Total: {formatarReais(totalReais)}</p>
+          <p>Subtotal (mão de obra + itens): {formatarReais(montarTotalOS(itens, maoObra, 0))}</p>
+          <p>Desconto: {formatarReais(Math.round(desconto * 100))}</p>
+          <p className="font-semibold">Total: {formatarReais(totalCentavos)}</p>
         </div>
 
         {!travado && podeMover && (
@@ -334,9 +404,14 @@ export function ServicosDetalhe() {
           <h2 className="text-sm font-semibold text-ponto">Garantia (dias)</h2>
           <input className="campo" inputMode="numeric" value={garantiaDias ?? ''} onChange={e => setGarantiaDias(e.target.value.trim() ? Number(e.target.value) : null)} />
           <p className="text-xs text-slate-500">{dica}</p>
-          {garantiaDias !== os.garantia_dias && (
-            <button type="button" className="btn btn-secundario" onClick={() => dadosOS.salvarOrdem(os.id, { garantia_dias: garantiaDias }).then(() => { toast.sucesso('Garantia salva.'); carregar() })}>Salvar garantia</button>
-          )}
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="btn btn-fantasma text-xs" onClick={() => setGarantiaDias(sugerirGarantia(itens))}>
+              Usar sugestão ({sugerirGarantia(itens)} dias)
+            </button>
+            {garantiaDias !== os.garantia_dias && (
+              <button type="button" className="btn btn-secundario" disabled={salvando} onClick={() => dadosOS.salvarOrdem(os.id, { garantia_dias: garantiaDias }).then(() => { toast.sucesso('Garantia salva.'); carregar() }).catch(er => setErro((er as Error).message))}>Salvar garantia</button>
+            )}
+          </div>
         </section>
       )}
 
@@ -345,21 +420,24 @@ export function ServicosDetalhe() {
         <section className="cartao space-y-3 p-4">
           <h2 className="text-sm font-semibold text-ponto">Entrega e pagamento</h2>
           <div className="text-sm">
-            <p>Itens: {formatarReais(itens.reduce((s, i) => s + i.quantidade * i.preco_unitario, 0))}</p>
-            <p>Mão de obra: {formatarReais(maoObra)}</p>
-            <p>Desconto: {formatarReais(desconto)}</p>
-            <p className="font-semibold">Total: {formatarReais(totalReais)}</p>
+            <p>Itens: {formatarReais(montarTotalOS(itens, 0, 0))}</p>
+            <p>Mão de obra: {formatarReais(Math.round(maoObra * 100))}</p>
+            <p>Desconto: {formatarReais(Math.round(desconto * 100))}</p>
+            <p className="font-semibold">Total: {formatarReais(totalCentavos)}</p>
           </div>
           <div className="grid grid-cols-3 gap-2 text-sm">
-            <div className="cartao p-2 text-center"><strong>Total</strong><br />{formatarReais(totalReais)}</div>
-            <div className="cartao p-2 text-center"><strong>Pago</strong><br />{formatarReais(detalhe.pagamentos.reduce((s, p) => s + p.valor, 0))}</div>
-            <div className="cartao p-2 text-center"><strong>{faltam > 0 ? 'Falta' : 'Tudo pago'}</strong><br />{formatarReais(faltam / 100)}</div>
+            <div className="cartao p-2 text-center"><strong>Total</strong><br />{formatarReais(totalCentavos)}</div>
+            <div className="cartao p-2 text-center"><strong>Pago</strong><br />{formatarReais(pagoCentavos)}</div>
+            <div className="cartao p-2 text-center">
+              <strong>{faltaCentavos > 0 ? 'Falta' : 'Tudo pago'}</strong>
+              <br />{formatarReais(faltaCentavos)}
+            </div>
           </div>
           {detalhe.pagamentos.length > 0 && (
             <ul className="divide-y divide-slate-100 text-sm">
               {detalhe.pagamentos.map(p => (
                 <li key={p.id} className="flex items-center justify-between py-2">
-                  <span>{(NOME_FORMA as Record<string, string>)[p.forma] ?? p.forma} · {formatarReais(p.valor)}</span>
+                  <span>{(NOME_FORMA as Record<string, string>)[p.forma] ?? p.forma} · {formatarReais(Math.round(p.valor * 100))}</span>
                 </li>
               ))}
             </ul>
@@ -369,43 +447,51 @@ export function ServicosDetalhe() {
               <button key={k} type="button" className={cx('rounded-lg border px-2 py-2 text-xs', forma === k ? 'border-ponto bg-ponto text-white' : 'border-slate-200 bg-white')} onClick={() => setForma(k)}>{v}</button>
             ))}
           </div>
-          <div className="flex gap-2">
-            <input className="campo flex-1" inputMode="decimal" placeholder="Valor recebido (deixe vazio para o que falta)" value={valorPag} onChange={e => setValorPag(e.target.value)} />
-            <button type="button" className="btn btn-secundario" disabled={salvando} onClick={registrarPagamento}>Registrar pagamento</button>
-          </div>
-          {Number(valorPag.replace(',', '.')) > totalReais && Number(valorPag.replace(',', '.')) > 0 && (
-            <p className="text-xs text-amber-700">O total registrado passou do valor da OS. Dê o troco em dinheiro.</p>
+          {faltaCentavos > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+              <span>Falta receber {formatarReais(faltaCentavos)} para liberar a entrega.</span>
+              <button type="button" className="btn btn-fantasma text-xs" onClick={() => setValorPag(formatarReais(faltaCentavos))}>
+                Receber o que falta ({formatarReais(faltaCentavos)})
+              </button>
+            </div>
           )}
-          <button type="button" className="btn btn-primario btn-grande w-full" disabled={salvando || faltam > 0} onClick={() => setModalEntregar(true)}>Entregar</button>
+          <div className="flex gap-2">
+            <input
+              className="campo flex-1"
+              inputMode="decimal"
+              placeholder={faltaCentavos > 0 ? `Valor recebido (vazio = ${formatarReais(faltaCentavos)})` : 'Tudo pago'}
+              value={valorPag}
+              onChange={e => { setValorPag(e.target.value); setErroPagamento('') }}
+              disabled={salvando || faltaCentavos === 0}
+            />
+            <button type="button" className="btn btn-secundario" disabled={salvando || faltaCentavos === 0} onClick={registrarPagamento}>Registrar pagamento</button>
+          </div>
+          {erroPagamento && <Aviso tom="erro">{erroPagamento}</Aviso>}
+          <button
+            type="button"
+            className="btn btn-primario btn-grande w-full"
+            disabled={salvando || faltaCentavos > 0}
+            onClick={() => { setErroEntrega(''); setModalEntregar(true) }}
+          >
+            Entregar
+          </button>
+          {faltaCentavos > 0 && <p className="text-center text-xs text-slate-500">Registre o pagamento total para liberar a entrega.</p>}
         </section>
+      )}
+
+      {os.status === 'pronta' && !pode.entregarOrdem && (
+        <Aviso tom="alerta">A entrega é feita por dono, gerente ou caixa. Peça para um deles registrar o pagamento e entregar a OS.</Aviso>
       )}
 
       {os.status === 'entregue' && (
         <section className="cartao p-4 text-sm text-slate-600">
           Entregue em {os.entregue_em ? formatarData(os.entregue_em.slice(0, 10)) : ''} por {os.entregue_por_nome}.
-          <button type="button" className="btn btn-secundario ml-2" onClick={() => window.print()} aria-label="Imprimir recibo"><Printer className="size-4" /></button>
+          <button type="button" className="btn btn-secundario ml-2" onClick={imprimir} aria-label="Imprimir recibo"><Printer className="size-4" /></button>
         </section>
       )}
 
-      {/* Recibo de entrega (impresso) */}
-      {os.status === 'entregue' && (
-        <div className="cupom-impressao" data-recibo-os={String(os.numero).padStart(6, '0')}>
-          <div style={{ textAlign: 'center', fontWeight: 700, fontSize: 13 }}>{empresa.nome}</div>
-          <div style={{ textAlign: 'center', fontWeight: 700 }}>*** DOCUMENTO SEM VALOR FISCAL ***</div>
-          <div style={{ textAlign: 'center', fontWeight: 700 }}>{numeroOS(os.numero)}</div>
-          <hr />
-          {itens.map(it => (
-            <div key={it.id}>{it.descricao} · {it.quantidade} × {formatarReais(it.preco_unitario)} = {formatarReais(it.total)}</div>
-          ))}
-          <hr />
-          <div><strong>TOTAL {formatarReais(totalReais)}</strong></div>
-          {detalhe.pagamentos.map(p => <div key={p.id}>{(NOME_FORMA as Record<string, string>)[p.forma] ?? p.forma}: {formatarReais(p.valor)}</div>)}
-          {os.garantia_dias !== null && <div><strong>Garantia até {formatarData(new Date(Date.now() + (os.garantia_dias ?? 0) * 86400000).toISOString().slice(0, 10))}</strong></div>}
-          <hr />
-          <div style={{ fontSize: 10 }}>O aparelho foi entregue funcionando. A garantia cobre o conserto realizado e não cobre mal uso, queda ou água.</div>
-          <div style={{ fontSize: 10 }}>Obrigado pela preferência!</div>
-        </div>
-      )}
+      {/* Cupom (comprovante, orçamento ou recibo) — portal no <body>, ver index.css */}
+      <ImpressaoOS dados={dadosImpressao} />
 
       {/* Modal avançar */}
       <Modal aberto={modalAvancar} aoFechar={() => setModalAvancar(false)} titulo="Avançar status">
@@ -438,6 +524,7 @@ export function ServicosDetalhe() {
       {/* Modal entregar */}
       <Modal aberto={modalEntregar} aoFechar={() => setModalEntregar(false)} titulo="Entregar">
         <p className="text-sm text-slate-600">Entregar o aparelho para {os.cliente_nome}? As peças do estoque são baixadas agora e a OS {numeroOS(os.numero)} não pode mais ser alterada.</p>
+        {erroEntrega && <div className="mt-3"><Aviso tom="erro">{erroEntrega}</Aviso></div>}
         <div className="mt-4 flex gap-2">
           <button type="button" className="btn btn-secundario flex-1" onClick={() => setModalEntregar(false)}>Voltar</button>
           <button type="button" className="btn btn-primario flex-1" disabled={salvando} onClick={entregar}>Entregar</button>

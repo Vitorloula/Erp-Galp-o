@@ -178,6 +178,36 @@ export async function registrarPagamento(empresaId: string, lojaId: string, osId
   }
 }
 
+/** Itens de várias OS (relatórios/exportação), em blocos para a URL não crescer demais. */
+export async function itensDasOrdens(osIds: string[]): Promise<ItemOS[]> {
+  if (!osIds.length) return []
+  const linhas: ItemOS[] = []
+  for (let i = 0; i < osIds.length; i += 150) {
+    const r = exigir(
+      await sb
+        .from('os_itens')
+        .select('id, os_id, ordem, origem, produto_id, descricao, quantidade, preco_unitario, total, baixado_em')
+        .in('os_id', osIds.slice(i, i + 150)),
+    ) as Record<string, unknown>[]
+    linhas.push(
+      ...r.map(it => ({
+        id: it.id as string,
+        os_id: it.os_id as string,
+        ordem: num(it.ordem),
+        origem: it.origem as ItemOS['origem'],
+        produto_id: (it.produto_id as string | null) ?? null,
+        descricao: it.descricao as string,
+        quantidade: num(it.quantidade),
+        preco_unitario: num(it.preco_unitario),
+        total: num(it.total),
+        baixado_em: (it.baixado_em as string | null) ?? null,
+        garantia_meses: null,
+      })),
+    )
+  }
+  return linhas
+}
+
 /** Pagamentos de várias OS (relatórios), em blocos para a URL não crescer demais. */
 export async function pagamentosDasOrdens(osIds: string[]): Promise<(PagamentoOS & { os_id: string })[]> {
   if (!osIds.length) return []

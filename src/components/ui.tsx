@@ -152,6 +152,7 @@ export function Modal({
   titulo,
   children,
   rodape,
+  subcabecalho,
   largura = 'max-w-lg',
 }: {
   aberto: boolean
@@ -159,6 +160,8 @@ export function Modal({
   titulo: ReactNode
   children: ReactNode
   rodape?: ReactNode
+  /** Faixa fixa logo abaixo do título (ex.: barra de abas) — não rola com o corpo. */
+  subcabecalho?: ReactNode
   largura?: string
 }) {
   const idTitulo = useId()
@@ -251,6 +254,11 @@ export function Modal({
             <X className="size-5" />
           </button>
         </div>
+        {subcabecalho && (
+          <div className="shrink-0 border-b border-slate-100 px-5 py-2" data-modal-subcabecalho>
+            {subcabecalho}
+          </div>
+        )}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 pb-6" data-modal-corpo>
           {children}
         </div>

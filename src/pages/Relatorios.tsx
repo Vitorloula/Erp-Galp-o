@@ -13,12 +13,12 @@ import type { Secoes } from '../lib/exportar/excel'
 import { formatarDataHora, formatarEmbalagens, formatarNumero, formatarValidade, hojeISO, normalizarBusca } from '../lib/formato'
 import { paginar } from '../lib/paginacao'
 import { PERIODOS, intervaloParaInstantes, intervaloRapido, juntarFiltros, periodoDaUrl, produtoDaUrl, type Intervalo, type PeriodoRapido } from '../lib/periodos'
-import { exportarComToast, montarRelatorio, nomeArquivo, tituloEmpresa, type LinhaCompraRel } from '../lib/relatorio'
+import { exportarComToast, montarRelatorio, montarServicosRel, nomeArquivo, tituloEmpresa, type LinhaCompraRel } from '../lib/relatorio'
 import { STATUS_OS } from '../lib/servicos'
 import { formatarReais } from '../pdv/venda'
-import { listarOrdens, pagamentosDasOrdens } from '../lib/dados/os'
+import { listarOrdens, pagamentosDasOrdens, itensDasOrdens } from '../lib/dados/os'
 import { montarResultado, type Resultado } from '../lib/resultado'
-import type { Movimentacao, OS } from '../lib/tipos'
+import type { ItemOS, Movimentacao, OS } from '../lib/tipos'
 
 const POR_PAGINA = 50
 
@@ -157,6 +157,7 @@ export function Relatorios() {
   const [itensPeriodo, setItensPeriodo] = useState<ItemVendaResumo[] | null>(null)
   const [ordensPeriodo, setOrdensPeriodo] = useState<OS[] | null>(null)
   const [pagamentosOS, setPagamentosOS] = useState<{ os_id: string; valor: number }[] | null>(null)
+  const [itensOS, setItensOS] = useState<ItemOS[] | null>(null)
   const [erro, setErro] = useState('')
   const [erroResultado, setErroResultado] = useState('')
   const [aba, setAba] = useState<Aba>('resumo')
@@ -249,12 +250,14 @@ export function Relatorios() {
           return criada >= Date.parse(de) && criada <= Date.parse(ate)
         })
         setOrdensPeriodo(noPeriodo)
-        return pagamentosDasOrdens(noPeriodo.map(o => o.id)).then(pags => {
+        const ids = noPeriodo.map(o => o.id)
+        return Promise.all([pagamentosDasOrdens(ids), itensDasOrdens(ids)]).then(([pags, its]) => {
           if (!ativo) return
           setPagamentosOS(pags.map(p => ({ os_id: p.os_id, valor: p.valor })))
+          setItensOS(its)
         })
       })
-      .catch(() => { if (ativo) { setOrdensPeriodo([]); setPagamentosOS([]) } })
+      .catch(() => { if (ativo) { setOrdensPeriodo([]); setPagamentosOS([]); setItensOS([]) } })
     return () => {
       ativo = false
     }
@@ -322,23 +325,29 @@ export function Relatorios() {
     }
   }, [ordensPeriodo, pagamentosOS])
 
+  // Seção Serviços da exportação (Excel/PDF): uma linha por OS do período.
+  const servicosRel = useMemo(
+    () => montarServicosRel(ordensPeriodo ?? [], itensOS ?? [], servicos?.faturamento ?? 0),
+    [ordensPeriodo, itensOS, servicos?.faturamento],
+  )
+
   const relatorio = useMemo(() => {
     if (!movs) return null
     const r = montarRelatorio(intervalo, produtos, lotes, movs, nomeCategoria, produtoId || undefined, recorte, empresa.config.dias_alerta)
     const sit = filtrosEstoque.situacao
-    if (!sit) return { ...r, resultado: resultado ?? undefined }
+    if (!sit) return { ...r, resultado: resultado ?? undefined, servicos: servicosRel }
     if (sit === 'abaixo') {
       // "abaixo" é por produto (saldo <= mínimo): só os produtos da lista de compras.
       const codigos = new Set(r.compras.map(c => c.codigo))
-      return { ...r, resultado: resultado ?? undefined, posicao: r.posicao.filter(l => codigos.has(l.codigo)) }
+      return { ...r, resultado: resultado ?? undefined, servicos: servicosRel, posicao: r.posicao.filter(l => codigos.has(l.codigo)) }
     }
-    return { ...r, resultado: resultado ?? undefined, posicao: r.posicao.filter(l => l.situacao === sit) }
-  }, [movs, produtos, lotes, produtoId, intervalo.de, intervalo.ate, nomeCategoria, recorte, filtrosEstoque.situacao, empresa.config.dias_alerta, resultado])
+    return { ...r, resultado: resultado ?? undefined, servicos: servicosRel, posicao: r.posicao.filter(l => l.situacao === sit) }
+  }, [movs, produtos, lotes, produtoId, intervalo.de, intervalo.ate, nomeCategoria, recorte, filtrosEstoque.situacao, empresa.config.dias_alerta, resultado, servicosRel])
 
   // Conteúdo por embalagem só para exibir "x emb." na aba Compras (a conta vem de lib/estoque.ts).
   const conteudos = useMemo(() => new Map(produtos.map(p => [p.codigo_interno, p.conteudo_embalagem ?? null])), [produtos])
 
-  const algumaSecao = secoes.resumo || secoes.movimentacoes || secoes.posicao || secoes.compras || secoes.resultado
+  const algumaSecao = secoes.resumo || secoes.movimentacoes || secoes.posicao || secoes.compras || secoes.resultado || secoes.servicos
 
   const contagensSecoes = useMemo<Record<keyof Secoes, number> | null>(() => {
     if (!relatorio) return null

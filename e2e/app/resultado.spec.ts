@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs'
 import { readFileSync } from 'node:fs'
 import type { Page } from '@playwright/test'
+import { etapaProduto, salvarProduto } from '../apoio/etapas.ts'
 import { abrirCaixa, esperarSincronizado, ler, novaVenda, pagar } from '../apoio/pdv.ts'
 import { expect, test, toast } from '../base.ts'
 
@@ -21,9 +22,10 @@ async function cadastrarProduto(page: Page, produto: ProdutoTeste) {
   const d = page.getByRole('dialog', { name: 'Novo produto' })
   await d.getByLabel('Nome do produto *').fill(produto.nome)
   await d.getByLabel('Código interno').fill(produto.codigo)
+  await etapaProduto(d, 'Preços')
   await d.getByLabel('Preço de venda (R$)').fill(produto.preco)
   if (produto.custo !== undefined) await d.getByLabel('Custo (R$)').fill(produto.custo)
-  await d.getByRole('button', { name: 'Salvar' }).click()
+  await salvarProduto(d)
   await expect(toast(page, /Produto cadastrado/)).toBeVisible()
 }
 

@@ -195,6 +195,38 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
     }
   }
 
+  if (secoes.servicos && r.servicos) {
+    const linhas = r.servicos.linhas.map(l => [
+      l.os,
+      l.cliente,
+      l.aparelho,
+      l.status,
+      formatarData(l.recebidaEm),
+      formatarData(l.prazo),
+      formatarData(l.entregueEm),
+      l.tecnico,
+      formatarReais(l.total),
+    ])
+    titulo('Serviços')
+    autoTable(doc, {
+      ...estilo,
+      startY: y,
+      head: [['OS', 'Cliente', 'Aparelho', 'Status', 'Recebida em', 'Prazo', 'Entregue em', 'Técnico', 'Total']],
+      body: linhas.length
+        ? [
+            ...linhas,
+            [
+              { content: 'TOTAL', colSpan: 8, styles: { fontStyle: 'bold' } },
+              { content: formatarReais(r.servicos.faturamento), styles: { fontStyle: 'bold', halign: 'right' } },
+            ],
+          ]
+        : [[{ content: 'Nenhuma ordem de serviço no período.', colSpan: 9, styles: { halign: 'center', textColor: CINZA } }]],
+      columnStyles: { 8: { halign: 'right', fontStyle: 'bold' } },
+    })
+    y = finalY() + 5
+    legenda(`Faturamento no período: ${formatarReais(r.servicos.faturamento)}`)
+  }
+
   // Rodapé com numeração
   const paginas = doc.getNumberOfPages()
   for (let i = 1; i <= paginas; i++) {

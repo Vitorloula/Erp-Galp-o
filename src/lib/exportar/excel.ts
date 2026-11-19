@@ -241,6 +241,47 @@ export async function gerarExcel(r: Relatorio, empresa: string, secoes: Secoes):
     }
   }
 
+  if (secoes.servicos && r.servicos) {
+    const n = r.servicos.linhas.length
+    const ws = wb.addWorksheet('Serviços')
+    cabecalhoRelatorio(ws, `Serviços — ${n} ordem${n === 1 ? '' : 's'} de serviço`, r, empresa, [
+      { titulo: 'OS', largura: 12 },
+      { titulo: 'Cliente', largura: 28 },
+      { titulo: 'Aparelho', largura: 28 },
+      { titulo: 'Status', largura: 16 },
+      { titulo: 'Recebida em', largura: 12 },
+      { titulo: 'Prazo', largura: 12 },
+      { titulo: 'Entregue em', largura: 12 },
+      { titulo: 'Técnico', largura: 18 },
+      { titulo: 'Total', largura: 14 },
+    ])
+    if (n === 0) {
+      const vazio = ws.addRow(['Nenhuma ordem de serviço no período.'])
+      vazio.getCell(1).font = { italic: true, size: 9, color: { argb: CINZA_ARGB } }
+    }
+    for (const l of r.servicos.linhas) {
+      const row = ws.addRow([
+        l.os,
+        l.cliente,
+        l.aparelho,
+        l.status,
+        dataExcel(l.recebidaEm),
+        dataExcel(l.prazo || null),
+        dataExcel(l.entregueEm || null),
+        l.tecnico,
+        l.total / 100,
+      ])
+      row.getCell(5).numFmt = 'dd/mm/yyyy'
+      row.getCell(6).numFmt = 'dd/mm/yyyy'
+      row.getCell(7).numFmt = 'dd/mm/yyyy'
+      row.getCell(9).numFmt = 'R$ #,##0.00'
+    }
+    const total = ws.addRow(['TOTAL', null, null, null, null, null, null, null, r.servicos.faturamento / 100])
+    total.getCell(1).font = { bold: true }
+    total.getCell(9).numFmt = 'R$ #,##0.00'
+    total.getCell(9).font = { bold: true }
+  }
+
   const buffer = await wb.xlsx.writeBuffer()
   return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
 }
