@@ -98,9 +98,38 @@
   display: none;
 }
 
+/* Barra de rolagem fina e discreta */
+.barra-fina {
+  scrollbar-width: thin;
+  scrollbar-color: #D1D5DB transparent;
+}
+.barra-fina::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.barra-fina::-webkit-scrollbar-track {
+  background: transparent;
+}
+.barra-fina::-webkit-scrollbar-thumb {
+  background: #D1D5DB;
+  border-radius: 999px;
+}
+.barra-fina::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 .pb-seguro {
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+/* Entrada em cascata (Painel) */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.stagger-in { animation: fadeInUp 0.4s ease-out both; }
 
 /* ── Animações sutis (interface mais viva) ── */
 /* A entrada das páginas usa apenas opacidade de propósito: `transform` (mesmo

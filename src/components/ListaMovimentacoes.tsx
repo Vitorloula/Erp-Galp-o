@@ -12,6 +12,8 @@ export interface ListaMovimentacoesProps {
   agruparPorDia?: boolean
   /** Rodapé com o total do que está na tela (nº de lançamentos e soma por grupo). */
   resumo?: boolean
+  /** Exibe o contêiner cartão ao redor da lista. Desligue quando já estiver dentro de um card. */
+  cartao?: boolean
   /** Unidade por produto, para os totais quando a lista mistura unidades. Default: useDados. */
   unidadeDoProduto?: (produtoId: string) => Unidade | ''
 }
@@ -30,6 +32,7 @@ export function ListaMovimentacoes({
   mostrarProduto = true,
   agruparPorDia = true,
   resumo = false,
+  cartao = true,
   unidadeDoProduto,
 }: ListaMovimentacoesProps) {
   const { produtoPorId, lotePorId } = useDados()
@@ -42,7 +45,7 @@ export function ListaMovimentacoes({
 
   let diaAnterior = ''
   return (
-    <div className="cartao overflow-hidden">
+    <div className={cx(cartao ? 'cartao overflow-hidden' : 'overflow-hidden')}>
       <ul className="divide-y divide-slate-100">
         {movimentacoes.map(m => {
           const produto = produtoPorId.get(m.produto_id)
@@ -53,7 +56,7 @@ export function ListaMovimentacoes({
           const unidade = produto?.unidade ?? ''
           return (
             <li key={m.id} data-mov={m.id} data-tipo={m.tipo}>
-              {novoDia && <div className="bg-slate-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">{dia}</div>}
+              {novoDia && <div className="mt-3 px-1 pb-1 text-xs font-semibold text-[#6B7280]">{dia}</div>}
               <div className="flex items-start gap-3 px-4 py-3">
                 <IconeTipo tipo={m.tipo} className="mt-0.5" />
                 <div className="min-w-0 flex-1">
@@ -73,14 +76,14 @@ export function ListaMovimentacoes({
                       {formatarDelta(m.delta, unidade)}
                     </p>
                   </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[#6B7280]">
                     <span className="font-mono text-slate-400">#{m.id}</span>
                     <span>{agruparPorDia ? formatarHora(m.ocorrido_em) : `${formatarData(m.ocorrido_em)} ${formatarHora(m.ocorrido_em)}`}</span>
                     {m.usuario_nome && <span>· {m.usuario_nome}</span>}
                     {m.tipo !== 'ENTRADA' && m.tipo !== 'SAIDA' && <span className="rounded bg-violet-50 px-1.5 py-0.5 font-medium text-violet-700">{NOME_TIPO[m.tipo]}</span>}
-                    {m.documento && <span className="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600">{m.documento}</span>}
-                    {m.referencia_id && <span className="rounded bg-violet-50 px-1.5 py-0.5 font-medium text-violet-700">corrige #{m.referencia_id}</span>}
-                    {corrigidas.has(m.id) && <span className="rounded bg-amber-50 px-1.5 py-0.5 font-medium text-amber-800">corrigida</span>}
+                    {m.documento && <span className="rounded-md bg-[#F3F4F6] px-2 py-0.5 font-medium text-slate-600">{m.documento}</span>}
+                    {m.referencia_id && <span className="rounded-md bg-violet-50 px-2 py-0.5 font-medium text-violet-700">corrige #{m.referencia_id}</span>}
+                    {corrigidas.has(m.id) && <span className="rounded-md bg-amber-50 px-2 py-0.5 font-medium text-amber-800">corrigida</span>}
                   </div>
                   {m.observacao && <p className="mt-1 text-sm text-slate-600">{m.observacao}</p>}
                 </div>

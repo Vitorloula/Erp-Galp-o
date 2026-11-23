@@ -118,7 +118,7 @@ export function Cobertura({ saldo, minimo, unidade }: CoberturaProps) {
 
 const ESTILO_TIPO: Record<TipoMov, { classe: string; icone: LucideIcon }> = {
   ENTRADA: { classe: 'bg-emerald-100 text-marca-escura', icone: ArrowDownToLine },
-  SAIDA: { classe: 'bg-sky-100 text-sky-800', icone: ArrowUpFromLine },
+  SAIDA: { classe: 'bg-[#F3F4F6] text-[#4B5563]', icone: ArrowUpFromLine },
   AJUSTE: { classe: 'bg-violet-100 text-violet-800', icone: SlidersHorizontal },
   CORRECAO: { classe: 'bg-violet-100 text-violet-800', icone: RotateCcw },
   VENDA: { classe: 'bg-sky-100 text-sky-800', icone: ShoppingCart },
@@ -281,6 +281,7 @@ export function Kpi({
   tom = 'neutro',
   detalhe,
   onClick,
+  className,
 }: {
   titulo: string
   valor: ReactNode
@@ -288,6 +289,7 @@ export function Kpi({
   tom?: 'neutro' | 'vermelho' | 'amarelo' | 'verde'
   detalhe?: string
   onClick?: () => void
+  className?: string
 }) {
   const tons = {
     neutro: 'bg-slate-100 text-slate-600',
@@ -297,7 +299,7 @@ export function Kpi({
   }
   const Tag = onClick ? 'button' : 'div'
   return (
-    <Tag onClick={onClick} className={cx('cartao flex min-h-[118px] w-full flex-col gap-2.5 p-4 text-left', onClick && 'transition hover:border-slate-300')}>
+    <Tag onClick={onClick} className={cx('cartao rounded-2xl flex min-h-[118px] w-full flex-col gap-2.5 p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-slate-300 active:scale-[0.99]', onClick && 'cursor-pointer', className)}>
       <span className="flex w-full items-center justify-between gap-2">
         <span className="text-xs font-medium text-texto-secundario">{titulo}</span>
         <span className={cx('grid size-7 shrink-0 place-items-center rounded-lg', tons[tom])}>

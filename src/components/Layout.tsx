@@ -320,10 +320,10 @@ export function Layout() {
         )}
         <AvisoAssinatura empresa={empresa} />
         {empresa.config.exemplo && (
-          <Aviso tom="info">
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-xs text-sky-900">
             <strong>Empresa de exemplo:</strong> os dados são fictícios, para você conhecer o sistema.{' '}
             <Link to="/empresas/nova" className="font-semibold underline underline-offset-2">Cadastrar minha empresa</Link>
-          </Aviso>
+          </div>
         )}
       </div>
 
