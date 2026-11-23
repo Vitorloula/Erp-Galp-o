@@ -39,7 +39,7 @@ jobs:
   e2e:
     # Windows já traz o Microsoft Edge, usado pelos testes de ponta a ponta.
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 

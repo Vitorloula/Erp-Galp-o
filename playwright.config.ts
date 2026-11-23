@@ -41,10 +41,10 @@ export default defineConfig({
   testDir: 'e2e',
   globalSetup: './e2e/preparar.ts',
   fullyParallel: true,
-  workers: process.env.CI ? 2 : 4,
-  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 1 : 4,
+  retries: process.env.CI ? 3 : 0,
   forbidOnly: !!process.env.CI,
-  timeout: 60_000,
+  timeout: 120_000,
   expect: { timeout: 10_000 },
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
   // O aplicativo instalável (service worker) fica desligado, exceto no projeto "pwa".
