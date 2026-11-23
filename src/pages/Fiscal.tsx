@@ -198,7 +198,8 @@ export function Fiscal() {
     setOcupado('lote')
     try {
       const r = await marcarEmitir(aEmitir)
-      if (r.erro) toast.erro(r.erro)
+      if (r.erro && r.ok === 0) toast.erro(r.erro)
+      else if (r.erro) toast.erro(`${r.ok} marcada(s) para emitir, mas houve erro: ${r.erro}`)
       else toast.sucesso(`${r.ok} venda(s) marcada(s) para emitir.`)
       await recarregar()
     } finally {
@@ -363,9 +364,9 @@ export function Fiscal() {
               max={hoje}
               onChange={e => setDia(e.target.value || hoje)}
             />
-            {pode.decidirFiscal && aDecidir.length > 0 && (
+            {pode.decidirFiscal && aDecidir.length > 0 && ehHoje && (
               <button className="btn btn-secundario px-3 py-1.5 text-sm" onClick={() => abrirFechamento('dia')}>
-                <Clock className="size-4" /> {ehHoje ? 'Fechar o dia' : 'Encerrar o dia'}
+                <Clock className="size-4" /> Fechar o dia
               </button>
             )}
           </div>
