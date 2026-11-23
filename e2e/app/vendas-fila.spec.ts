@@ -22,8 +22,12 @@ async function venderNoCaixa(page: Page) {
 }
 
 test.describe('Fila NFC-e', () => {
-  test('venda feita no PDV aparece na fila como pendente', async ({ page }) => {
+  test('venda feita no PDV aparece na fila como pendente', async ({ page, supabase, conta }) => {
     await venderNoCaixa(page)
+    await supabase.servidor.sql(
+      `update public.vendas set nfce_decisao = 'emitir' where empresa_id = $1 and numero = 1`,
+      [conta.empresaId],
+    )
     await abrirFila(page)
 
     await expect(linhaDaFila(page)).toContainText('Nota pendente')
@@ -33,7 +37,7 @@ test.describe('Fila NFC-e', () => {
   test('venda com erro mostra o badge e o motivo do erro', async ({ page, supabase, conta }) => {
     await venderNoCaixa(page)
     await supabase.servidor.sql(
-      `update public.vendas set nfce_status = 'erro', nfce_erro = $1 where empresa_id = $2 and numero = 1`,
+      `update public.vendas set nfce_status = 'erro', nfce_erro = $1, nfce_decisao = 'emitir' where empresa_id = $2 and numero = 1`,
       ['Rejeição 539: duplicidade de NF-e com diferença na chave de acesso', conta.empresaId],
     )
     await abrirFila(page)
@@ -46,8 +50,12 @@ test.describe('Fila NFC-e', () => {
     await expect(detalhe).toContainText('Rejeição 539: duplicidade de NF-e')
   })
 
-  test('Reemitir com o emissor desligado avisa e não muda o status', async ({ page }) => {
+  test('Reemitir com o emissor desligado avisa e não muda o status', async ({ page, supabase, conta }) => {
     await venderNoCaixa(page)
+    await supabase.servidor.sql(
+      `update public.vendas set nfce_decisao = 'emitir' where empresa_id = $1 and numero = 1`,
+      [conta.empresaId],
+    )
     await abrirFila(page)
 
     const linha = linhaDaFila(page)
@@ -66,7 +74,7 @@ test.describe('Fila NFC-e', () => {
   test('Marcar resolvida com motivo tira a venda da fila', async ({ page, supabase, conta }) => {
     await venderNoCaixa(page)
     await supabase.servidor.sql(
-      `update public.vendas set nfce_status = 'erro', nfce_erro = $1 where empresa_id = $2 and numero = 1`,
+      `update public.vendas set nfce_status = 'erro', nfce_erro = $1, nfce_decisao = 'emitir' where empresa_id = $2 and numero = 1`,
       ['Rejeição 204: duplicidade de NF-e', conta.empresaId],
     )
     await abrirFila(page)
