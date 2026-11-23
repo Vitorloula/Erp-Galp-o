@@ -615,6 +615,21 @@
       "criado_em": "2026-11-19T20:00:00.000Z",
       "concluido_em": "2026-11-19T20:30:00.000Z",
       "comprovacao": "Gates: lint 0 | npm test 152/152 em 14 arquivos | build 0 | tsc -p e2e 0. Playwright com --workers=1: servicos 18/18, produtos 16/16, pdv 10/10, modais 6/6 e navegacao 27 passed + 1 skipped. Sem migration, sem mudança de dados/rotas/permissões."
+    },
+    {
+      "id": "T-046",
+      "titulo": "Modulo fiscal - F1: Conferencia fiscal (simulacao sem custo)",
+      "prioridade": 2,
+      "tipo": "feature",
+      "detalhe": "Conferencia fiscal em toda venda (sem emissao real).",
+      "evidencia": "supabase/migrations/20261123120000_fiscal_conferencia.sql",
+      "arquivos_que_toca": [
+        "supabase/migrations/20261123120000_fiscal_conferencia.sql"
+      ],
+      "criterios": "Migracao aplicada; lint 0; npm test 162/162; test:sql 352 OK; build OK.",
+      "criado_em": "2026-11-23T00:00:00.000Z",
+      "concluido_em": "2026-11-23T12:00:00.000Z",
+      "comprovacao": "Gates verdes."
     }
   ],
   "ciclos": 23,

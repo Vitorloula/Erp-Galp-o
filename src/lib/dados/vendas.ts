@@ -32,6 +32,10 @@ export interface Venda {
   nfce_erro: string | null
   /** Motivo informado ao marcar a venda como resolvida (fora da fila). */
   nfce_resolucao: string | null
+  /** Decisão da loja na conferência fiscal: emitir, sem_nota ou null (a decidir). */
+  nfce_decisao: 'emitir' | 'sem_nota' | null
+  nfce_motivo: string | null
+  nfce_decidido_em: string | null
   cliente_cpf: string | null
 }
 
@@ -99,6 +103,9 @@ const paraVenda = (r: Record<string, unknown>): Venda => ({
   nfce_qrcode: (r.nfce_qrcode as string | null) ?? null,
   nfce_erro: (r.nfce_erro as string | null) ?? null,
   nfce_resolucao: (r.nfce_resolucao as string | null) ?? null,
+  nfce_decisao: (r.nfce_decisao as Venda['nfce_decisao']) ?? null,
+  nfce_motivo: (r.nfce_motivo as string | null) ?? null,
+  nfce_decidido_em: (r.nfce_decidido_em as string | null) ?? null,
   cliente_cpf: (r.cliente_cpf as string | null) ?? null,
 })
 
@@ -121,7 +128,7 @@ export function listarVendas(empresaId: string, lojaId: string, f: { desde: stri
     (de, ate) =>
       sb
         .from('vendas')
-        .select('id, caixa_id, numero, ocorrido_em, operador_nome, subtotal, desconto, total, troco, status, cancelada_em, cancelada_por_nome, motivo_cancelamento, relogio_suspeito, nfce_status, nfce_chave, nfce_qrcode, nfce_erro, nfce_resolucao, cliente_cpf')
+        .select('id, caixa_id, numero, ocorrido_em, operador_nome, subtotal, desconto, total, troco, status, cancelada_em, cancelada_por_nome, motivo_cancelamento, relogio_suspeito, nfce_status, nfce_chave, nfce_qrcode, nfce_erro, nfce_resolucao, nfce_decisao, nfce_motivo, nfce_decidido_em, cliente_cpf')
         .eq('empresa_id', empresaId)
         .eq('loja_id', lojaId)
         .gte('ocorrido_em', f.desde)
@@ -241,6 +248,7 @@ export function listarVendasPendentes(empresaId: string, lojaId: string): Promis
         .eq('loja_id', lojaId)
         .eq('status', 'concluida')
         .eq('nfce_status', 'pendente')
+        .eq('nfce_decisao', 'emitir')
         .order('ocorrido_em')
         .range(de, ate),
     r => ({ id: r.id as string, caixa_id: r.caixa_id as string, numero: num(r.numero), total: num(r.total), ocorrido_em: r.ocorrido_em as string, cliente_cpf: (r.cliente_cpf as string | null) ?? null }),
@@ -269,6 +277,7 @@ export function listarVendasFilaNFCe(empresaId: string, lojaId: string): Promise
         .eq('loja_id', lojaId)
         .eq('status', 'concluida')
         .in('nfce_status', ['pendente', 'erro'])
+        .eq('nfce_decisao', 'emitir')
         .order('ocorrido_em')
         .range(de, ate),
     r => ({

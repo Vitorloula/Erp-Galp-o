@@ -828,6 +828,71 @@ secao('PDV — caixa que vende sem internet:')
     confere((await um(`select count(*)::int as n from public.vendas where nfce_status = 'resolvida'`)).n === 0, 'NFC-e: outra empresa não vê a fila')
   })
 
+  // Conferência fiscal (T-034 / F1): a loja decide o que emitir; nada retroativo.
+  secao('Conferência fiscal — decisão da loja e fim do dia:')
+  const diaFiscal = (await um(`select (now() at time zone 'America/Sao_Paulo')::date as d`)).d
+  const vendaFiscal = futuro.dados.venda_id
+  await comoUsuario(operadora, async () => {
+    await esperaErro('conferência: caixa não decide a nota', () =>
+      db.query(`select public.decidir_nfce($1, 'emitir')`, [vendaFiscal]), 'Somente dono ou gerente')
+    const linhas = (await db.query(`select * from public.conferencia_fiscal($1, $2, $3)`, [empP, loja, diaFiscal])).rows
+    confere(linhas.length > 0, 'conferência: caixa vê as vendas do dia')
+  })
+  await comoUsuario(intruso, () =>
+    esperaErro('conferência: outra empresa não vê o dia', () =>
+      db.query(`select * from public.conferencia_fiscal($1, $2, $3)`, [empP, loja, diaFiscal]), 'Sem permissão'))
+
+  // Venda de outro dia não pode mais ser decidida (nada retroativo).
+  const aberta = (await um(`select id from public.sessoes_caixa where caixa_id = $1 and fechada_em is null order by aberta_em desc limit 1`, [caixa1])).id
+  const antiga = venda(caixa1, aberta, 41, [{ produto_id: diversos, descricao: 'Diversos', quantidade: 1, preco_unitario: 1, total: 1 }], [{ forma: '01', valor: 1 }])
+  antiga.dados.ocorrido_em = new Date(Date.now() - 86_400_000).toISOString()
+  await sinc(operadora, [antiga])
+
+  await comoUsuario(dono, async () => {
+    await esperaErro('conferência: venda de outro dia não é decidida', () =>
+      db.query(`select public.decidir_nfce($1, 'emitir')`, [antiga.dados.venda_id]), 'Vendas de outros dias')
+
+    await db.query(`select public.decidir_nfce($1, 'emitir')`, [vendaFiscal])
+    const e = await um('select nfce_decisao, nfce_status, nfce_decidido_por_nome from public.vendas where id = $1', [vendaFiscal])
+    confere(e.nfce_decisao === 'emitir' && e.nfce_status === 'pendente' && e.nfce_decidido_por_nome === 'Paulo Dono',
+      'conferência: dono escolhe emitir e registra quem decidiu', JSON.stringify(e))
+
+    await esperaErro('conferência: sem nota exige motivo', () =>
+      db.query(`select public.decidir_nfce($1, 'sem_nota', 'ab')`, [vendaFiscal]), 'Informe o motivo')
+    await db.query(`select public.decidir_nfce($1, 'sem_nota', 'Cliente não pediu a nota')`, [vendaFiscal])
+    const s = await um('select nfce_decisao, nfce_status, nfce_motivo from public.vendas where id = $1', [vendaFiscal])
+    confere(s.nfce_decisao === 'sem_nota' && s.nfce_status === 'resolvida' && s.nfce_motivo === 'Cliente não pediu a nota',
+      'conferência: sem nota guarda o motivo e sai da fila', JSON.stringify(s))
+    await esperaErro('conferência: sem nota não volta atrás', () =>
+      db.query(`select public.decidir_nfce($1, 'emitir')`, [vendaFiscal]), 'já foi registrada sem nota')
+
+    const pendentes = (await db.query(`select id from public.vendas
+       where empresa_id = $1 and loja_id = $2 and status = 'concluida'
+         and nfce_decisao is null and nfce_status in ('pendente', 'erro')
+         and (ocorrido_em at time zone 'America/Sao_Paulo')::date = $3`, [empP, loja, diaFiscal])).rows
+    confere(pendentes.length > 0, 'conferência: há vendas a decidir antes do fim do dia')
+    const n = Number((await um('select public.fechar_dia_fiscal($1, $2, $3) as n', [empP, loja, diaFiscal])).n)
+    confere(n === pendentes.length, 'fim do dia: todas as vendas sem decisão viram sem nota', `${n} de ${pendentes.length}`)
+    const fechada = await um('select nfce_decisao, nfce_status, nfce_motivo from public.vendas where id = $1', [pendentes[0].id])
+    confere(fechada.nfce_decisao === 'sem_nota' && fechada.nfce_status === 'resolvida' && fechada.nfce_motivo === 'Dia encerrado sem decisão da loja',
+      'fim do dia: o motivo do encerramento fica registrado', JSON.stringify(fechada))
+    const linhas = (await db.query(`select nfce_decisao from public.conferencia_fiscal($1, $2, $3)`, [empP, loja, diaFiscal])).rows
+    confere(linhas.every(l => l.nfce_decisao !== null), 'fim do dia: o dia fica sem vendas a decidir')
+    const n2 = Number((await um('select public.fechar_dia_fiscal($1, $2, $3) as n', [empP, loja, diaFiscal])).n)
+    confere(n2 === 0, 'fim do dia: fechar de novo não muda nada')
+
+    // Dias anteriores são fechados à parte (sem p_dia).
+    confere((await um('select nfce_decisao from public.vendas where id = $1', [antiga.dados.venda_id])).nfce_decisao === null,
+      'fim do dia: venda de outro dia não é fechada junto')
+    const nAnt = Number((await um('select public.fechar_dia_fiscal($1, $2) as n', [empP, loja])).n)
+    confere(nAnt >= 1 && (await um('select nfce_decisao from public.vendas where id = $1', [antiga.dados.venda_id])).nfce_decisao === 'sem_nota',
+      'fim do dia: dias anteriores viram sem nota à parte', `n=${nAnt}`)
+  })
+
+  await comoUsuario(operadora, () =>
+    esperaErro('fim do dia: caixa não fecha', () =>
+      db.query(`select public.fechar_dia_fiscal($1, $2, $3)`, [empP, loja, diaFiscal]), 'Somente dono ou gerente'))
+
   confere((await db.query('select * from app.verificar_saldos($1)', [empP])).rows.length === 0, 'saldos do PDV batem com o histórico')
 }
 

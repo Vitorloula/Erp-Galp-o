@@ -269,3 +269,7 @@ O detalhe de cada item está em
   estabilidade sem retries.
 - O factory de agentes de IA não é necessário para a operação do piloto e continua
   dependendo de Python/CrewAI e chave de LLM.
+
+## Modulo fiscal - F1: Conferencia fiscal (T-046)
+
+Tela /fiscal, migration 20261123120000_fiscal_conferencia.sql, src/lib/fiscal.ts, src/lib/dados/fiscal.ts. Conferencia sem custo, decisao da loja (emitir/sem_nota), fechamento do dia (fim do dia), politica assistida/automatica com vigencia 2027. Permissao decidirFiscal.

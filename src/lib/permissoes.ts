@@ -31,6 +31,8 @@ export interface Permissoes {
   cancelarOrdem: boolean
   /** Ver o resultado (lucro/margem) do período — restrito a dono e gerente. */
   verResultado: boolean
+  /** Conferência fiscal: decidir emitir ou deixar a venda sem nota. */
+  decidirFiscal: boolean
 }
 
 export const NOME_PAPEL: Record<Papel, string> = {
@@ -70,5 +72,6 @@ export function permissoes(papel: Papel, estado: EstadoEmpresa): Permissoes {
     entregarOrdem: (papel === 'dono' || papel === 'gerente' || papel === 'caixa') && estado !== 'suspensa' && estado !== 'cancelada',
     cancelarOrdem: papel === 'dono' || papel === 'gerente',
     verResultado: papel === 'dono' || papel === 'gerente',
+    decidirFiscal: gestao,
   }
 }

@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpFromLine, Banknote, Boxes, Calendar, ChevronRight, CircleCheck, Clock, History, List, OctagonAlert, PackageX, Percent, ScanBarcode, ShoppingBasket, ShoppingCart, TrendingUp, Wrench, type LucideIcon } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, Banknote, Boxes, Calendar, ChevronRight, CircleCheck, Clock, History, List, OctagonAlert, PackageX, Percent, Receipt, ScanBarcode, ShoppingBasket, ShoppingCart, TrendingUp, Wrench, type LucideIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { ListaMovimentacoes } from '../components/ListaMovimentacoes'
@@ -224,6 +224,9 @@ export function Painel() {
   const vendasHoje = (vendasSemana ?? []).filter(v => v.status === 'concluida' && hojeISO(new Date(v.ocorrido_em)) === hoje)
   const totalVendidoHoje = vendasHoje.reduce((soma, venda) => soma + centavos(venda.total), 0)
   const ticketMedio = vendasHoje.length ? Math.round(totalVendidoHoje / vendasHoje.length) : 0
+  const fiscalADecidir = vendasHoje.filter(v => !v.nfce_decisao && v.nfce_status !== 'emitida' && v.nfce_status !== 'cancelada').length
+  const fiscalEmitidas = vendasHoje.filter(v => v.nfce_status === 'emitida').length
+  const fiscalSemNota = vendasHoje.filter(v => v.nfce_decisao === 'sem_nota' || v.nfce_status === 'resolvida').length
   const semResultado = vendasSemana === null || resultadoHoje === null || falhaResultado
   const detalheResultado = falhaResultado
     ? 'Não foi possível atualizar'
@@ -664,6 +667,34 @@ export function Painel() {
 
       </div>
 
+      <Link
+        to="/fiscal"
+        className="stagger-in cartao flex flex-wrap items-center gap-3 rounded-2xl border border-zinc-200/80 p-4 transition hover:border-slate-300 hover:shadow-md"
+        style={{ animationDelay: '210ms' }}
+      >
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-marca">
+          <Receipt className="size-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-ponto">Conferência fiscal</span>
+          <span className="block text-xs text-texto-secundario">
+            {vendasHoje.length === 0
+              ? 'Nenhuma venda concluída hoje para conferir.'
+              : fiscalADecidir > 0
+                ? `${fiscalADecidir} venda(s) de hoje ainda esperam a sua decisão de emitir ou deixar sem nota.`
+                : `Tudo conferido hoje: ${fiscalEmitidas} emitida(s) e ${fiscalSemNota} sem nota.`}
+          </span>
+        </span>
+        <span
+          className={cx(
+            'shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset',
+            fiscalADecidir > 0 ? 'bg-amber-100 text-amber-800 ring-amber-200' : 'bg-emerald-100 text-emerald-800 ring-emerald-200',
+          )}
+        >
+          {fiscalADecidir > 0 ? `${fiscalADecidir} a decidir` : 'Dia conferido'}
+        </span>
+        <ChevronRight className="size-4 shrink-0 text-slate-300" />
+      </Link>
 
       <div className="stagger-in grid grid-cols-1 gap-4 lg:grid-cols-2" style={{ animationDelay: '240ms' }}>
         <section className="cartao rounded-2xl border border-zinc-200/80 p-5">

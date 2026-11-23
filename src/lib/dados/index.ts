@@ -5,6 +5,7 @@
 export * as catalogo from './catalogo'
 export { configurado, traduzirErro, veioDaRecuperacaoDeSenha } from './cliente'
 export * as empresas from './empresas'
+export * as fiscal from './fiscal'
 export * as lgpd from './lgpd'
 export * as movimentos from './movimentos'
 export * as os from './os'

@@ -55,6 +55,13 @@ export interface Loja {
   cod_municipio_ibge: string | null
   uf: string | null
   ativo: boolean
+  /** Regime tributário do CNPJ (1 Simples, 2 Simples c/ sublimite, 3 Normal, 4 MEI). */
+  crt?: 1 | 2 | 3 | 4 | null
+  politica_emissao?: 'assistida' | 'automatica'
+  politica_vigencia?: string
+  modo_conferencia?: boolean
+  ambiente_fiscal?: 'homologacao' | 'producao'
+  regime_confirmado_em?: string | null
 }
 
 export interface ConfigEmpresa {

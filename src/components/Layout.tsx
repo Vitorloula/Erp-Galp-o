@@ -17,6 +17,7 @@ import {
   PanelLeftOpen,
   Plus,
   RefreshCw,
+  Receipt,
   ScanBarcode,
   ShieldCheck,
   ShoppingCart,
@@ -149,6 +150,7 @@ export function Layout() {
   const menu: ItemMenu[] = [
     { para: '/painel', rotulo: 'Visão geral', icone: LayoutDashboard },
     { para: '/vendas', rotulo: 'Vendas e caixa', icone: Banknote },
+    { para: '/fiscal', rotulo: 'Conferência fiscal', icone: Receipt },
     { para: '/os', rotulo: 'Serviços', icone: Wrench },
     { para: '/produtos', rotulo: 'Produtos', icone: Package },
     { para: '/estoque', rotulo: 'Estoque', icone: Boxes },

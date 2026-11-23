@@ -1,4 +1,4 @@
-import { AlertOctagon, Banknote, Building2, ChevronRight, ClipboardList, FileSpreadsheet, LogOut, Package, Pencil, ShoppingCart, Smartphone, Users, Wrench, type LucideIcon } from 'lucide-react'
+import { AlertOctagon, Banknote, Building2, ChevronRight, ClipboardList, FileSpreadsheet, LogOut, Package, Pencil, Receipt, ShoppingCart, Smartphone, Users, Wrench, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { Avatar } from '../components/Avatar'
@@ -55,6 +55,7 @@ export function Mais() {
 
       <div className="cartao divide-y divide-slate-100 overflow-hidden">
         <Item para="/vendas" icone={Banknote} titulo="Vendas" texto="Vendas dos caixas e fechamentos" />
+        <Item para="/fiscal" icone={Receipt} titulo="Conferência fiscal" texto="Decidir o que emitir e fechar o dia sem nota" />
         <Item para="/os" icone={Wrench} titulo="Serviços" texto="Ordens de serviço: recebimento, orçamento e entrega" />
         {pode.verDivergencias && <Item para="/divergencias" icone={AlertOctagon} titulo="Divergências" texto="O que os caixas registraram sem internet e precisa de conferência" />}
         <Item para="/produtos" icone={Package} titulo="Produtos" texto="Cadastro, códigos de barras, preços e lotes" />

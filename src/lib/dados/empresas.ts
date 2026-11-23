@@ -52,7 +52,15 @@ export async function salvarEmpresa(empresaId: string, dados: Omit<DadosEmpresa,
 // ------------------------------------------------------------------ lojas
 
 export async function listarLojas(empresaId: string): Promise<Loja[]> {
-  const lojas = exigir(await sb.from('lojas').select('id, nome, cnpj, ie, endereco, cod_municipio_ibge, uf, ativo').eq('empresa_id', empresaId).order('criado_em')) as Loja[]
+  const lojas = exigir(
+    await sb
+      .from('lojas')
+      .select(
+        'id, nome, cnpj, ie, endereco, cod_municipio_ibge, uf, ativo, crt, politica_emissao, politica_vigencia, modo_conferencia, ambiente_fiscal, regime_confirmado_em',
+      )
+      .eq('empresa_id', empresaId)
+      .order('criado_em'),
+  ) as Loja[]
   return lojas
 }
 

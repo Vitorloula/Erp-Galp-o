@@ -1,10 +1,12 @@
 import { Building2, CreditCard, Download, Monitor, Pencil, Plus, ShieldCheck, SlidersHorizontal, Store } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useToast } from '../components/Toast'
-import { Aviso, Cabecalho, Carregando, Modal, cx } from '../components/ui'
+import { Aviso, Cabecalho, Carregando, Modal, Nota, cx } from '../components/ui'
 import { useAtiva } from '../contexto/Empresa'
-import { empresas, lgpd, vendas as dadosVendas } from '../lib/dados'
+import { empresas, fiscal, lgpd, vendas as dadosVendas } from '../lib/dados'
+import type { AmbienteFiscal, PoliticaEmissao } from '../lib/dados/fiscal'
 import type { Caixa } from '../lib/dados/vendas'
+import { REGIMES, VIGENCIA_PADRAO, nomeRegime, type Crt } from '../lib/fiscal'
 import { formatarData } from '../lib/formato'
 import { NOME_PAPEL } from '../lib/permissoes'
 import { baixarArquivo } from '../lib/relatorio'
@@ -199,6 +201,14 @@ export function EmpresaConfig() {
           </ul>
         )}
       </section>
+
+      <FiscalLoja
+        lojas={todasLojas}
+        aoSalvar={async () => {
+          setTodasLojas(await empresas.listarLojas(empresa.empresa_id))
+          await recarregar()
+        }}
+      />
 
       <Caixas lojas={todasLojas} />
 
@@ -439,6 +449,194 @@ function EditarLoja({ loja, aoFechar, aoSalvar }: { loja: Partial<Loja> | null; 
         )}
       </form>
     </Modal>
+  )
+}
+
+/** Configuração fiscal da loja: regime (CRT) e política de emissão (assistida ou automática). */
+function FiscalLoja({ lojas, aoSalvar }: { lojas: Loja[] | null; aoSalvar: () => Promise<void> }) {
+  const { pode } = useAtiva()
+  const toast = useToast()
+  const [lojaId, setLojaId] = useState('')
+  const [crt, setCrt] = useState<Crt | ''>('')
+  const [politica, setPolitica] = useState<PoliticaEmissao>('assistida')
+  const [vigencia, setVigencia] = useState(VIGENCIA_PADRAO)
+  const [modo, setModo] = useState(true)
+  const [ambiente, setAmbiente] = useState<AmbienteFiscal>('homologacao')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  const ativas = (lojas ?? []).filter(l => l.ativo)
+  const loja = ativas.find(l => l.id === lojaId) ?? ativas[0] ?? null
+
+  useEffect(() => {
+    if (!lojas) return
+    const alvo = lojas.filter(l => l.ativo).find(l => l.id === lojaId) ?? lojas.filter(l => l.ativo)[0]
+    if (!alvo) return
+    setCrt(alvo.crt ?? '')
+    setPolitica(alvo.politica_emissao ?? 'assistida')
+    setVigencia(alvo.politica_vigencia ?? VIGENCIA_PADRAO)
+    setModo(alvo.modo_conferencia ?? true)
+    setAmbiente(alvo.ambiente_fiscal ?? 'homologacao')
+    setErro('')
+  }, [lojas, lojaId])
+
+  const regime = REGIMES.find(r => r.crt === crt)
+
+  async function salvar(e: React.FormEvent) {
+    e.preventDefault()
+    if (!loja) return
+    setErro('')
+    setSalvando(true)
+    try {
+      const crtNovo = crt === '' ? null : crt
+      await fiscal.salvarConfigFiscal(loja.id, {
+        crt: crtNovo,
+        politica_emissao: politica,
+        politica_vigencia: vigencia || VIGENCIA_PADRAO,
+        modo_conferencia: modo,
+        ambiente_fiscal: ambiente,
+        regime_confirmado_em:
+          crtNovo === null
+            ? null
+            : loja.crt === crtNovo && loja.regime_confirmado_em
+              ? loja.regime_confirmado_em
+              : new Date().toISOString(),
+      })
+      toast.sucesso('Configuração fiscal salva.')
+      await aoSalvar()
+    } catch (er) {
+      setErro((er as Error).message)
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <section className="cartao p-4" id="fiscal">
+      <h2 className="mb-1 flex items-center gap-2 font-semibold text-slate-900">
+        <ShieldCheck className="size-5 text-marca" /> Conferência fiscal
+      </h2>
+      <p className="mb-3 text-sm text-slate-500">
+        O sistema prepara e confere a nota de cada venda. A decisão de emitir é da loja — nada é enviado à SEFAZ nesta fase.
+      </p>
+
+      {!lojas ? (
+        <Carregando />
+      ) : !loja ? (
+        <Aviso tom="alerta">Cadastre uma loja ativa para configurar a parte fiscal.</Aviso>
+      ) : (
+        <form onSubmit={salvar} className="space-y-4">
+          {erro && <Aviso tom="erro">{erro}</Aviso>}
+
+          {ativas.length > 1 && (
+            <div>
+              <label className="rotulo" htmlFor="fiscal-loja">Loja</label>
+              <select id="fiscal-loja" className="campo" value={loja.id} onChange={e => setLojaId(e.target.value)}>
+                {ativas.map(l => (
+                  <option key={l.id} value={l.id}>{l.nome}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="rotulo" htmlFor="fiscal-crt">Regime tributário (como paga imposto)</label>
+              <select
+                id="fiscal-crt"
+                className="campo"
+                value={crt}
+                onChange={e => setCrt(e.target.value ? (Number(e.target.value) as Crt) : '')}
+              >
+                <option value="">Escolha o regime...</option>
+                {REGIMES.map(r => (
+                  <option key={r.crt} value={r.crt}>{r.nome}</option>
+                ))}
+              </select>
+              {regime ? (
+                <Nota className="mt-1.5">
+                  {regime.resumo} {regime.exemplo}
+                </Nota>
+              ) : (
+                <Nota className="mt-1.5">Em dúvida, pergunte ao contador: é ele quem confirma o regime do CNPJ.</Nota>
+              )}
+            </div>
+            <div>
+              <label className="rotulo" htmlFor="fiscal-ambiente">Ambiente da nota</label>
+              <select
+                id="fiscal-ambiente"
+                className="campo"
+                value={ambiente}
+                onChange={e => setAmbiente(e.target.value as AmbienteFiscal)}
+              >
+                <option value="homologacao">Testes (homologação) — sem valor fiscal</option>
+                <option value="producao">Produção — nota valendo</option>
+              </select>
+              <Nota className="mt-1.5">
+                A emissão real só acontece quando a integração com a SEFAZ estiver ligada. Hoje o sistema apenas confere.
+              </Nota>
+            </div>
+          </div>
+
+          <label className="flex items-start gap-2.5 rounded-xl border border-slate-200 p-3 text-sm font-medium text-slate-800">
+            <input type="checkbox" className="mt-0.5 size-4.5 accent-ponto" checked={modo} onChange={e => setModo(e.target.checked)} />
+            <span>
+              Conferir a nota de cada venda (recomendado)
+              <span className="mt-0.5 block text-xs font-normal text-slate-500">
+                Não trava o caixa: se faltar um dado fiscal, a venda é registrada normalmente e aparece na conferência.
+              </span>
+            </span>
+          </label>
+
+          <div className="space-y-3 rounded-xl border border-slate-200 p-3">
+            <div>
+              <label className="rotulo" htmlFor="fiscal-politica">Quem decide emitir</label>
+              <select
+                id="fiscal-politica"
+                className="campo"
+                value={politica}
+                onChange={e => setPolitica(e.target.value as PoliticaEmissao)}
+              >
+                <option value="assistida">A loja decide venda por venda (recomendado hoje)</option>
+                <option value="automatica">Emitir automaticamente todas as vendas</option>
+              </select>
+              <Nota className="mt-1.5">
+                {politica === 'assistida'
+                  ? 'Você confere e escolhe o que emitir até o fim do dia.'
+                  : 'Toda venda entra na fila sem conferência manual. A obrigação para MEI e Simples começa em 01/01/2027 (LC 214/2025).'}
+              </Nota>
+            </div>
+            <div>
+              <label className="rotulo" htmlFor="fiscal-vigencia">A partir de quando</label>
+              <input
+                id="fiscal-vigencia"
+                type="date"
+                className="campo sm:max-w-[14rem]"
+                value={vigencia}
+                onChange={e => setVigencia(e.target.value)}
+              />
+              <Nota className="mt-1.5">
+                A data é guardada desde já. Em {formatarData(vigencia || VIGENCIA_PADRAO)} o sistema passa a usar a política
+                escolhida, sem perder o histórico.
+              </Nota>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-slate-500">
+              Hoje: <strong className="text-slate-700">{nomeRegime(loja.crt)}</strong> ·{' '}
+              {loja.politica_emissao === 'automatica' ? 'emissão automática' : 'a loja decide'} ·{' '}
+              {loja.ambiente_fiscal === 'producao' ? 'produção' : 'teste'}
+            </p>
+            {pode.gerenciarEmpresa ? (
+              <button className="btn btn-primario" disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar configuração fiscal'}</button>
+            ) : (
+              <span className="text-xs text-slate-500">Somente o dono altera a configuração fiscal.</span>
+            )}
+          </div>
+        </form>
+      )}
+    </section>
   )
 }
 

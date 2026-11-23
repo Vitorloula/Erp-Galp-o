@@ -21,6 +21,7 @@ import { EmpresaConfig } from './pages/EmpresaConfig'
 import { Divergencias } from './pages/Divergencias'
 import { Equipe } from './pages/Equipe'
 import { Estoque } from './pages/Estoque'
+import { Fiscal } from './pages/Fiscal'
 import { Historico } from './pages/Historico'
 import { Inventario } from './pages/Inventario'
 import { Login, NovaSenha } from './pages/Login'
@@ -81,6 +82,7 @@ function Retaguarda({ chave }: { chave: string }) {
           <Route path="/empresa" element={<EmpresaConfig />} />
           <Route path="/empresas/nova" element={<BoasVindas dentroDoSistema />} />
           <Route path="/vendas" element={<Vendas />} />
+          <Route path="/fiscal" element={<Fiscal />} />
           <Route path="/divergencias" element={<Divergencias />} />
           <Route path="/os" element={<Servicos />} />
           <Route path="/os/nova" element={<ServicosRecebimento />} />
