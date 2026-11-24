@@ -40,6 +40,37 @@ export interface PedidoWhatsapp {
   itens: { nome: string; qtd: number; subtotal_centavos: number }[]
 }
 
+export async function criarCanal(empresaId: string, lojaId: string, phoneNumberId: string, modo: 'coexistence' | 'api', politica: Record<string, unknown>): Promise<CanalWhatsapp> {
+  const { data, error } = await sb.from('canais_whatsapp').insert({
+    empresa_id: empresaId,
+    loja_id: lojaId,
+    phone_number_id: phoneNumberId,
+    modo,
+    status: 'conectado',
+    politica,
+  }).select('id, empresa_id, loja_id, phone_number_id, modo, status, politica').single()
+  if (error) throw traduzirErro(error)
+  const r = data as Record<string, unknown>
+  return {
+    id: String(r.id),
+    empresa_id: String(r.empresa_id),
+    loja_id: String(r.loja_id),
+    phone_number_id: (r.phone_number_id as string | null) ?? null,
+    modo: (r.modo as 'coexistence' | 'api') ?? modo,
+    status: (r.status as CanalWhatsapp['status']) ?? 'conectado',
+    politica: (r.politica as Record<string, unknown>) ?? {},
+  }
+}
+
+export async function atualizarCanal(canalId: string, patch: { status?: CanalWhatsapp['status']; politica?: Record<string, unknown>; escopo_piloto?: Record<string, unknown> }): Promise<void> {
+  const { error } = await sb.from('canais_whatsapp').update({ ...patch, atualizado_em: new Date().toISOString() }).eq('id', canalId)
+  if (error) throw traduzirErro(error)
+}
+
+export async function removerCanal(canalId: string): Promise<void> {
+  const { error } = await sb.from('canais_whatsapp').delete().eq('id', canalId)
+  if (error) throw traduzirErro(error)
+}
 export async function listarCanais(empresaId: string): Promise<CanalWhatsapp[]> {
   const { data, error } = await sb
     .from('canais_whatsapp')

@@ -1,7 +1,8 @@
 import { MessageCircle, Pause, Play, RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useToast } from '../components/Toast'
+import { Link } from 'react-router'
 import { Aviso, Cabecalho, Carregando, Vazio, cx } from '../components/ui'
+import { useToast } from '../components/Toast'
 import { useAtiva } from '../contexto/Empresa'
 import { useDados } from '../contexto/Dados'
 import { whatsapp } from '../lib/dados'
@@ -96,9 +97,12 @@ export function WhatsappConversas() {
         titulo="Conversas do WhatsApp"
         subtitulo="Acompanhe o atendimento e assuma quando precisar."
         acoes={
-          <button type="button" className="btn btn-fantasma" onClick={carregar} disabled={ocupado}>
-            <RefreshCw className="size-4" /> Atualizar
-          </button>
+          <div className="flex gap-2">
+            <Link to="/whatsapp/conectar" className="btn btn-fantasma btn-pequeno">Conectar número</Link>
+            <button type="button" className="btn btn-fantasma" onClick={carregar} disabled={ocupado}>
+              <RefreshCw className="size-4" /> Atualizar
+            </button>
+          </div>
         }
       />
       {erro && <Aviso tom="erro">{erro}</Aviso>}
