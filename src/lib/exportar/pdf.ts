@@ -133,7 +133,8 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
     })
     fimTabela(5)
     legenda('Vermelho: vencido ou sem estoque  ·  Amarelo: vence nos próximos 30 dias')
-    fimTabela(6)
+    garantirEspaco(8)
+    y += 4
   }
 
   if (secoes.compras) {
@@ -163,7 +164,8 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
     })
     fimTabela(5)
     legenda('Quantidade já arredondada pelo conteúdo da embalagem  ·  do mais crítico ao menos crítico')
-    fimTabela(6)
+    garantirEspaco(8)
+    y += 4
   }
 
   if (secoes.resultado && r.resultado) {
@@ -202,7 +204,8 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
     fimTabela(5)
     if (res.valorSemCusto > 0) {
       legenda(`Itens sem custo cadastrado: ${formatarReais(res.valorSemCusto)} não entram no CMV.`)
-      fimTabela(6)
+      garantirEspaco(8)
+      y += 4
     }
   }
 
@@ -236,7 +239,8 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
     })
     fimTabela(5)
     legenda(`Faturamento no período: ${formatarReais(r.servicos.faturamento)}`)
-    fimTabela(6)
+    garantirEspaco(8)
+    y += 4
   }
 
   // Rodapé com numeração
