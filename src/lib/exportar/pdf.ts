@@ -4,15 +4,10 @@ import type { Relatorio } from '../relatorio'
 import { CINZA_RGB, ESTILO_TABELA_PDF, VERDE_RGB, textoCobertura, textoGeradoEm, textoNumero } from './comum'
 import type { Secoes } from './excel'
 
-/**
- * Peças reaproveitadas pela lista de compras avulsa (`lista-compra.ts`):
- * monta o documento com margens, rodapé numerado e as funções `titulo`/`legenda`.
- */
 export const ESTILO = ESTILO_TABELA_PDF
 export const VERDE = VERDE_RGB
 export const CINZA = CINZA_RGB
 
-/** Mesma saída de antes (`pdf.ts`): `num` e `cobertura` locais agora vêm de `comum.ts`. */
 const num = textoNumero
 const cobertura = textoCobertura
 
@@ -23,7 +18,7 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
   const altura = doc.internal.pageSize.getHeight()
   const margem = 12
   const finalY = () => (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY
-  const estilo = { ...ESTILO, margin: { left: margem, right: margem } }
+  const estilo = { ...ESTILO, margin: { left: margem, right: margem, top: 16 } }
 
   // Cabeçalho
   doc.setFillColor(...VERDE)
@@ -42,24 +37,37 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
   doc.text(secoes.compras ? `${lancamentos}   ·   Lista de compras: ${r.compras.length} produto(s)` : lancamentos, margem, 34)
   let y = 40
 
-  const titulo = (texto: string) => {
-    if (y > altura - 30) {
+  const garantirEspaco = (necessario: number) => {
+    if (y + necessario > altura - 12) {
       doc.addPage()
       y = 16
     }
+  }
+
+  const titulo = (texto: string) => {
+    garantirEspaco(12)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(11)
     doc.setTextColor(15, 23, 42)
     doc.text(texto, margem, y)
-    y += 3
+    y += 7
   }
 
   const legenda = (texto: string) => {
-    if (y > altura - 12) return
+    garantirEspaco(6)
     doc.setFont('helvetica', 'italic')
     doc.setFontSize(8)
     doc.setTextColor(...CINZA)
     doc.text(texto, margem, y)
+    y += 6
+  }
+
+  const fimTabela = (extra = 8) => {
+    y = finalY() + extra
+    if (y > altura - 12) {
+      doc.addPage()
+      y = 16
+    }
   }
 
   if (secoes.resumo) {
@@ -71,7 +79,7 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
       body: r.resumo.map(l => [l.codigo, l.produto, l.categoria, l.unidade, num(l.saldoInicial), num(l.entradas), num(l.saidas), num(l.ajustes, true), num(l.saldoFinal)]),
       columnStyles: { 4: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right' }, 7: { halign: 'right' }, 8: { halign: 'right', fontStyle: 'bold' } },
     })
-    y = finalY() + 10
+    fimTabela(10)
   }
 
   if (secoes.movimentacoes) {
@@ -100,7 +108,7 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
           d.cell.styles.textColor = r.movimentacoes[d.row.index].quantidade < 0 ? [185, 28, 28] : VERDE
       },
     })
-    y = finalY() + 10
+    fimTabela(10)
   }
 
   if (secoes.posicao) {
@@ -123,9 +131,9 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
         }
       },
     })
-    y = finalY() + 5
+    fimTabela(5)
     legenda('Vermelho: vencido ou sem estoque  ·  Amarelo: vence nos próximos 30 dias')
-    y += 10
+    fimTabela(6)
   }
 
   if (secoes.compras) {
@@ -153,8 +161,9 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
         7: { halign: 'right', fontStyle: 'bold', textColor: VERDE },
       },
     })
-    y = finalY() + 5
+    fimTabela(5)
     legenda('Quantidade já arredondada pelo conteúdo da embalagem  ·  do mais crítico ao menos crítico')
+    fimTabela(6)
   }
 
   if (secoes.resultado && r.resultado) {
@@ -170,10 +179,12 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
       `Margem: ${formatarNumero(res.margem)}%`,
     ]
     for (const linha of kpis) {
+      garantirEspaco(6)
       doc.text(linha, margem, y)
       y += 5
     }
     y += 4
+    garantirEspaco(12)
     autoTable(doc, {
       ...estilo,
       startY: y,
@@ -188,10 +199,10 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
         4: { halign: 'right' },
       },
     })
-    y = finalY() + 5
+    fimTabela(5)
     if (res.valorSemCusto > 0) {
       legenda(`Itens sem custo cadastrado: ${formatarReais(res.valorSemCusto)} não entram no CMV.`)
-      y += 8
+      fimTabela(6)
     }
   }
 
@@ -223,8 +234,9 @@ export async function gerarPdf(r: Relatorio, empresa: string, secoes: Secoes): P
         : [[{ content: 'Nenhuma ordem de serviço no período.', colSpan: 9, styles: { halign: 'center', textColor: CINZA } }]],
       columnStyles: { 8: { halign: 'right', fontStyle: 'bold' } },
     })
-    y = finalY() + 5
+    fimTabela(5)
     legenda(`Faturamento no período: ${formatarReais(r.servicos.faturamento)}`)
+    fimTabela(6)
   }
 
   // Rodapé com numeração
