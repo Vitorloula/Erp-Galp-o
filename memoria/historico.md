@@ -786,3 +786,11 @@ Caixas coloridas (`Aviso`) estavam sendo usadas para texto explicativo fixo e co
 
 - Gates: lint 0 | npm test 152/152 | build 0 | tsc -p e2e 0. Playwright com `--workers=1`: servicos 18/18, produtos 16/16, pdv 10/10, modais 6/6 e navegacao 27 passed + 1 skipped. Sem migration, sem mudanÃ§a de dados/rotas/permissÃµes. Nada commitado.
 
+
+
+## Atendimento WhatsApp (T-047) + fiscal desligado (24/11/2026)
+
+- FISCAL_ATIVO=false (src/lib/recursos.ts): interface fiscal oculta ate validacao com contador e virada de 2027.
+- WhatsApp F0/F1: migrations 20261124/20261125, Worker em worker/ (Hono + Queues), telas Conversas/Conectar/Uso, RPCs catalogo_publico/criar_pedido/consultar_pedido/confirmar_pedido. Motor validado end-to-end com numero de teste da Meta (Groq). WHATSAPP_ATIVO=true.
+- PDF de relatorios: espacamento consistente e legendas nao sobrep�em titulos.
+- Gates: tsc 0 | npm test 162/162 | npm run test:sql 378/378 | build OK. Commits: 52cb279, e4b83dc, 9757ab6, dccaa06, ecdbbbb + docs.

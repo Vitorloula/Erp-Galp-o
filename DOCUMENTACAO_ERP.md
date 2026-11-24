@@ -1,20 +1,20 @@
 # Documentação do ERP Galpão
 
-## 1. Status atual (06/11/2026)
+## 1. Status atual (24/11/2026)
 
 - **Compilação:** `npm run lint` (`tsc -p . --noEmit`) → **0 erros**.
-- **Testes de regras:** `npm test` → **117/117** em 12 arquivos.
-- **Testes de banco/RLS:** `npm run test:sql` → **243/243** (inclui custo de entrada e transferência atômica).
+- **Testes unitários:** `npm test` → **162/162**.
+- **Testes de banco/RLS:** `npm run test:sql` → **378/378** (inclui schema do atendimento WhatsApp).
 - **Build de produção:** `npm run build` → **OK**.
 - **E2E direcionado:** importação, inventário por lote, LGPD e produtos passaram com
-  `--workers=1`. O E2E completo roda no CI com retries; a suíte inteira ainda não foi
-  declarada estável em workers padrão.
+  `--workers=1`. O E2E completo roda no CI com retries.
 - **Backlog:** a fonte de verdade é `memoria/estado.json`. Estão abertos **T-028**
   (piloto em loja real + restauração), **T-034** (NFC-e/Asaas server-side) e **T-035**
   (rastreio por série/IMEI).
-
-O escopo do piloto é **uma loja por empresa, PDV não fiscal, sem NFC-e/NF-e real e
-sem cobrança automática**. O cupom sempre exibe **“DOCUMENTO SEM VALOR FISCAL”**.
+- **Módulo fiscal (F1):** implementado como simulação sem custo, mas **desligado em produção**
+  (`FISCAL_ATIVO = false` em `src/lib/recursos.ts`) até validação com contador e virada de 2027.
+- **Atendimento WhatsApp:** módulo em F0/F1. Worker em `worker/`, telas Conversas/Conectar/Uso
+  no ERP (`WHATSAPP_ATIVO = true`). Motor validado end-to-end com número de teste da Meta.
 
 ## 2. Arquitetura
 
@@ -246,6 +246,11 @@ O `ia-diaria.yml` usa a branch `saas` e o mesmo caminho de E2E com retries.
 - **T-035** (prio 2, produto): rastreio de eletrônicos por série/IMEI e garantia.
   O cadastro atual ainda oferece apenas rastreio por lote ou nenhum; remover a promessa
   de série da comunicação até o fluxo de recebimento, venda, devolução e inventário existir.
+- **T-047** (prio 2, integração): Atendimento WhatsApp (cliente final). F0/F1 implementados:
+  Worker em `worker/`, telas Conversas/Conectar/Uso, migrations `20261124`/`20261125`,
+  RPCs `catalogo_publico`/`criar_pedido`/`consultar_pedido`. Motor validado end-to-end
+  com número de teste da Meta. Pendente: Embedded Signup v5 real, troca de token, echoes
+  (auto-pausa), tela de Pedidos operacional, aprovação Meta (Tech Provider + verificação).
 
 Concluídos nesta atualização: transferências atômicas e auditáveis entre lojas, custo
 unitário de entrada, configurações operacionais editáveis, paginação das listas de
@@ -258,7 +263,9 @@ O detalhe de cada item está em
 
 ## 9. Limitações conhecidas
 
-- Sem emissão fiscal real; o cupom é comprovante interno.
+- Sem emissão fiscal real; o cupom é comprovante interno. Módulo fiscal (F1) implementado
+  como simulação e desligado em produção (`FISCAL_ATIVO = false`) até validação com
+  contador e virada de 2027.
 - Sem cobrança automática Asaas; assinatura é ajustada pelo suporte.
 - O escopo comercial do piloto continua limitado a uma loja por empresa, embora o
   sistema suporte transferência atômica entre lojas para usuários autorizados.
@@ -272,4 +279,8 @@ O detalhe de cada item está em
 
 ## Modulo fiscal - F1: Conferencia fiscal (T-046)
 
-Tela /fiscal, migration 20261123120000_fiscal_conferencia.sql, src/lib/fiscal.ts, src/lib/dados/fiscal.ts. Conferencia sem custo, decisao da loja (emitir/sem_nota), fechamento do dia (fim do dia), politica assistida/automatica com vigencia 2027. Permissao decidirFiscal.
+Tela /fiscal, migration 20261123120000_fiscal_conferencia.sql, src/lib/fiscal.ts, src/lib/dados/fiscal.ts. Conferencia sem custo, decisao da loja (emitir/sem_nota), fechamento do dia (fim do dia), politica assistida/automatica com vigencia 2027. Permissao decidirFiscal. **Desligado em producao** (`FISCAL_ATIVO = false`).
+
+## Modulo atendimento WhatsApp (T-047)
+
+Worker em `worker/` (Cloudflare Workers + Queues + Hono). Migrations `20261124120000_whatsapp_atendimento.sql` e `20261125120000_whatsapp_pedidos.sql`. Telas no ERP: `/whatsapp` (Conversas), `/whatsapp/conectar` (Conectar), `/whatsapp/uso` (Uso e custo). RPCs: `catalogo_publico`, `criar_pedido`, `consultar_pedido`, `confirmar_pedido`. Motor validado end-to-end com numero de teste da Meta (Groq como LLM). Flags: `FISCAL_ATIVO=false`, `WHATSAPP_ATIVO=true`. Pendente: Embedded Signup v5 real, troca de token, echoes (auto-pausa), tela de Pedidos operacional, aprovacao Meta (Tech Provider + verificacao de negocio).

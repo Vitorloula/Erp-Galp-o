@@ -31,3 +31,12 @@ Outras candidatas: painel de monitoramento de erros (há coleta, `src/lib/monito
 5. **Sem evidência de estabilidade da suíte E2E completa local** — Evidência: `memoria/historico.md` T-033 registra que execução completa local com workers padrão não foi declarada estável. Impacto médio; esforço M.
 
 Outros incompletos verificados: não encontrei marcadores TODO/FIXME explícitos em `src/`. Migrações presentes em `supabase/migrations/` incluem base multiempresa, PDV, NFC-e, IBS/CBS, importação, monitoramento e transferências; sem evidência conclusiva de migração órfã, não classifiquei nenhuma como sem uso.
+
+
+## Modulo fiscal (F1) - status (24/11/2026)
+
+Implementado como simulacao sem custo (T-046). Desligado em producao (FISCAL_ATIVO=false) ate validacao com contador e virada de 2027. F2+ (emissao real via NotaaS) depende de credenciais/secrets e homologacao.
+
+## Atendimento WhatsApp (T-047) - em andamento
+
+F0/F1 implementados: Worker em worker/ (Cloudflare Workers + Queues + Hono), migrations 20261124/20261125, RPCs catalogo_publico/criar_pedido/consultar_pedido/confirmar_pedido. Telas no ERP: /whatsapp (Conversas), /whatsapp/conectar (Conectar), /whatsapp/uso (Uso e custo). Motor validado end-to-end com numero de teste da Meta. Pendente: Embedded Signup v5 real, troca de token, echoes (auto-pausa), tela de Pedidos operacional, aprovacao Meta (Tech Provider + verificacao de negocio), templates de pedido.
