@@ -9,6 +9,7 @@ import { useAtiva } from '../contexto/Empresa'
 import { vendas as dados } from '../lib/dados'
 import type { Caixa, ItemVenda, PagamentoVenda, Sessao, Venda } from '../lib/dados/vendas'
 import { formatarData, formatarDataHora, formatarHora, formatarNumero, hojeISO } from '../lib/formato'
+import { FISCAL_ATIVO } from '../lib/recursos'
 import { paginar } from '../lib/paginacao'
 import { PERIODOS, intervaloParaInstantes, intervaloRapido, type Intervalo, type PeriodoRapido } from '../lib/periodos'
 import { NOME_FORMA, centavos, formatarReais, numeroVenda, type FormaPagamento } from '../pdv/venda'
@@ -33,7 +34,7 @@ export function Vendas() {
   const [emitindo, setEmitindo] = useState(false)
   const [msgEmitir, setMsgEmitir] = useState('')
   const [pagina, setPagina] = useState(1)
-  const emissorConfigurado = useMemo(() => criarEmissorNFCe().configurado, [])
+  const emissorConfigurado = useMemo(() => (FISCAL_ATIVO ? criarEmissorNFCe().configurado : false), [])
   const intervalo = periodo === 'personalizado' ? personalizado : intervaloRapido(periodo)
 
   useEffect(() => {
@@ -97,14 +98,14 @@ export function Vendas() {
         titulo="Vendas"
         subtitulo="Vendas dos caixas, já sincronizadas. As feitas sem internet aparecem quando o caixa se conecta."
         acoes={
-          emissorConfigurado ? (
+          FISCAL_ATIVO && emissorConfigurado ? (
             <button type="button" className="btn btn-secundario" onClick={emitirPendentes} disabled={emitindo}>
               {emitindo ? 'Emitindo...' : 'Emitir notas pendentes'}
             </button>
           ) : undefined
         }
       />
-      {msgEmitir && <Aviso tom="info">{msgEmitir}</Aviso>}
+      {FISCAL_ATIVO && msgEmitir && <Aviso tom="info">{msgEmitir}</Aviso>}
       <div className="mb-4 space-y-3">
         {aba !== 'fila' && (
           <>
@@ -159,7 +160,7 @@ export function Vendas() {
             className="sm:max-w-xs"
             opcoes={[
               { valor: 'vendas', rotulo: 'Vendas' },
-              { valor: 'fila', rotulo: 'Fila NFC-e' },
+              ...(FISCAL_ATIVO ? [{ valor: 'fila' as const, rotulo: 'Fila NFC-e' }] : []),
               { valor: 'sessoes', rotulo: 'Caixas' },
             ]}
           />
@@ -184,7 +185,7 @@ export function Vendas() {
                         </p>
                       </div>
                       <span className="font-bold tabular-nums">{formatarReais(centavos(v.total))}</span>
-                      {v.nfce_status !== 'pendente' && (
+                      {FISCAL_ATIVO && v.nfce_status !== 'pendente' && (
                         <span className={cx('shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset', NFCE_STATUS[v.nfce_status].classe)}>
                           {NFCE_STATUS[v.nfce_status].rotulo}
                         </span>
@@ -203,7 +204,7 @@ export function Vendas() {
                 />
               </>
             )
-          ) : aba === 'fila' ? (
+          ) : aba === 'fila' && FISCAL_ATIVO ? (
             <FilaNFCe
               empresaId={empresa.empresa_id}
               lojaId={loja.id}
@@ -279,10 +280,12 @@ function DetalheVenda({ venda, rotulo, podeCancelar, aoFechar }: { venda: Venda 
   async function cancelar() {
     try {
       await dados.cancelarVenda(venda!.id, motivo)
-      try {
-        await cancelarNFCeDaVenda(venda!.id, motivo)
-      } catch (e) {
-        console.warn('Falha ao cancelar a NFC-e:', e)
+      if (FISCAL_ATIVO) {
+        try {
+          await cancelarNFCeDaVenda(venda!.id, motivo)
+        } catch (e) {
+          console.warn('Falha ao cancelar a NFC-e:', e)
+        }
       }
       toast.sucesso(`Venda ${rotulo} cancelada.`)
       await recarregar()
@@ -304,7 +307,7 @@ function DetalheVenda({ venda, rotulo, podeCancelar, aoFechar }: { venda: Venda 
               </span>
             )}
           </p>
-          {venda.nfce_status !== 'pendente' && (
+          {FISCAL_ATIVO && venda.nfce_status !== 'pendente' && (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
               <p className={cx('font-semibold', NFCE_STATUS[venda.nfce_status].classe.split(' ').find(c => c.startsWith('text-')))}>
                 {NFCE_STATUS[venda.nfce_status].rotulo}

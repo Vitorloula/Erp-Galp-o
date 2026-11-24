@@ -19,6 +19,7 @@ import {
   type Situacao,
 } from '../lib/estoque'
 import { formatarNumero, formatarQtd, formatarValidade, hojeISO } from '../lib/formato'
+import { FISCAL_ATIVO } from '../lib/recursos'
 import { montarResultado, type Resultado } from '../lib/resultado'
 import { centavos, formatarReais } from '../pdv/venda'
 import type { Movimentacao, Unidade } from '../lib/tipos'
@@ -667,6 +668,7 @@ export function Painel() {
 
       </div>
 
+{FISCAL_ATIVO && (
       <Link
         to="/fiscal"
         className="stagger-in cartao flex flex-wrap items-center gap-3 rounded-2xl border border-zinc-200/80 p-4 transition hover:border-slate-300 hover:shadow-md"
@@ -695,6 +697,7 @@ export function Painel() {
         </span>
         <ChevronRight className="size-4 shrink-0 text-slate-300" />
       </Link>
+      )}
 
       <div className="stagger-in grid grid-cols-1 gap-4 lg:grid-cols-2" style={{ animationDelay: '240ms' }}>
         <section className="cartao rounded-2xl border border-zinc-200/80 p-5">

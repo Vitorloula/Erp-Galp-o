@@ -8,6 +8,7 @@ import { useAuth } from '../contexto/Auth'
 import { useAtiva } from '../contexto/Empresa'
 import { sessao } from '../lib/dados'
 import { NOME_PAPEL } from '../lib/permissoes'
+import { FISCAL_ATIVO } from '../lib/recursos'
 
 function Item({ para, icone: Icone, titulo, texto }: { para: string; icone: LucideIcon; titulo: string; texto: string }) {
   return (
@@ -55,7 +56,7 @@ export function Mais() {
 
       <div className="cartao divide-y divide-slate-100 overflow-hidden">
         <Item para="/vendas" icone={Banknote} titulo="Vendas" texto="Vendas dos caixas e fechamentos" />
-        <Item para="/fiscal" icone={Receipt} titulo="Conferência fiscal" texto="Decidir o que emitir e fechar o dia sem nota" />
+        {FISCAL_ATIVO && <Item para="/fiscal" icone={Receipt} titulo="Conferência fiscal" texto="Decidir o que emitir e fechar o dia sem nota" />}
         <Item para="/os" icone={Wrench} titulo="Serviços" texto="Ordens de serviço: recebimento, orçamento e entrega" />
         {pode.verDivergencias && <Item para="/divergencias" icone={AlertOctagon} titulo="Divergências" texto="O que os caixas registraram sem internet e precisa de conferência" />}
         <Item para="/produtos" icone={Package} titulo="Produtos" texto="Cadastro, códigos de barras, preços e lotes" />

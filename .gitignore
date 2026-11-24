@@ -23,3 +23,12 @@ __pycache__/
 
 # Estado temporário local do Supabase CLI.
 supabase/.temp/
+
+# Cache/temp do Wrangler (Worker)
+worker/.wrangler/
+.wrangler/
+
+# Segredos do Worker (Cloudflare) e frontend. Nunca versionar.
+worker/.dev.vars
+.dev.vars
+.env

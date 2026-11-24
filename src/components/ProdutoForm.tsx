@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useDados } from '../contexto/Dados'
 import { useAtiva } from '../contexto/Empresa'
 import { catalogo } from '../lib/dados'
+import { FISCAL_ATIVO } from '../lib/recursos'
 import { UNIDADES, canonizarCodigo, exibirCodigo, lerNumero } from '../lib/formato'
 import type { CodigoProduto, Produto, ProdutoDados } from '../lib/tipos'
 import { NavegacaoEtapas, Passos } from './Etapas'
@@ -38,7 +39,7 @@ const ETAPAS_PRODUTO: { id: EtapaProduto; rotulo: string }[] = [
   { id: 'dados', rotulo: 'Dados' },
   { id: 'precos', rotulo: 'Preços' },
   { id: 'estoque', rotulo: 'Estoque' },
-  { id: 'fiscal', rotulo: 'Fiscal' },
+  ...(FISCAL_ATIVO ? [{ id: 'fiscal' as EtapaProduto, rotulo: 'Fiscal' }] : []),
 ]
 
 /** Primeiro campo de cada etapa, para o foco acompanhar a navegação. */
@@ -211,7 +212,7 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
   /** A última etapa salva; as anteriores validam e avançam (Enter também avança). */
   function enviar(e: React.FormEvent) {
     e.preventDefault()
-    if (etapa === 'fiscal') return void salvar()
+    if (FISCAL_ATIVO && etapa === 'fiscal') return void salvar()
     avancar()
   }
 
@@ -224,7 +225,7 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
       rodape={
         <NavegacaoEtapas
           primeira={etapa === 'dados'}
-          ultima={etapa === 'fiscal'}
+          ultima={etapa === (FISCAL_ATIVO ? 'fiscal' : 'estoque')}
           salvando={salvando}
           rotuloFinal="Salvar"
           aoCancelar={aoFechar}
@@ -453,7 +454,7 @@ function Formulario({ aoFechar, produto, codigoInicial, aoSalvar }: Props) {
           </div>
         )}
 
-        {etapa === 'fiscal' && (
+        {FISCAL_ATIVO && etapa === 'fiscal' && (
           <div className="space-y-3 rounded-xl border border-slate-200 p-3">
             <p className="text-sm font-semibold text-slate-800">Fiscal (NFC-e) — opcional</p>
             <div className="grid grid-cols-2 gap-3">

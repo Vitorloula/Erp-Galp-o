@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   ShoppingCart,
   Store,
+  MessageCircle,
   Users,
   WifiOff,
   Wrench,
@@ -39,6 +40,7 @@ import { formatarData } from '../lib/formato'
 import { configurarMonitoramento } from '../lib/monitoramento'
 import { adminSouAdmin } from '../lib/admin/cliente'
 import { NOME_PAPEL } from '../lib/permissoes'
+import { FISCAL_ATIVO, WHATSAPP_ATIVO } from '../lib/recursos'
 import type { Vinculo } from '../lib/tipos'
 import { Avatar } from './Avatar'
 import { Aviso, Modal, cx } from './ui'
@@ -150,7 +152,7 @@ export function Layout() {
   const menu: ItemMenu[] = [
     { para: '/painel', rotulo: 'Visão geral', icone: LayoutDashboard },
     { para: '/vendas', rotulo: 'Vendas e caixa', icone: Banknote },
-    { para: '/fiscal', rotulo: 'Conferência fiscal', icone: Receipt },
+    ...(FISCAL_ATIVO ? [{ para: '/fiscal', rotulo: 'Conferência fiscal', icone: Receipt }] : []),
     { para: '/os', rotulo: 'Serviços', icone: Wrench },
     { para: '/produtos', rotulo: 'Produtos', icone: Package },
     { para: '/estoque', rotulo: 'Estoque', icone: Boxes },
@@ -160,7 +162,7 @@ export function Layout() {
     { para: '/relatorios', rotulo: 'Relatórios', icone: FileSpreadsheet },
     ...(pode.movimentar ? [{ para: '/inventario', rotulo: 'Inventário', icone: ClipboardList }] : []),
     ...(pode.convidar || pode.gerenciarEquipe ? [{ para: '/equipe', rotulo: 'Equipe', icone: Users }] : []),
-    { para: '/empresa', rotulo: 'Empresa', icone: Building2 },
+    ...(WHATSAPP_ATIVO ? [{ para: '/whatsapp', rotulo: 'Atendimento WhatsApp', icone: MessageCircle }] : []),
     ...(ehAdmin ? [{ para: '/admin', rotulo: 'Painel da plataforma', icone: ShieldCheck }] : []),
   ]
   const variasLojas = (lojas?.length ?? 0) > 1

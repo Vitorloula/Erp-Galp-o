@@ -1,0 +1,21 @@
+name = "erp-galpao-whatsapp"
+main = "src/index.ts"
+compatibility_date = "2026-03-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENV = "dev"
+
+[[queues.producers]]
+queue = "whatsapp-in"
+binding = "FILA"
+
+[[queues.consumers]]
+queue = "whatsapp-in"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 3
+dead_letter_queue = "whatsapp-dlq"
+
+[observability]
+enabled = true

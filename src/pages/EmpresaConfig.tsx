@@ -9,6 +9,7 @@ import type { Caixa } from '../lib/dados/vendas'
 import { REGIMES, VIGENCIA_PADRAO, nomeRegime, type Crt } from '../lib/fiscal'
 import { formatarData } from '../lib/formato'
 import { NOME_PAPEL } from '../lib/permissoes'
+import { FISCAL_ATIVO } from '../lib/recursos'
 import { baixarArquivo } from '../lib/relatorio'
 import type { ConfigEmpresa, DadosEmpresa, Loja, Vinculo } from '../lib/tipos'
 import { SEGMENTOS } from './BoasVindas'
@@ -202,6 +203,7 @@ export function EmpresaConfig() {
         )}
       </section>
 
+{FISCAL_ATIVO && (
       <FiscalLoja
         lojas={todasLojas}
         aoSalvar={async () => {
@@ -209,6 +211,7 @@ export function EmpresaConfig() {
           await recarregar()
         }}
       />
+      )}
 
       <Caixas lojas={todasLojas} />
 

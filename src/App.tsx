@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from './contexto/Auth'
 import { DadosProvider } from './contexto/Dados'
 import { EmpresaProvider, useEmpresa } from './contexto/Empresa'
 import { configurado } from './lib/dados'
+import { FISCAL_ATIVO, WHATSAPP_ATIVO } from './lib/recursos'
 import { lazy } from 'react'
 import { adminSouAdmin } from './lib/admin/cliente'
 import { BoasVindas } from './pages/BoasVindas'
@@ -22,6 +23,7 @@ import { Divergencias } from './pages/Divergencias'
 import { Equipe } from './pages/Equipe'
 import { Estoque } from './pages/Estoque'
 import { Fiscal } from './pages/Fiscal'
+import { WhatsappConversas } from './pages/WhatsappConversas'
 import { Historico } from './pages/Historico'
 import { Inventario } from './pages/Inventario'
 import { Login, NovaSenha } from './pages/Login'
@@ -82,7 +84,8 @@ function Retaguarda({ chave }: { chave: string }) {
           <Route path="/empresa" element={<EmpresaConfig />} />
           <Route path="/empresas/nova" element={<BoasVindas dentroDoSistema />} />
           <Route path="/vendas" element={<Vendas />} />
-          <Route path="/fiscal" element={<Fiscal />} />
+          <Route path="/fiscal" element={FISCAL_ATIVO ? <Fiscal /> : <Navigate to="/painel" replace />} />
+{WHATSAPP_ATIVO && <Route path="/whatsapp" element={<WhatsappConversas />} />}
           <Route path="/divergencias" element={<Divergencias />} />
           <Route path="/os" element={<Servicos />} />
           <Route path="/os/nova" element={<ServicosRecebimento />} />
