@@ -71,6 +71,7 @@ export async function removerCanal(canalId: string): Promise<void> {
   const { error } = await sb.from('canais_whatsapp').delete().eq('id', canalId)
   if (error) throw traduzirErro(error)
 }
+
 export async function listarCanais(empresaId: string): Promise<CanalWhatsapp[]> {
   const { data, error } = await sb
     .from('canais_whatsapp')
@@ -89,6 +90,98 @@ export async function listarCanais(empresaId: string): Promise<CanalWhatsapp[]> 
   }))
 }
 
+export interface ResumoUso {
+  dias: { dia: string; in: number; out: number; tokens: number; custo: number; pedidos: number }[]
+  totais: { in: number; out: number; tokens: number; custo: number; pedidos: number; conversas: number; bot: number; humano: number; encerrada: number }
+  topSemResposta: string[]
+}
+
+export async function resumoUso(empresaId: string, lojaId?: string, dias = 30): Promise<ResumoUso> {
+  const desde = new Date()
+  desde.setDate(desde.getDate() - (dias - 1))
+  desde.setHours(0, 0, 0, 0)
+  const desdeIso = desde.toISOString()
+
+  const canais = await listarCanais(empresaId)
+  const canalIds = (lojaId ? canais.filter(c => c.loja_id === lojaId) : canais).map(c => c.id)
+  if (!canalIds.length) {
+    return { dias: [], totais: { in: 0, out: 0, tokens: 0, custo: 0, pedidos: 0, conversas: 0, bot: 0, humano: 0, encerrada: 0 }, topSemResposta: [] }
+  }
+
+  // conversas dos canais
+  const { data: convs } = await sb.from('whatsapp_conversas').select('id, estado, canal_id').in('canal_id', canalIds)
+  const convList = (convs ?? []) as Record<string, unknown>[]
+  const convIds = convList.map(c => String(c.id))
+
+  // mensagens
+  let msgs: Record<string, unknown>[] = []
+  if (convIds.length) {
+    const { data } = await sb.from('whatsapp_mensagens').select('conversa_id, direcao, texto, tokens_entrada, tokens_saida, custo_usd, criado_em').in('conversa_id', convIds).gte('criado_em', desdeIso)
+    msgs = (data ?? []) as Record<string, unknown>[]
+  }
+
+  // pedidos whatsapp da loja/empresa
+  let q = sb.from('pedidos').select('id, criado_em').eq('empresa_id', empresaId).eq('origem', 'whatsapp').gte('criado_em', desdeIso)
+  if (lojaId) q = q.eq('loja_id', lojaId)
+  const { data: peds } = await q
+  const pedidos = (peds ?? []) as Record<string, unknown>[]
+
+  // agrupa por dia
+  const mapa = new Map<string, { in: number; out: number; tokens: number; custo: number; pedidos: number }>()
+  for (let i = 0; i < dias; i++) {
+    const d = new Date(desde)
+    d.setDate(d.getDate() + i)
+    const key = d.toISOString().slice(0, 10)
+    mapa.set(key, { in: 0, out: 0, tokens: 0, custo: 0, pedidos: 0 })
+  }
+  for (const m of msgs) {
+    const key = String(m.criado_em).slice(0, 10)
+    if (!mapa.has(key)) continue
+    const b = mapa.get(key)!
+    if (m.direcao === 'in') b.in++
+    else b.out++
+    b.tokens += Number(m.tokens_entrada ?? 0) + Number(m.tokens_saida ?? 0)
+    b.custo += Number(m.custo_usd ?? 0)
+  }
+  for (const p of pedidos) {
+    const key = String(p.criado_em).slice(0, 10)
+    if (mapa.has(key)) mapa.get(key)!.pedidos++
+  }
+
+  const diasArr = [...mapa.entries()].map(([dia, v]) => ({ dia, ...v }))
+
+  const totais = diasArr.reduce((a, d) => ({
+    in: a.in + d.in, out: a.out + d.out, tokens: a.tokens + d.tokens,
+    custo: a.custo + d.custo, pedidos: a.pedidos + d.pedidos,
+    conversas: convList.length,
+    bot: convList.filter(c => c.estado === 'bot').length,
+    humano: convList.filter(c => c.estado === 'humano').length,
+    encerrada: convList.filter(c => c.estado === 'encerrada').length,
+  }), { in: 0, out: 0, tokens: 0, custo: 0, pedidos: 0, conversas: convList.length, bot: convList.filter(c => c.estado === 'bot').length, humano: convList.filter(c => c.estado === 'humano').length, encerrada: convList.filter(c => c.estado === 'encerrada').length })
+
+  // top perguntas sem resposta: in seguida de out contendo "atendente" ou "não consegui"
+  const porConversa = new Map<string, Record<string, unknown>[]>()
+  for (const m of msgs) {
+    const cid = String(m.conversa_id)
+    if (!porConversa.has(cid)) porConversa.set(cid, [])
+    porConversa.get(cid)!.push(m)
+  }
+  const semResposta: string[] = []
+  for (const arr of porConversa.values()) {
+    arr.sort((a, b) => String(a.criado_em).localeCompare(String(b.criado_em)))
+    for (let i = 0; i < arr.length; i++) {
+      const m = arr[i]
+      if (m.direcao !== 'in') continue
+      const prox = arr[i + 1]
+      const textoOut = prox && prox.direcao === 'out' ? String(prox.texto ?? '') : ''
+      if (/atendente|não consegui|nao consegui/i.test(textoOut)) {
+        semResposta.push(String(m.texto ?? ''))
+      }
+    }
+  }
+
+  return { dias: diasArr, totais, topSemResposta: semResposta.slice(0, 10) }
+}
 export async function listarConversas(empresaId: string, lojaId?: string): Promise<ConversaWhatsapp[]> {
   let q = sb
     .from('whatsapp_conversas')

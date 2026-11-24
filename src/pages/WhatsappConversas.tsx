@@ -98,7 +98,8 @@ export function WhatsappConversas() {
         subtitulo="Acompanhe o atendimento e assuma quando precisar."
         acoes={
           <div className="flex gap-2">
-            <Link to="/whatsapp/conectar" className="btn btn-fantasma btn-pequeno">Conectar número</Link>
+            <Link to="/whatsapp/conectar" className="btn btn-fantasma btn-pequeno">Conectar</Link>
+            <Link to="/whatsapp/uso" className="btn btn-fantasma btn-pequeno">Uso e custo</Link>
             <button type="button" className="btn btn-fantasma" onClick={carregar} disabled={ocupado}>
               <RefreshCw className="size-4" /> Atualizar
             </button>

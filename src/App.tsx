@@ -25,6 +25,7 @@ import { Estoque } from './pages/Estoque'
 import { Fiscal } from './pages/Fiscal'
 import { WhatsappConectar } from './pages/WhatsappConectar'
 import { WhatsappConversas } from './pages/WhatsappConversas'
+import { WhatsappUso } from './pages/WhatsappUso'
 import { Historico } from './pages/Historico'
 import { Inventario } from './pages/Inventario'
 import { Login, NovaSenha } from './pages/Login'
@@ -88,6 +89,7 @@ function Retaguarda({ chave }: { chave: string }) {
           <Route path="/fiscal" element={FISCAL_ATIVO ? <Fiscal /> : <Navigate to="/painel" replace />} />
 {WHATSAPP_ATIVO && <Route path="/whatsapp" element={<WhatsappConversas />} />}
 {WHATSAPP_ATIVO && <Route path="/whatsapp/conectar" element={<WhatsappConectar />} />}
+{WHATSAPP_ATIVO && <Route path="/whatsapp/uso" element={<WhatsappUso />} />}
           <Route path="/divergencias" element={<Divergencias />} />
           <Route path="/os" element={<Servicos />} />
           <Route path="/os/nova" element={<ServicosRecebimento />} />
